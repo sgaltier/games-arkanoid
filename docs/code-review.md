@@ -13,9 +13,10 @@ ordered by severity within each group. Each carries an effort estimate (S / M / 
 | Date | Items | Note |
 |---|---|---|
 | 2026-08-12 | **#1, #2, #3 — ✅ fixed** | Document structure, `localStorage` guard, stuck-key fix |
+| 2026-08-12 | **#4, #5, #6 — ✅ fixed** | Pause-aware effect timers, auto-pause on hide/blur, Space reaches focused buttons |
 
-Remaining: 29 open items. **Line references below were re-anchored to the post-fix file** — the three
-fixes shifted the source by 6–26 lines depending on region.
+Remaining: 26 open items. **Line references below are re-anchored after each round of fixes** — they
+are only valid against the current `arkanoid.html`.
 
 ---
 
@@ -25,7 +26,7 @@ fixes shifted the source by 6–26 lines depending on region.
 > **Fixed 2026-08-12.** The file now opens with `<!doctype html>` / `<html lang="fr">` and a real
 > `<head>` carrying `<meta charset="utf-8">`, a viewport meta, and a `<title>`, with the markup
 > wrapped in `<body>` — see [arkanoid.html:1–7](../arkanoid.html#L1-L7),
-> [:371–372](../arkanoid.html#L371-L372), [:1149–1150](../arkanoid.html#L1149-L1150).
+> [:371–372](../arkanoid.html#L371-L372), [:1188–1189](../arkanoid.html#L1188-L1189).
 
 The file previously began directly with `<style>`, with no doctype, `<html>`, `<head>`, `<title>`,
 charset, viewport, or `lang` attribute. Two real consequences:
@@ -39,9 +40,9 @@ charset, viewport, or `lang` attribute. Two real consequences:
 
 ### 2. ✅ FIXED — `localStorage` access was unguarded, one throw killed the entire game (S)
 > **Fixed 2026-08-12.** Reads and writes now go through `loadBest()` / `saveBest()`
-> ([:553–564](../arkanoid.html#L553-L564)), both wrapped in `try/catch`, with the best score
+> ([:553–568](../arkanoid.html#L553-L568)), both wrapped in `try/catch`, with the best score
 > degrading to in-memory only. Call sites: [:570](../arkanoid.html#L570),
-> [:972](../arkanoid.html#L972).
+> [:1011](../arkanoid.html#L1011).
 
 `localStorage.getItem(BEST_KEY)` was read at IIFE top level while constructing `state`. In Safari
 private browsing, with cookies/site-data disabled, or in some sandboxed `file://` contexts,
@@ -50,51 +51,66 @@ error visible to the player.
 
 ### 3. ✅ FIXED — Held keys stuck when the window lost focus (S)
 > **Fixed 2026-08-12.** A `blur` handler now clears every held key —
-> [:673–676](../arkanoid.html#L673-L676).
+> [:681–687](../arkanoid.html#L681-L687).
 
-`keydown` sets `state.keys[e.code] = true` [:663](../arkanoid.html#L663) and only `keyup` cleared it
-[:672](../arkanoid.html#L672). Alt-tabbing (or hitting a browser shortcut) while holding <kbd>→</kbd>
+`keydown` sets `state.keys[e.code] = true` [:671](../arkanoid.html#L671) and only `keyup` cleared it
+[:680](../arkanoid.html#L680). Alt-tabbing (or hitting a browser shortcut) while holding <kbd>→</kbd>
 meant the `keyup` was never delivered — on return the paddle slid into the wall and stayed pinned
 until the key was pressed and released again.
 
-### 4. Power-up timers keep running while the game is paused (S)
-`widthEffect` / `speedEffect` store an absolute `until` timestamp from `performance.now()`
-([:802–805](../arkanoid.html#L802-L805)) and are compared against the rAF `now` in `updateEffects`
-([:796–797](../arkanoid.html#L796-L797)). Pausing for 20 seconds silently burns a 10-second "widen".
+### 4. ✅ FIXED — Power-up timers kept running while the game was paused (S)
+> **Fixed 2026-08-12.** Effects now carry a `remaining` duration in seconds instead of an absolute
+> `until` deadline, and `updateEffects(dt)` decrements it from the frame delta — which the loop only
+> feeds while the phase is `playing`. See [:826–838](../arkanoid.html#L826-L838),
+> [:841–844](../arkanoid.html#L841-L844), and the call site at [:1166](../arkanoid.html#L1166).
+> Verified: a `widen` survives a 30-second pause intact, then expires after its full 10 seconds of
+> actual play.
 
-Fix: track remaining duration and decrement by `dt` only while playing, or offset `until` by the
-paused interval on resume.
+`widthEffect` / `speedEffect` stored an absolute `until` timestamp from `performance.now()` and were
+compared against the rAF `now`. Pausing for 20 seconds silently burned a 10-second "widen". Counting
+in accumulated play time also makes the timers immune to tab-throttling and clock adjustments.
 
-### 5. Game does not auto-pause when the tab is hidden or the window blurs (S)
-There is no `visibilitychange` handler. `requestAnimationFrame` throttles in a background tab, and
-`dt` is clamped to 33 ms [:1120](../arkanoid.html#L1120), so the game doesn't *jump* — but it stays in
-the `playing` phase, so power-up timers keep expiring (see #4) and returning to the tab drops you
+### 5. ✅ FIXED — Game did not auto-pause when the tab was hidden or the window blurred (S)
+> **Fixed 2026-08-12.** `autoPause()` ([:689–697](../arkanoid.html#L689-L697)) pauses whenever the
+> phase is `playing`, wired to both `visibilitychange` and the existing `blur` handler from #3
+> ([:684–687](../arkanoid.html#L684-L687)). It deliberately only fires *on* hide/blur, never on
+> return, so the player resumes explicitly.
+
+There was no `visibilitychange` handler. `requestAnimationFrame` throttles in a background tab, and
+`dt` is clamped to 33 ms [:1159](../arkanoid.html#L1159), so the game didn't *jump* — but it stayed in
+the `playing` phase, so power-up timers kept expiring (see #4) and returning to the tab dropped you
 straight back into live play with no warm-up.
 
-Fix: on `visibilitychange`/`blur`, if phase is `playing`, call `togglePause()`. The `blur` listener
-added for #3 is the natural place to hang this.
+### 6. ✅ FIXED — `e.preventDefault()` on Space blocked button activation (S)
+> **Fixed 2026-08-12.** The Space branch is now guarded by `isButtonFocused()`
+> ([:662–668](../arkanoid.html#L662-L668), used at [:677](../arkanoid.html#L677)): when a `<button>`
+> holds focus the key is handed back to the browser, so it activates the button instead of launching
+> the ball.
+>
+> This needed a companion fix. The deck's pause/mute buttons stay on screen and keep focus after a
+> mouse click, so the guard alone would have made Space toggle pause instead of launching. A
+> `blurIfPointerClick` helper ([:765–770](../arkanoid.html#L765-L770)) drops focus after pointer
+> clicks only — keyboard activation (`detail === 0`) keeps it, so tab-order navigation is unharmed.
 
-### 6. `e.preventDefault()` on Space blocks button activation (S)
-[:669](../arkanoid.html#L669) unconditionally prevents the default for `Space`. That's correct for
-stopping page scroll, but it also prevents Space from activating a keyboard-focused `.btn` — so a
-keyboard-only player who tabs to "Rejouer" cannot press it with Space (Enter still works).
-
-Fix: skip `preventDefault` when `document.activeElement` is a button, or scope the key handling.
+Space was unconditionally `preventDefault`ed. Correct for stopping page scroll, but it also prevented
+Space from activating a keyboard-focused `.btn` — a keyboard-only player who tabbed to "Rejouer" could
+not press it with Space (Enter still worked).
 
 ### 7. Arrow keys scroll the page (S)
 `ArrowLeft`/`ArrowRight` are read but never `preventDefault`ed. On a narrow viewport where the cabinet
 overflows, steering the paddle also scrolls the document under it.
 
-Fix: `preventDefault` for the four movement codes.
+Fix: `preventDefault` for the four movement codes. The `isButtonFocused()` guard added for #6 is the
+pattern to follow.
 
 ### 8. `mousedown` launches the ball on any button, including right-click (S)
-[:683](../arkanoid.html#L683) — `canvas.addEventListener("mousedown", handleLaunchOrResume)` with no
+[:704](../arkanoid.html#L704) — `canvas.addEventListener("mousedown", handleLaunchOrResume)` with no
 `e.button` check. Right-clicking or middle-clicking to open a context menu launches the ball.
 
 Fix: guard on `e.button === 0`.
 
 ### 9. Ball–paddle collision teleports the ball on side hits (M)
-[:910–917](../arkanoid.html#L910-L917) — any `circleRectCollide` with `dy > 0` snaps
+[:949–956](../arkanoid.html#L949-L956) — any `circleRectCollide` with `dy > 0` snaps
 `ball.y = pr.y - ball.r - 0.5`, i.e. on top of the paddle. A ball clipping the paddle's *side* while
 descending past it gets warped upward and re-served, which reads as a phantom save. The same code has
 no relative-velocity term, so a fast-moving paddle doesn't impart any spin.
@@ -103,7 +119,7 @@ Fix: only treat it as a top-face hit when the ball's previous `y` was above the 
 resolve as a side hit. Optionally add paddle velocity into the outgoing angle.
 
 ### 10. Only one brick collision is resolved per ball per frame, chosen by array order (M)
-[:921–929](../arkanoid.html#L921-L929) breaks after the first overlapping brick. Bricks are stored
+[:960–968](../arkanoid.html#L960-L968) breaks after the first overlapping brick. Bricks are stored
 top-row-first, so when a ball overlaps two adjacent bricks in a corner, it always bounces off the
 *upper* one regardless of which face it actually struck. Visible as occasional wrong-direction
 ricochets in the dense levels 4–5.
@@ -111,19 +127,19 @@ ricochets in the dense levels 4–5.
 Fix: collect all overlaps, resolve against the one with the smallest penetration.
 
 ### 11. Drop hitbox (8 px) doesn't match the drawn capsule (10 px) (S)
-`updateDrops` tests `± 8` [:829–830](../arkanoid.html#L829-L830); `drawDrops` renders `arc(0,0,10,…)`
-[:1084](../arkanoid.html#L1084). Power-ups visually clip the paddle without being collected.
+`updateDrops` tests `± 8` [:868–869](../arkanoid.html#L868-L869); `drawDrops` renders `arc(0,0,10,…)`
+[:1123](../arkanoid.html#L1123). Power-ups visually clip the paddle without being collected.
 
 ### 12. Multi-ball can spawn balls aimed straight down (S)
-[:812](../arkanoid.html#L812) — the clone angle is `atan2(base.dy, base.dx) ± 0.6`. If the source ball
+[:851](../arkanoid.html#L851) — the clone angle is `atan2(base.dy, base.dx) ± 0.6`. If the source ball
 is descending, both clones are also descending and are usually lost within a second, making "M" feel
 like a dud.
 
 Fix: bias clone angles upward, or spread them symmetrically around the horizontal.
 
 ### 13. Best score is only persisted at game over (S)
-`endGame` [:969–973](../arkanoid.html#L969-L973) is the only caller of `saveBest()`. Closing the tab
-mid-run — including after clearing four levels — loses the score entirely.
+`endGame` [:1008–1012](../arkanoid.html#L1008-L1012) is the only caller of `saveBest()`. Closing the
+tab mid-run — including after clearing four levels — loses the score entirely.
 
 Fix: call `saveBest()` (added in #2) whenever `state.score > state.best`, e.g. on level clear.
 
@@ -132,19 +148,19 @@ Fix: call `saveBest()` (added in #2) whenever `state.score > state.best`, e.g. o
 ## B. Performance
 
 ### 14. `getComputedStyle(document.body)` called per drop, per frame (S)
-[:1087](../arkanoid.html#L1087), inside the `drawDrops` loop. This forces a synchronous style
+[:1126](../arkanoid.html#L1126), inside the `drawDrops` loop. This forces a synchronous style
 recalculation every frame for every falling power-up — the single most expensive line in the render path.
 
 Fix: hoist the font string to a module-level constant.
 
 ### 15. `updateHud()` writes four DOM nodes every frame (S)
-Called unconditionally at [:1132](../arkanoid.html#L1132) in addition to the event-driven calls in
+Called unconditionally at [:1171](../arkanoid.html#L1171) in addition to the event-driven calls in
 `brickHit`, `applyPowerup`, and `loseLife`. 240 needless `textContent` assignments per second.
 
 Fix: drop the per-frame call, or guard each write behind a changed-value check.
 
 ### 16. `checkLevelClear()` scans the full brick array every frame (S)
-[:953–956](../arkanoid.html#L953-L956) runs `.some()` over up to 80 bricks each frame. Cheap in
+[:992–996](../arkanoid.html#L992-L996) runs `.some()` over up to 80 bricks each frame. Cheap in
 absolute terms, but trivially replaceable with a `remainingBricks` counter decremented in `brickHit`.
 
 ### 17. Canvas backing store is sized from DPR only, ignoring displayed size (S)
@@ -158,31 +174,31 @@ Fix: derive the multiplier from `getBoundingClientRect().width` as well as DPR.
 ## C. Code quality / structure
 
 ### 18. Phase transitions bypass `setPhase()` in three places (S)
-`setPhase` [:730](../arkanoid.html#L730) is the intended single entry point, but `togglePause`
-[:714](../arkanoid.html#L714), `checkLevelClear` [:961](../arkanoid.html#L961), and `endGame`
-[:976](../arkanoid.html#L976) each assign `state.phase` *and* call `showOverlay` directly. That's the
+`setPhase` [:751](../arkanoid.html#L751) is the intended single entry point, but `togglePause`
+[:734](../arkanoid.html#L734), `checkLevelClear` [:1000](../arkanoid.html#L1000), and `endGame`
+[:1015](../arkanoid.html#L1015) each assign `state.phase` *and* call `showOverlay` directly. That's the
 kind of duplication that causes an overlay/phase desync the first time someone adds a state.
 
 Fix: route every transition through `setPhase`, and let it own the overlay mapping.
 
 ### 19. Dead/redundant code (S)
-- `state.paddle.w` [:577](../arkanoid.html#L577) is assigned in `updatePaddle` [:783](../arkanoid.html#L783)
+- `state.paddle.w` [:577](../arkanoid.html#L577) is assigned in `updatePaddle` [:814](../arkanoid.html#L814)
   but never read — every draw/collision path calls `paddleWidth()` instead.
 - The `updateHud(); drawBackground(); drawBricks(); drawPaddle();` block at
-  [:1141–1144](../arkanoid.html#L1141-L1144) is redundant; the rAF loop paints the same frame ~16 ms later.
-- `updateBalls(dt, now)` [:892](../arkanoid.html#L892) never uses `now`.
+  [:1180–1183](../arkanoid.html#L1180-L1183) is redundant; the rAF loop paints the same frame ~16 ms later.
+- `updateBalls(dt, now)` [:931](../arkanoid.html#L931) never uses `now`.
 
 ### 20. No `AudioContext` resume, and the mute state isn't persisted (S)
-`beep` [:761](../arkanoid.html#L761) lazily constructs the context but never calls `actx.resume()`. If
+`beep` [:792](../arkanoid.html#L792) lazily constructs the context but never calls `actx.resume()`. If
 the context is ever created outside a user gesture it starts `suspended` and the game is silently mute
 for the rest of the session. Separately, `state.muted` isn't saved, so the setting resets on every
-reload — the guarded storage helpers from #2 ([:553–564](../arkanoid.html#L553-L564)) generalise to
+reload — the guarded storage helpers from #2 ([:553–568](../arkanoid.html#L553-L568)) generalise to
 cover this.
 
 ### 21. Extract a `config` block (M)
-Magic numbers are scattered through the file: drop fall speed `130` [:827](../arkanoid.html#L827), particle
-gravity `260` [:846](../arkanoid.html#L846), effect durations `10000`/`8000` [:802–805](../arkanoid.html#L802-L805),
-multipliers `1.6`/`0.6`/`0.7`/`1.4`, ball-cap `5`, paddle bounce spread `1.05` [:913](../arkanoid.html#L913).
+Magic numbers are scattered through the file: drop fall speed `130` [:866](../arkanoid.html#L866), particle
+gravity `260` [:885](../arkanoid.html#L885), effect durations `10`/`8` seconds [:841–844](../arkanoid.html#L841-L844),
+multipliers `1.6`/`0.6`/`0.7`/`1.4`, ball-cap `5`, paddle bounce spread `1.05` [:952](../arkanoid.html#L952).
 Collecting these into one `CONFIG` object makes the game tunable without hunting through the logic.
 
 ---
@@ -196,10 +212,11 @@ Fix: `role="status"` / `aria-live="polite"` on the overlay container, and `aria-
 `.show`.
 
 ### 23. Toggle buttons don't reflect their state (S)
-The mute button swaps its emoji [:754](../arkanoid.html#L754) but keeps `aria-label="Couper le son"`
+The mute button swaps its emoji [:785](../arkanoid.html#L785) but keeps `aria-label="Couper le son"`
 [:453](../arkanoid.html#L453) forever. The pause button [:452](../arkanoid.html#L452) never changes at all.
 
-Fix: `aria-pressed` plus a label that tracks state on both.
+Fix: `aria-pressed` plus a label that tracks state on both. Note that #6 added click wrappers on both
+of these buttons, so the label update has an obvious home.
 
 ### 24. Canvas has no accessible fallback (S)
 `<canvas>` [:401](../arkanoid.html#L401) has an `aria-label` but empty inner content and no live text
@@ -215,14 +232,16 @@ glow are unaffected. Consider reading the media query in JS and reducing `burst(
 ## E. Gameplay / UX enhancements
 
 ### 26. No keyboard path out of the game-over / victory screens (S)
-`handleLaunchOrResume` [:698](../arkanoid.html#L698) only handles `ready` and `paused`. From `gameover`,
+`handleLaunchOrResume` [:719](../arkanoid.html#L719) only handles `ready` and `paused`. From `gameover`,
 `victory`, `levelclear`, or the initial `start` screen, Space does nothing — the player must reach for
 the mouse.
 
-Fix: make Space/Enter activate the primary button of whatever overlay is showing.
+Fix: make Space/Enter activate the primary button of whatever overlay is showing. Interacts with #6 —
+the `isButtonFocused()` guard already yields Space to a focused button, so this is about giving the
+overlay's primary button focus when it appears.
 
 ### 27. Touch: the first tap both aims and launches (S)
-`touchstart` [:684–690](../arkanoid.html#L684-L690) sets `pointerX` and immediately calls
+`touchstart` [:705–711](../arkanoid.html#L705-L711) sets `pointerX` and immediately calls
 `handleLaunchOrResume`. On mobile you cannot position the paddle before serving — the ball launches
 from wherever your finger first landed. Also, the finger sits directly on the paddle, occluding it.
 
@@ -239,13 +258,14 @@ consecutive brick hits without a paddle touch, would add a lot of feel for modes
 ### 30. Suggested additional power-ups (M)
 The current six are solid. Natural additions given the existing architecture: **sticky paddle** (ball
 re-attaches, aim the next shot) and **laser** (fire upward on Space). Both slot into `POWERUPS`
-[:528–535](../arkanoid.html#L528-L535) and `applyPowerup` [:800](../arkanoid.html#L800).
+[:528–535](../arkanoid.html#L528-L535) and `applyPowerup` [:840](../arkanoid.html#L840).
 
 ### 31. Active power-up timers are invisible (S)
-The paddle changes colour for width effects [:1044](../arkanoid.html#L1044), but there is no indication
+The paddle changes colour for width effects [:1082](../arkanoid.html#L1082), but there is no indication
 of *how long* an effect lasts, and speed effects have no visual at all.
 
-Fix: a thin depleting bar under the HUD, or a shrinking ring on the paddle.
+Fix: a thin depleting bar under the HUD, or a shrinking ring on the paddle. Cheap now that #4 stores a
+`remaining` duration — the bar is just `remaining / total`.
 
 ### 32. Only 5 levels, hand-authored (M)
 [:500–506](../arkanoid.html#L500-L506). Options: add more hand-authored layouts, or add a procedural
@@ -255,18 +275,20 @@ generator for endless mode past level 5.
 
 ## Verification
 
-There is no test infrastructure, so verification is manual. After any selected change:
+There is no test infrastructure in the repo, so verification is manual. After any selected change:
 
 1. Open `arkanoid.html` in a browser (both `file://` and via a local server — the two differ for
    items #1 and #2).
 2. Confirm accented French text renders correctly on both (`Détruisez`, `Prêt`, `Meilleur`).
 3. Full playthrough: start → launch → clear level 1 → level 2 → lose all lives → restart.
 4. Pause mid-effect, wait 15 s, resume — confirm the power-up survives (#4).
-5. Alt-tab while holding an arrow key, return — confirm the paddle stops (#3).
+5. Alt-tab while holding an arrow key, return — confirm the paddle stops and the game is paused (#3, #5).
 6. Test with DevTools device emulation for touch behaviour (#27) and DPR scaling (#17).
 7. Open DevTools Performance and confirm no per-frame style recalc from `drawDrops` (#14).
 8. Tab through the page with the keyboard only; confirm every overlay button is reachable and
-   activatable (#6, #26).
+   activatable with both Space and Enter (#6, #26).
 
-If several items are selected, implement in group order (A → E) so that structural fixes (#18) land
-before features that would otherwise duplicate the old pattern.
+Items #4–#6 were additionally checked with a throwaway headless harness that stubs the DOM, loads the
+real script, and drives `frame()` directly — 18 assertions covering timer suspension across a pause,
+both auto-pause triggers, and the Space/focus interaction. It is not committed; see the note in the
+project history if it needs recreating.

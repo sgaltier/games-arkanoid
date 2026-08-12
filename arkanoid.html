@@ -577,8 +577,8 @@ canvas {
     paddle: { x: GAME_W / 2 - 35, y: GAME_H - 34, w: 70, h: 12, baseW: 70, speed: 460 },
     keys: {},
     pointerX: null,
-    widthEffect: null,  // {mult, until}
-    speedEffect: null,  // {mult, until}
+    widthEffect: null,  // {mult, remaining} — remaining is in seconds of play
+    speedEffect: null,  // {mult, remaining}
     muted: false,
     lastTime: 0,
     baseBallSpeed: 250
@@ -659,6 +659,14 @@ canvas {
   // ---------------------------------------------------------------------
   // Input
   // ---------------------------------------------------------------------
+  // Space is normally swallowed to stop the page scrolling, but it is also how
+  // a keyboard user activates a focused button. When one has focus, hand the key
+  // back to the browser rather than launching the ball.
+  function isButtonFocused() {
+    var el = document.activeElement;
+    return !!el && el.tagName === "BUTTON";
+  }
+
   window.addEventListener("keydown", function (e) {
     state.keys[e.code] = true;
     // Pressing a movement key hands paddle control back to the keyboard,
@@ -666,14 +674,27 @@ canvas {
     if (e.code === "ArrowLeft" || e.code === "ArrowRight" || e.code === "KeyA" || e.code === "KeyD") {
       state.pointerX = null;
     }
-    if (e.code === "Space") { e.preventDefault(); handleLaunchOrResume(); }
+    if (e.code === "Space" && !isButtonFocused()) { e.preventDefault(); handleLaunchOrResume(); }
     if (e.code === "KeyP" || e.code === "Escape") togglePause();
   });
   window.addEventListener("keyup", function (e) { state.keys[e.code] = false; });
   // No keyup is delivered for a key still held when the window loses focus
   // (alt-tab, browser shortcut), which would leave the paddle pinned against a
   // wall on return. Drop every held key instead.
-  window.addEventListener("blur", function () { state.keys = {}; });
+  window.addEventListener("blur", function () {
+    state.keys = {};
+    autoPause();
+  });
+
+  // Backgrounding the tab or losing focus shouldn't leave a ball live: rAF is
+  // throttled while hidden, and coming back would drop the player straight into
+  // the action with no warm-up. Pausing also suspends the effect timers.
+  function autoPause() {
+    if (state.phase === "playing") togglePause();
+  }
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) autoPause();
+  });
 
   canvas.addEventListener("mousemove", function (e) {
     var p = pointerToLogical(e.clientX, e.clientY);
@@ -741,7 +762,16 @@ canvas {
 
   document.getElementById("btn-start").addEventListener("click", function () { newGame(); });
   document.getElementById("btn-resume").addEventListener("click", resume);
-  document.getElementById("btn-pause").addEventListener("click", togglePause);
+  // The deck buttons stay on screen, so a mouse click would leave one focused and
+  // it would then swallow the Space the player expects to launch with. Drop focus
+  // after pointer clicks only — `detail === 0` means keyboard, which must keep it.
+  function blurIfPointerClick(e) {
+    if (e.detail > 0) e.currentTarget.blur();
+  }
+  document.getElementById("btn-pause").addEventListener("click", function (e) {
+    blurIfPointerClick(e);
+    togglePause();
+  });
   document.getElementById("btn-next").addEventListener("click", function () {
     startLevel(state.levelIndex + 1);
   });
@@ -749,7 +779,8 @@ canvas {
   document.getElementById("btn-restart-win").addEventListener("click", newGame);
 
   var muteBtn = document.getElementById("btn-mute");
-  muteBtn.addEventListener("click", function () {
+  muteBtn.addEventListener("click", function (e) {
+    blurIfPointerClick(e);
     state.muted = !state.muted;
     muteBtn.innerHTML = state.muted ? "&#128263;" : "&#128266;";
   });
@@ -792,17 +823,25 @@ canvas {
     }
   }
 
-  function updateEffects(now) {
-    if (state.widthEffect && now > state.widthEffect.until) state.widthEffect = null;
-    if (state.speedEffect && now > state.speedEffect.until) state.speedEffect = null;
+  // Effects count down in accumulated play time rather than against a wall-clock
+  // deadline, so pausing (or backgrounding the tab) suspends them instead of
+  // silently burning through a 10-second bonus while nothing is moving.
+  function updateEffects(dt) {
+    if (state.widthEffect) {
+      state.widthEffect.remaining -= dt;
+      if (state.widthEffect.remaining <= 0) state.widthEffect = null;
+    }
+    if (state.speedEffect) {
+      state.speedEffect.remaining -= dt;
+      if (state.speedEffect.remaining <= 0) state.speedEffect = null;
+    }
   }
 
   function applyPowerup(p) {
-    var now = performance.now();
-    if (p.type === "widen") { state.widthEffect = { mult: 1.6, until: now + 10000 }; beep(880, 0.12, "triangle"); }
-    else if (p.type === "narrow") { state.widthEffect = { mult: 0.6, until: now + 8000 }; beep(180, 0.15, "sawtooth"); }
-    else if (p.type === "slow") { state.speedEffect = { mult: 0.7, until: now + 8000 }; beep(520, 0.12, "sine"); }
-    else if (p.type === "fast") { state.speedEffect = { mult: 1.4, until: now + 8000 }; beep(140, 0.15, "sawtooth"); }
+    if (p.type === "widen") { state.widthEffect = { mult: 1.6, remaining: 10 }; beep(880, 0.12, "triangle"); }
+    else if (p.type === "narrow") { state.widthEffect = { mult: 0.6, remaining: 8 }; beep(180, 0.15, "sawtooth"); }
+    else if (p.type === "slow") { state.speedEffect = { mult: 0.7, remaining: 8 }; beep(520, 0.12, "sine"); }
+    else if (p.type === "fast") { state.speedEffect = { mult: 1.4, remaining: 8 }; beep(140, 0.15, "sawtooth"); }
     else if (p.type === "life") { state.lives = Math.min(state.maxLives, state.lives + 1); beep(1040, 0.18, "triangle"); }
     else if (p.type === "multi") {
       beep(660, 0.12, "square");
@@ -1124,7 +1163,7 @@ canvas {
       updatePaddle(dt);
     }
     if (state.phase === "playing") {
-      updateEffects(now);
+      updateEffects(dt);
       updateBalls(dt, now);
       updateDrops(dt);
       updateParticles(dt);
