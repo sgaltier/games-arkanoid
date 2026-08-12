@@ -13,6 +13,70 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #4, #5, #6 | ✅ Fixed — 2026-08-12 (`3ab988f`) |
 | #7 – #32 | Open — 26 remaining |
 
+Findings #20 and #23 were partially advanced by the bilingual work below, but both remain open.
+
+---
+
+## 2026-08-12 — English and French
+
+The game is now bilingual. It picks a language on first load and offers a toggle to override that
+choice, which is remembered for next time.
+
+### Added
+
+**A language toggle in the marquee**
+A small segmented `FR`/`EN` pill sits to the right of the title, styled as quiet cabinet trim rather
+than as another neon element. The active language is marked with `aria-pressed`, so the control is
+usable and legible to assistive tech as a pair of toggle buttons. It survives the narrow-viewport
+breakpoint that hides the tagline.
+
+**Automatic language selection**
+On first load the game reads `navigator.languages` — the ordered list of languages the player's
+browser and OS are already configured for — and picks French if French appears anywhere in it,
+otherwise English. The list is respected in order, so a `de-DE, fr-FR` browser gets French.
+
+This is locale, not geography. Deciding by IP address would mean calling a third-party service on
+every load, which would break a file designed to run offline from `file://` with no dependencies, and
+the Geolocation API would raise a permission prompt out of all proportion to choosing a language.
+Locale is also the more accurate signal: it reflects what the player actually reads, not where they
+happen to be sitting.
+
+**The choice is remembered**
+Picking a language stores it, and a stored choice always wins over detection on subsequent loads.
+Storage failures are non-fatal — the selection simply lasts for the session, consistent with how the
+best score already behaves.
+
+### Changed
+
+**All display text now comes from a string table**
+Static text is tagged in the markup and swapped at runtime; interpolated text (scores, level numbers)
+is rebuilt from one function. Switching language mid-game re-renders whatever overlay is currently
+showing, so a paused or game-over screen updates immediately rather than waiting for the next state
+change.
+
+French typography is preserved rather than machine-copied: French keeps its space before a colon
+("Score : 420"), English does not ("Score: 420").
+
+**The mute button's label is now correct**
+Its accessible label previously read "Couper le son" permanently, including while already muted. It
+now tracks both the language and the on/off state. This is part of finding #23, which remains open
+for the rest (`aria-pressed`, and the pause button, still do not reflect state).
+
+**Storage helpers generalised**
+The guarded `localStorage` wrappers added earlier were specific to the best score; they are now
+generic `storageGet`/`storageSet`, reused for the language preference. This is the groundwork finding
+#20 calls for in order to persist the mute setting.
+
+### Notes
+
+The document language attribute (`<html lang>`) follows the selection, so screen readers and browser
+translation features get the right hint.
+
+Verified with the headless harness, now at 49 assertions. Alongside runtime checks it performs static
+checks that catch the realistic failure mode for translation work: that both tables define the same
+keys, that placeholders match across languages, and that every key referenced from markup or code
+actually exists. The harness is not committed.
+
 ---
 
 ## 2026-08-12 — Pause behaviour and keyboard access (`3ab988f`)

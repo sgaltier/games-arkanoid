@@ -122,6 +122,44 @@ body {
   white-space: nowrap;
 }
 
+/* ---------- language toggle ---------- */
+/* Deliberately quiet: a small dim segmented pill in the marquee, so it reads as
+   cabinet trim rather than competing with the neon title. */
+.lang-toggle {
+  display: flex;
+  align-self: center;
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--bg-deep);
+}
+
+.lang-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  padding: 4px 9px;
+  cursor: pointer;
+  transition: color .15s ease, background .15s ease;
+}
+
+.lang-btn:hover { color: var(--text-primary); }
+
+.lang-btn[aria-pressed="true"] {
+  background: rgba(45, 226, 230, .14);
+  color: var(--neon-cyan);
+  text-shadow: 0 0 8px rgba(45, 226, 230, .5);
+}
+
+.lang-btn:focus-visible { outline: 2px solid var(--neon-amber); outline-offset: -2px; }
+
 /* ---------- HUD ---------- */
 .hud {
   display: grid;
@@ -374,91 +412,95 @@ canvas {
 <div class="cabinet">
   <header class="marquee">
     <h1 class="title">NEON<em>BREAK</em></h1>
-    <p class="tagline">Casse-briques &mdash; Arcade</p>
+    <p class="tagline" data-i18n="tagline">Casse-briques &mdash; Arcade</p>
+    <div class="lang-toggle" role="group" data-i18n-attr="aria-label:lang.group" aria-label="Langue">
+      <button class="lang-btn" type="button" data-lang="fr" aria-pressed="true">FR</button>
+      <button class="lang-btn" type="button" data-lang="en" aria-pressed="false">EN</button>
+    </div>
   </header>
 
   <div class="hud">
     <div class="hud-cell score">
-      <div class="hud-label">Score</div>
+      <div class="hud-label" data-i18n="hud.score">Score</div>
       <div class="hud-value" id="hud-score">0</div>
     </div>
     <div class="hud-cell best">
-      <div class="hud-label">Meilleur</div>
+      <div class="hud-label" data-i18n="hud.best">Meilleur</div>
       <div class="hud-value" id="hud-best">0</div>
     </div>
     <div class="hud-cell level">
-      <div class="hud-label">Niveau</div>
+      <div class="hud-label" data-i18n="hud.level">Niveau</div>
       <div class="hud-value" id="hud-level">1/5</div>
     </div>
     <div class="hud-cell lives">
-      <div class="hud-label">Vies</div>
+      <div class="hud-label" data-i18n="hud.lives">Vies</div>
       <div class="hud-value" id="hud-lives">●●●</div>
     </div>
   </div>
 
   <div class="screen-wrap">
     <div class="screen">
-      <canvas id="game" width="480" height="680" aria-label="Zone de jeu Neon Break"></canvas>
+      <canvas id="game" width="480" height="680" data-i18n-attr="aria-label:canvas.label" aria-label="Zone de jeu Neon Break"></canvas>
       <div class="scanlines" aria-hidden="true"></div>
       <div class="vignette" aria-hidden="true"></div>
 
       <div class="overlay show" id="overlay-start">
-        <p class="overlay-eyebrow">Niveau 1 / 5</p>
+        <p class="overlay-eyebrow" id="start-eyebrow">Niveau 1 / 5</p>
         <h2 class="overlay-title">Neon Break</h2>
-        <p class="overlay-sub">Détruisez toutes les briques pour passer au niveau suivant. Rattrapez les bonus qui tombent &mdash; évitez les malus.</p>
-        <button class="btn" id="btn-start" type="button">Lancer la partie</button>
+        <p class="overlay-sub" data-i18n="start.sub">Détruisez toutes les briques pour passer au niveau suivant. Rattrapez les bonus qui tombent &mdash; évitez les malus.</p>
+        <button class="btn" id="btn-start" type="button" data-i18n="start.btn">Lancer la partie</button>
       </div>
 
       <div class="overlay" id="overlay-ready">
         <p class="overlay-eyebrow" id="ready-eyebrow">Niveau 1 / 5</p>
-        <h2 class="overlay-title">Prêt ?</h2>
-        <p class="overlay-sub">Bougez la raquette puis appuyez sur Espace, cliquez ou touchez l'écran pour lancer la balle.</p>
+        <h2 class="overlay-title" data-i18n="ready.title">Prêt ?</h2>
+        <p class="overlay-sub" data-i18n="ready.sub">Bougez la raquette puis appuyez sur Espace, cliquez ou touchez l'écran pour lancer la balle.</p>
       </div>
 
       <div class="overlay" id="overlay-pause">
-        <p class="overlay-eyebrow">Pause</p>
-        <h2 class="overlay-title">Jeu en pause</h2>
-        <button class="btn" id="btn-resume" type="button">Reprendre</button>
+        <p class="overlay-eyebrow" data-i18n="pause.eyebrow">Pause</p>
+        <h2 class="overlay-title" data-i18n="pause.title">Jeu en pause</h2>
+        <button class="btn" id="btn-resume" type="button" data-i18n="pause.btn">Reprendre</button>
       </div>
 
       <div class="overlay" id="overlay-levelclear">
-        <p class="overlay-eyebrow">Bravo</p>
+        <p class="overlay-eyebrow" data-i18n="levelclear.eyebrow">Bravo</p>
         <h2 class="overlay-title" id="levelclear-title">Niveau clair !</h2>
         <p class="overlay-score" id="levelclear-score">Score : 0</p>
-        <button class="btn" id="btn-next" type="button">Niveau suivant</button>
+        <button class="btn" id="btn-next" type="button" data-i18n="levelclear.btn">Niveau suivant</button>
       </div>
 
       <div class="overlay" id="overlay-victory">
-        <p class="overlay-eyebrow">Partie terminée</p>
-        <h2 class="overlay-title">Cabinet vaincu !</h2>
+        <p class="overlay-eyebrow" data-i18n="victory.eyebrow">Partie terminée</p>
+        <h2 class="overlay-title" data-i18n="victory.title">Cabinet vaincu !</h2>
         <p class="overlay-score" id="victory-score">Score final : 0</p>
         <p class="overlay-sub" id="victory-best">Meilleur score : 0</p>
-        <button class="btn" id="btn-restart-win" type="button">Rejouer</button>
+        <button class="btn" id="btn-restart-win" type="button" data-i18n="victory.btn">Rejouer</button>
       </div>
 
       <div class="overlay" id="overlay-gameover">
-        <p class="overlay-eyebrow">Game Over</p>
-        <h2 class="overlay-title">Balle perdue</h2>
+        <p class="overlay-eyebrow" data-i18n="gameover.eyebrow">Game Over</p>
+        <h2 class="overlay-title" data-i18n="gameover.title">Balle perdue</h2>
         <p class="overlay-score" id="gameover-score">Score : 0</p>
         <p class="overlay-sub" id="gameover-best">Meilleur score : 0</p>
-        <button class="btn" id="btn-restart" type="button">Rejouer</button>
+        <button class="btn" id="btn-restart" type="button" data-i18n="gameover.btn">Rejouer</button>
       </div>
     </div>
   </div>
 
   <div class="deck">
-    <p class="hint"><kbd>&larr;</kbd> <kbd>&rarr;</kbd> ou souris/doigt &middot; <kbd>Espace</kbd> lancer &middot; <kbd>P</kbd> pause</p>
+    <p class="hint" data-i18n-html="hint"><kbd>&larr;</kbd> <kbd>&rarr;</kbd> ou souris/doigt &middot; <kbd>Espace</kbd> lancer &middot; <kbd>P</kbd> pause</p>
     <div class="deck-btns">
-      <button class="icon-btn" id="btn-pause" type="button" title="Pause" aria-label="Mettre en pause">&#10074;&#10074;</button>
+      <button class="icon-btn" id="btn-pause" type="button" data-i18n-attr="title:btn.pause.title|aria-label:btn.pause.aria" title="Pause" aria-label="Mettre en pause">&#10074;&#10074;</button>
       <button class="icon-btn" id="btn-mute" type="button" title="Son" aria-label="Couper le son">&#128266;</button>
     </div>
   </div>
 
   <div class="legend">
-    <span class="legend-item"><span class="swatch" style="background:var(--neon-lime)"></span>Agrandit la raquette</span>
-    <span class="legend-item"><span class="swatch" style="background:var(--neon-cyan)"></span>Balle lente</span>
-    <span class="legend-item"><span class="swatch" style="background:var(--neon-magenta)"></span>Multi-balle</span>
-    <span class="legend-item"><span class="swatch" style="background:var(--danger)"></span>Raquette rétrécie</span>
+    <span class="legend-item"><span class="swatch" style="background:var(--neon-lime)"></span><span data-i18n="legend.widen">Agrandit la raquette</span></span>
+    <span class="legend-item"><span class="swatch" style="background:var(--neon-cyan)"></span><span data-i18n="legend.slow">Balle lente</span></span>
+    <span class="legend-item"><span class="swatch" style="background:var(--neon-magenta)"></span><span data-i18n="legend.multi">Multi-balle</span></span>
+    <span class="legend-item"><span class="swatch" style="background:var(--danger)"></span><span data-i18n="legend.narrow">Raquette rétrécie</span></span>
   </div>
 </div>
 
@@ -546,22 +588,150 @@ canvas {
   }
 
   // ---------------------------------------------------------------------
+  // Localisation
+  //   Static text is tagged in the markup with data-i18n (textContent),
+  //   data-i18n-html (markup, e.g. the <kbd> hint) or data-i18n-attr
+  //   ("attr:key" pairs separated by |). Runtime text goes through t().
+  //   {placeholders} are substituted from the params object.
+  //   Note the French typographic space before ':' and '!' — that is
+  //   intentional and must not be copied into the English strings.
+  // ---------------------------------------------------------------------
+  var STRINGS = {
+    fr: {
+      "doc.title": "Neon Break — Casse-briques arcade",
+      "lang.group": "Langue",
+      "tagline": "Casse-briques — Arcade",
+      "hud.score": "Score",
+      "hud.best": "Meilleur",
+      "hud.level": "Niveau",
+      "hud.lives": "Vies",
+      "canvas.label": "Zone de jeu Neon Break",
+      "start.sub": "Détruisez toutes les briques pour passer au niveau suivant. Rattrapez les bonus qui tombent — évitez les malus.",
+      "start.btn": "Lancer la partie",
+      "ready.title": "Prêt ?",
+      "ready.sub": "Bougez la raquette puis appuyez sur Espace, cliquez ou touchez l'écran pour lancer la balle.",
+      "pause.eyebrow": "Pause",
+      "pause.title": "Jeu en pause",
+      "pause.btn": "Reprendre",
+      "levelclear.eyebrow": "Bravo",
+      "levelclear.title": "Niveau {n} clair !",
+      "levelclear.btn": "Niveau suivant",
+      "victory.eyebrow": "Partie terminée",
+      "victory.title": "Cabinet vaincu !",
+      "victory.btn": "Rejouer",
+      "gameover.eyebrow": "Game Over",
+      "gameover.title": "Balle perdue",
+      "gameover.btn": "Rejouer",
+      "level.of": "Niveau {n} / {total}",
+      "score": "Score : {score}",
+      "score.final": "Score final : {score}",
+      "best": "Meilleur score : {score}",
+      "hint": "<kbd>&larr;</kbd> <kbd>&rarr;</kbd> ou souris/doigt &middot; <kbd>Espace</kbd> lancer &middot; <kbd>P</kbd> pause",
+      "btn.pause.title": "Pause",
+      "btn.pause.aria": "Mettre en pause",
+      "btn.mute.title": "Son",
+      "btn.mute.mute": "Couper le son",
+      "btn.mute.unmute": "Activer le son",
+      "legend.widen": "Agrandit la raquette",
+      "legend.slow": "Balle lente",
+      "legend.multi": "Multi-balle",
+      "legend.narrow": "Raquette rétrécie"
+    },
+    en: {
+      "doc.title": "Neon Break — Arcade Brick Breaker",
+      "lang.group": "Language",
+      "tagline": "Brick Breaker — Arcade",
+      "hud.score": "Score",
+      "hud.best": "Best",
+      "hud.level": "Level",
+      "hud.lives": "Lives",
+      "canvas.label": "Neon Break play area",
+      "start.sub": "Destroy every brick to reach the next level. Catch the power-ups as they fall — dodge the bad ones.",
+      "start.btn": "Start game",
+      "ready.title": "Ready?",
+      "ready.sub": "Move the paddle, then press Space, click or tap the screen to launch the ball.",
+      "pause.eyebrow": "Paused",
+      "pause.title": "Game paused",
+      "pause.btn": "Resume",
+      "levelclear.eyebrow": "Nice one",
+      "levelclear.title": "Level {n} cleared!",
+      "levelclear.btn": "Next level",
+      "victory.eyebrow": "Game complete",
+      "victory.title": "Cabinet beaten!",
+      "victory.btn": "Play again",
+      "gameover.eyebrow": "Game Over",
+      "gameover.title": "Ball lost",
+      "gameover.btn": "Play again",
+      "level.of": "Level {n} / {total}",
+      "score": "Score: {score}",
+      "score.final": "Final score: {score}",
+      "best": "Best score: {score}",
+      "hint": "<kbd>&larr;</kbd> <kbd>&rarr;</kbd> or mouse/finger &middot; <kbd>Space</kbd> launch &middot; <kbd>P</kbd> pause",
+      "btn.pause.title": "Pause",
+      "btn.pause.aria": "Pause the game",
+      "btn.mute.title": "Sound",
+      "btn.mute.mute": "Mute sound",
+      "btn.mute.unmute": "Unmute sound",
+      "legend.widen": "Widens the paddle",
+      "legend.slow": "Slow ball",
+      "legend.multi": "Multi-ball",
+      "legend.narrow": "Paddle shrunk"
+    }
+  };
+  var SUPPORTED_LANGS = ["fr", "en"];
+  var DEFAULT_LANG = "en";
+
+  function t(key, params) {
+    var table = STRINGS[state.lang] || STRINGS[DEFAULT_LANG];
+    var str = table[key];
+    if (str === undefined) return key; // missing key shows itself rather than "undefined"
+    if (!params) return str;
+    return str.replace(/\{(\w+)\}/g, function (whole, name) {
+      return Object.prototype.hasOwnProperty.call(params, name) ? params[name] : whole;
+    });
+  }
+
+  // Locale, not geography: navigator.languages is what the player's browser and
+  // OS are already set to. It needs no permission prompt, no network round-trip
+  // and no third-party service, all of which matter for a single offline file.
+  function detectLang() {
+    var tags = (navigator.languages && navigator.languages.length)
+      ? navigator.languages
+      : [navigator.language || ""];
+    for (var i = 0; i < tags.length; i++) {
+      var primary = String(tags[i]).toLowerCase().split("-")[0];
+      if (SUPPORTED_LANGS.indexOf(primary) !== -1) return primary;
+    }
+    return DEFAULT_LANG;
+  }
+
+  // ---------------------------------------------------------------------
   // Game state
   // ---------------------------------------------------------------------
   var BEST_KEY = "neonbreak-best-score";
+  var LANG_KEY = "neonbreak-lang";
 
   // Touching localStorage can throw outright — Safari private browsing, blocked
-  // site data, some sandboxed file:// contexts. Since the best score is read
-  // while building `state`, an unguarded throw would abort this whole IIFE and
-  // leave a dead canvas. Degrade to an in-memory best instead.
-  function loadBest() {
-    try { return Number(localStorage.getItem(BEST_KEY)) || 0; }
-    catch (e) { return 0; }
+  // site data, some sandboxed file:// contexts. Since these are read while
+  // building `state`, an unguarded throw would abort this whole IIFE and leave a
+  // dead canvas. Degrade to in-memory values instead.
+  function storageGet(key) {
+    try { return localStorage.getItem(key); }
+    catch (e) { return null; }
   }
-  function saveBest(value) {
-    try { localStorage.setItem(BEST_KEY, String(value)); }
-    catch (e) { /* storage unavailable — best score lives in memory only */ }
+  function storageSet(key, value) {
+    try { localStorage.setItem(key, String(value)); }
+    catch (e) { /* storage unavailable — the value lives in memory only */ }
   }
+
+  function loadBest() { return Number(storageGet(BEST_KEY)) || 0; }
+  function saveBest(value) { storageSet(BEST_KEY, value); }
+
+  function loadLang() {
+    var saved = storageGet(LANG_KEY);
+    return SUPPORTED_LANGS.indexOf(saved) !== -1 ? saved : detectLang();
+  }
+  function saveLang(value) { storageSet(LANG_KEY, value); }
 
   var state = {
     phase: "start", // start | ready | playing | paused | levelclear | victory | gameover
@@ -580,6 +750,7 @@ canvas {
     widthEffect: null,  // {mult, remaining} — remaining is in seconds of play
     speedEffect: null,  // {mult, remaining}
     muted: false,
+    lang: loadLang(),
     lastTime: 0,
     baseBallSpeed: 250
   };
@@ -704,15 +875,15 @@ canvas {
   canvas.addEventListener("mousedown", function () { handleLaunchOrResume(); });
   canvas.addEventListener("touchstart", function (e) {
     e.preventDefault();
-    var t = e.touches[0];
-    var p = pointerToLogical(t.clientX, t.clientY);
+    var touch = e.touches[0];
+    var p = pointerToLogical(touch.clientX, touch.clientY);
     state.pointerX = p.x;
     handleLaunchOrResume();
   }, { passive: false });
   canvas.addEventListener("touchmove", function (e) {
     e.preventDefault();
-    var t = e.touches[0];
-    var p = pointerToLogical(t.clientX, t.clientY);
+    var touch = e.touches[0];
+    var p = pointerToLogical(touch.clientX, touch.clientY);
     state.pointerX = p.x;
   }, { passive: false });
 
@@ -750,14 +921,83 @@ canvas {
   }
   function setPhase(p) {
     state.phase = p;
+    renderDynamicText();
     if (p === "ready") {
-      document.getElementById("ready-eyebrow").textContent = "Niveau " + (state.levelIndex + 1) + " / " + LEVELS.length;
       showOverlay("overlay-ready");
     } else if (p === "playing") {
       showOverlay(null);
     } else if (p === "paused") {
       showOverlay("overlay-pause");
     }
+  }
+
+  // ---------------------------------------------------------------------
+  // Localisation — applying it to the DOM
+  // ---------------------------------------------------------------------
+
+  // Every interpolated string is rewritten from current state in one place, so
+  // switching language mid-game refreshes whatever overlay happens to be up.
+  // Writing to hidden overlays is harmless and keeps this branch-free.
+  function renderDynamicText() {
+    var levelOf = t("level.of", { n: state.levelIndex + 1, total: LEVELS.length });
+    document.getElementById("start-eyebrow").textContent =
+      t("level.of", { n: 1, total: LEVELS.length });
+    document.getElementById("ready-eyebrow").textContent = levelOf;
+    document.getElementById("levelclear-title").textContent =
+      t("levelclear.title", { n: state.levelIndex + 1 });
+    document.getElementById("levelclear-score").textContent = t("score", { score: state.score });
+    document.getElementById("victory-score").textContent = t("score.final", { score: state.score });
+    document.getElementById("victory-best").textContent = t("best", { score: state.best });
+    document.getElementById("gameover-score").textContent = t("score", { score: state.score });
+    document.getElementById("gameover-best").textContent = t("best", { score: state.best });
+  }
+
+  // The mute label has to track both the language and the on/off state, so it
+  // cannot be a static data-i18n string.
+  function renderMuteButton() {
+    muteBtn.innerHTML = state.muted ? "&#128263;" : "&#128266;";
+    muteBtn.setAttribute("title", t("btn.mute.title"));
+    muteBtn.setAttribute("aria-label", state.muted ? t("btn.mute.unmute") : t("btn.mute.mute"));
+  }
+
+  var langButtons = document.querySelectorAll(".lang-btn");
+
+  function applyLanguage(lang) {
+    state.lang = SUPPORTED_LANGS.indexOf(lang) !== -1 ? lang : DEFAULT_LANG;
+    document.documentElement.lang = state.lang;
+    document.title = t("doc.title");
+
+    var i, nodes;
+    nodes = document.querySelectorAll("[data-i18n]");
+    for (i = 0; i < nodes.length; i++) {
+      nodes[i].textContent = t(nodes[i].getAttribute("data-i18n"));
+    }
+    // innerHTML is safe here: the values are author-controlled literals in
+    // STRINGS, never anything derived from input or storage.
+    nodes = document.querySelectorAll("[data-i18n-html]");
+    for (i = 0; i < nodes.length; i++) {
+      nodes[i].innerHTML = t(nodes[i].getAttribute("data-i18n-html"));
+    }
+    nodes = document.querySelectorAll("[data-i18n-attr]");
+    for (i = 0; i < nodes.length; i++) {
+      var pairs = nodes[i].getAttribute("data-i18n-attr").split("|");
+      for (var j = 0; j < pairs.length; j++) {
+        var bits = pairs[j].split(":");
+        if (bits.length === 2) nodes[i].setAttribute(bits[0], t(bits[1]));
+      }
+    }
+
+    for (i = 0; i < langButtons.length; i++) {
+      langButtons[i].setAttribute(
+        "aria-pressed",
+        langButtons[i].getAttribute("data-lang") === state.lang ? "true" : "false"
+      );
+    }
+
+    renderMuteButton();
+    renderDynamicText();
+    updateHud();
+    saveLang(state.lang);
   }
 
   document.getElementById("btn-start").addEventListener("click", function () { newGame(); });
@@ -782,8 +1022,17 @@ canvas {
   muteBtn.addEventListener("click", function (e) {
     blurIfPointerClick(e);
     state.muted = !state.muted;
-    muteBtn.innerHTML = state.muted ? "&#128263;" : "&#128266;";
+    renderMuteButton();
   });
+
+  // Like the deck buttons, these stay on screen and so must not keep focus after
+  // a pointer click — otherwise they would swallow Space during play.
+  for (var li = 0; li < langButtons.length; li++) {
+    langButtons[li].addEventListener("click", function (e) {
+      blurIfPointerClick(e);
+      applyLanguage(this.getAttribute("data-lang"));
+    });
+  }
 
   // ---------------------------------------------------------------------
   // Sound (tiny WebAudio blips, no external assets)
@@ -998,8 +1247,7 @@ canvas {
         endGame(true);
       } else {
         state.phase = "levelclear";
-        document.getElementById("levelclear-title").textContent = "Niveau " + (state.levelIndex + 1) + " clair !";
-        document.getElementById("levelclear-score").textContent = "Score : " + state.score;
+        renderDynamicText();
         showOverlay("overlay-levelclear");
       }
     }
@@ -1011,15 +1259,12 @@ canvas {
       saveBest(state.best);
     }
     updateHud();
+    renderDynamicText();
     if (won) {
       state.phase = "victory";
-      document.getElementById("victory-score").textContent = "Score final : " + state.score;
-      document.getElementById("victory-best").textContent = "Meilleur score : " + state.best;
       showOverlay("overlay-victory");
     } else {
       state.phase = "gameover";
-      document.getElementById("gameover-score").textContent = "Score : " + state.score;
-      document.getElementById("gameover-best").textContent = "Meilleur score : " + state.best;
       showOverlay("overlay-gameover");
     }
   }
@@ -1177,6 +1422,7 @@ canvas {
     requestAnimationFrame(frame);
   }
 
+  applyLanguage(state.lang);
   updateHud();
   drawBackground();
   drawBricks();
