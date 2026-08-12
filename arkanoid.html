@@ -1,3 +1,9 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Neon Break — Casse-briques arcade</title>
 <style>
 /*
   NEON ARKANOID — design plan
@@ -362,6 +368,8 @@ canvas {
   .hud-label { letter-spacing: .06em; }
 }
 </style>
+</head>
+<body>
 
 <div class="cabinet">
   <header class="marquee">
@@ -541,11 +549,25 @@ canvas {
   // Game state
   // ---------------------------------------------------------------------
   var BEST_KEY = "neonbreak-best-score";
+
+  // Touching localStorage can throw outright — Safari private browsing, blocked
+  // site data, some sandboxed file:// contexts. Since the best score is read
+  // while building `state`, an unguarded throw would abort this whole IIFE and
+  // leave a dead canvas. Degrade to an in-memory best instead.
+  function loadBest() {
+    try { return Number(localStorage.getItem(BEST_KEY)) || 0; }
+    catch (e) { return 0; }
+  }
+  function saveBest(value) {
+    try { localStorage.setItem(BEST_KEY, String(value)); }
+    catch (e) { /* storage unavailable — best score lives in memory only */ }
+  }
+
   var state = {
     phase: "start", // start | ready | playing | paused | levelclear | victory | gameover
     levelIndex: 0,
     score: 0,
-    best: Number(localStorage.getItem(BEST_KEY)) || 0,
+    best: loadBest(),
     lives: 3,
     maxLives: 5,
     bricks: [],
@@ -648,6 +670,10 @@ canvas {
     if (e.code === "KeyP" || e.code === "Escape") togglePause();
   });
   window.addEventListener("keyup", function (e) { state.keys[e.code] = false; });
+  // No keyup is delivered for a key still held when the window loses focus
+  // (alt-tab, browser shortcut), which would leave the paddle pinned against a
+  // wall on return. Drop every held key instead.
+  window.addEventListener("blur", function () { state.keys = {}; });
 
   canvas.addEventListener("mousemove", function (e) {
     var p = pointerToLogical(e.clientX, e.clientY);
@@ -943,7 +969,7 @@ canvas {
   function endGame(won) {
     if (state.score > state.best) {
       state.best = state.score;
-      localStorage.setItem(BEST_KEY, String(state.best));
+      saveBest(state.best);
     }
     updateHud();
     if (won) {
@@ -1119,3 +1145,6 @@ canvas {
   requestAnimationFrame(frame);
 })();
 </script>
+
+</body>
+</html>
