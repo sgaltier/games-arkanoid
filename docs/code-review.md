@@ -8,15 +8,11 @@ game. Vanilla ES5-style JS in an IIFE, 2D canvas, no build step, no dependencies
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-## Status
+**Status:** #1–#6 fixed, 26 items open. What shipped and when is tracked in
+[release-notes.md](release-notes.md); individual items below carry a `✅ FIXED` note with the details.
 
-| Date | Items | Note |
-|---|---|---|
-| 2026-08-12 | **#1, #2, #3 — ✅ fixed** | Document structure, `localStorage` guard, stuck-key fix |
-| 2026-08-12 | **#4, #5, #6 — ✅ fixed** | Pause-aware effect timers, auto-pause on hide/blur, Space reaches focused buttons |
-
-Remaining: 26 open items. **Line references below are re-anchored after each round of fixes** — they
-are only valid against the current `arkanoid.html`.
+**Line references below are re-anchored after each round of fixes** — they are only valid against the
+current `arkanoid.html`.
 
 ---
 
