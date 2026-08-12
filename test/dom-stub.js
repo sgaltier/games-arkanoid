@@ -1,0 +1,379 @@
+"use strict";
+/*
+  Loads the real arkanoid.html into a fake DOM so its game loop can be driven and
+  inspected from Node, with no dependencies.
+
+  The game lives inside an IIFE, so nothing is reachable from outside. boot()
+  injects a handle just before the closing `})();` exposing the names listed in
+  SEAM below. That is the deliberate test seam: it couples the tests to internal
+  names, which is the price of being able to test the physics at all. Keep the
+  list short — adding to it should be a decision, not a reflex.
+
+  arkanoid.html itself is never modified; the injection happens on an in-memory
+  copy of the extracted script text.
+*/
+
+const fs = require("fs");
+const path = require("path");
+
+const GAME_FILE = path.join(__dirname, "..", "arkanoid.html");
+const HTML = fs.readFileSync(GAME_FILE, "utf8");
+
+const SCRIPT = (HTML.match(/<script>([\s\S]*?)<\/script>/) || [])[1];
+if (!SCRIPT) throw new Error("could not find the <script> block in arkanoid.html");
+
+const BODY_START = HTML.indexOf("<body>");
+const BODY_END = HTML.indexOf("</body>");
+const BODY = BODY_START !== -1 && BODY_END !== -1 ? HTML.slice(BODY_START, BODY_END) : "";
+
+const SEAM = [
+  "state", "frame", "LEVELS", "POWERUPS", "GAME_W", "GAME_H",
+  "setPhase", "startLevel", "newGame", "launchBall", "togglePause",
+  "applyPowerup", "paddleWidth", "ballSpeedMult", "circleRectCollide",
+  "applyLanguage", "detectLang", "renderDynamicText", "t",
+  "STRINGS", "SUPPORTED_LANGS", "DEFAULT_LANG",
+];
+
+const TAIL = "})();";
+const cutAt = SCRIPT.lastIndexOf(TAIL);
+if (cutAt === -1) throw new Error("could not find the IIFE tail in the game script");
+const INSTRUMENTED =
+  SCRIPT.slice(0, cutAt) +
+  `  globalThis.__seam = { ${SEAM.join(", ")} };\n` +
+  SCRIPT.slice(cutAt);
+
+// ---------------------------------------------------------------------------
+// Parse the markup into element descriptors so querySelectorAll resolves against
+// the real document rather than hand-registered stubs.
+// ---------------------------------------------------------------------------
+function parseElements(html) {
+  const out = [];
+  const tagRe = /<(\w+)((?:\s+[-\w]+(?:="[^"]*")?)*)\s*\/?>/g;
+  let m;
+  while ((m = tagRe.exec(html))) {
+    const attrs = {};
+    const attrRe = /([-\w]+)(?:="([^"]*)")?/g;
+    let a;
+    while ((a = attrRe.exec(m[2]))) attrs[a[1]] = a[2] === undefined ? "" : a[2];
+    out.push({ tag: m[1].toUpperCase(), attrs });
+  }
+  return out;
+}
+const PARSED = parseElements(BODY);
+
+// ---------------------------------------------------------------------------
+// Deterministic RNG so physics runs are reproducible.
+// ---------------------------------------------------------------------------
+const REAL_RANDOM = Math.random;
+function makeRng(seed) {
+  let s = (seed >>> 0) || 1;
+  return function () {
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// boot
+// ---------------------------------------------------------------------------
+function boot(opts) {
+  opts = opts || {};
+  const langs = opts.langs || ["fr-FR"];
+  const store = Object.assign({}, opts.storage || {});
+  const storageThrows = !!opts.storageThrows;
+  const winL = {};
+  const docL = {};
+
+  const counters = {
+    getComputedStyle: 0,
+    textWrites: 0,
+    attrWrites: 0,
+    canvasOps: 0,
+    reset() {
+      this.getComputedStyle = 0;
+      this.textWrites = 0;
+      this.attrWrites = 0;
+      this.canvasOps = 0;
+    },
+  };
+
+  // Canvas context: every method call and property write is counted.
+  const ctx = new Proxy({}, {
+    get(target, key) {
+      if (key in target) return target[key];
+      return function () { counters.canvasOps++; };
+    },
+    set(target, key, value) {
+      target[key] = value;
+      counters.canvasOps++;
+      return true;
+    },
+  });
+
+  const registry = [];
+
+  function makeEl(tag, attrs) {
+    const el = {
+      tagName: tag,
+      _attrs: Object.assign({}, attrs || {}),
+      _text: "",
+      _html: "",
+      _handlers: {},
+      style: {},
+      width: 0,
+      height: 0,
+      getAttribute(k) { return k in el._attrs ? el._attrs[k] : null; },
+      setAttribute(k, v) { el._attrs[k] = String(v); counters.attrWrites++; },
+      removeAttribute(k) { delete el._attrs[k]; },
+      addEventListener(type, fn) { (el._handlers[type] || (el._handlers[type] = [])).push(fn); },
+      blur() { if (doc.activeElement === el) doc.activeElement = doc.body; },
+      focus() { doc.activeElement = el; },
+      getContext() { return ctx; },
+      getBoundingClientRect() { return { left: 0, top: 0, width: 480, height: 680 }; },
+      // detail > 0 mimics a pointer click; detail === 0 mimics keyboard activation.
+      click(detail) {
+        const ev = {
+          detail: detail === undefined ? 1 : detail,
+          currentTarget: el,
+          target: el,
+          button: 0,
+          preventDefault() { ev.defaultPrevented = true; },
+          defaultPrevented: false,
+        };
+        (el._handlers.click || []).forEach((f) => f.call(el, ev));
+        return ev;
+      },
+      fire(type, ev) {
+        (el._handlers[type] || []).forEach((f) => f.call(el, ev || {}));
+      },
+      hasHandler(type) { return !!(el._handlers[type] && el._handlers[type].length); },
+    };
+
+    Object.defineProperty(el, "id", { get: () => el._attrs.id });
+    Object.defineProperty(el, "textContent", {
+      get: () => el._text,
+      set: (v) => { el._text = String(v); counters.textWrites++; },
+    });
+    Object.defineProperty(el, "innerHTML", {
+      get: () => el._html,
+      set: (v) => { el._html = String(v); counters.textWrites++; },
+    });
+
+    const classes = new Set(String((attrs && attrs.class) || "").split(/\s+/).filter(Boolean));
+    el.classList = {
+      add: (c) => classes.add(c),
+      remove: (c) => classes.delete(c),
+      contains: (c) => classes.has(c),
+      toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)),
+    };
+    el._classes = classes;
+
+    registry.push(el);
+    return el;
+  }
+
+  PARSED.forEach((p) => makeEl(p.tag, p.attrs));
+
+  const doc = {
+    hidden: false,
+    title: "",
+    documentElement: { lang: "" },
+    getElementById(id) {
+      let el = registry.find((e) => e._attrs.id === id);
+      if (!el) el = makeEl("DIV", { id });
+      return el;
+    },
+    querySelectorAll(sel) {
+      if (sel.startsWith("[") && sel.endsWith("]")) {
+        const name = sel.slice(1, -1);
+        return registry.filter((e) => name in e._attrs);
+      }
+      if (sel.startsWith(".")) {
+        const c = sel.slice(1);
+        return registry.filter((e) => e._classes.has(c));
+      }
+      if (sel.startsWith("#")) {
+        const id = sel.slice(1);
+        return registry.filter((e) => e._attrs.id === id);
+      }
+      const tag = sel.toUpperCase();
+      return registry.filter((e) => e.tagName === tag);
+    },
+    querySelector(sel) { return doc.querySelectorAll(sel)[0] || null; },
+    addEventListener(type, fn) { (docL[type] || (docL[type] = [])).push(fn); },
+  };
+  doc.body = makeEl("BODY", {});
+  doc.activeElement = doc.body;
+
+  globalThis.window = {
+    devicePixelRatio: opts.dpr || 1,
+    addEventListener(type, fn) { (winL[type] || (winL[type] = [])).push(fn); },
+    AudioContext: function () {
+      return {
+        currentTime: 0,
+        destination: {},
+        createOscillator: () => ({ frequency: {}, connect() {}, start() {}, stop() {} }),
+        createGain: () => ({
+          gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {} },
+          connect() {},
+        }),
+      };
+    },
+  };
+  globalThis.document = doc;
+
+  // Node 22 defines globalThis.navigator as a getter-only accessor reporting the
+  // host's real locale, so plain assignment silently no-ops and every locale test
+  // would quietly measure this machine instead of the value under test. This cost
+  // an afternoon of false passes once; do not "simplify" it back to `=`.
+  Object.defineProperty(globalThis, "navigator", {
+    value: { languages: langs.slice(), language: langs[0] },
+    configurable: true,
+    writable: true,
+  });
+
+  globalThis.localStorage = {
+    getItem(k) {
+      if (storageThrows) throw new Error("SecurityError: storage is not available");
+      return k in store ? store[k] : null;
+    },
+    setItem(k, v) {
+      if (storageThrows) throw new Error("SecurityError: storage is not available");
+      store[k] = String(v);
+    },
+    removeItem(k) {
+      if (storageThrows) throw new Error("SecurityError: storage is not available");
+      delete store[k];
+    },
+  };
+
+  globalThis.performance = { now: () => 0 };
+  globalThis.getComputedStyle = () => {
+    counters.getComputedStyle++;
+    return { fontFamily: "monospace" };
+  };
+  globalThis.requestAnimationFrame = () => 0; // frames are driven by hand
+
+  Math.random = makeRng(opts.seed === undefined ? 12345 : opts.seed);
+
+  new Function(INSTRUMENTED)();
+  const T = globalThis.__seam;
+
+  const handle = {
+    T,
+    doc,
+    store,
+    registry,
+    counters,
+    // The clock deliberately starts non-zero. The game computes its delta as
+    // `(now - (state.lastTime || now))`, so a lastTime of 0 reads as "unset" and
+    // yields dt === 0. Priming below with a non-zero timestamp means the first
+    // frame a test drives already has a real delta and the ball actually moves.
+    clock: 1000,
+
+    el: (id) => doc.getElementById(id),
+    // Labels carry no id; find them by their i18n key instead.
+    byKey: (key) => registry.find((e) => e._attrs["data-i18n"] === key),
+    byAttr: (name, value) => registry.find((e) => e._attrs[name] === value),
+    langButton: (lang) => registry.find((e) => e._attrs["data-lang"] === lang),
+
+    fireWin(type, ev) { (winL[type] || []).forEach((f) => f(ev || {})); },
+    fireDoc(type, ev) { (docL[type] || []).forEach((f) => f(ev || {})); },
+
+    key(code, opts2) {
+      const ev = Object.assign({ code, preventDefault() { ev.defaultPrevented = true; } },
+        opts2 || {});
+      ev.defaultPrevented = false;
+      (winL.keydown || []).forEach((f) => f(ev));
+      return ev;
+    },
+    keyUp(code) {
+      (winL.keyup || []).forEach((f) => f({ code }));
+    },
+    hold(code) { this.key(code); },
+    release(code) { this.keyUp(code); },
+
+    canvasEvent(type, ev) {
+      const canvas = doc.getElementById("game");
+      canvas.fire(type, ev);
+    },
+    mouseMove(x, y) {
+      this.canvasEvent("mousemove", { clientX: x, clientY: y === undefined ? 0 : y });
+    },
+    mouseDown(button) {
+      const ev = { button: button === undefined ? 0 : button, preventDefault() {} };
+      this.canvasEvent("mousedown", ev);
+      return ev;
+    },
+    touch(type, x, y) {
+      const ev = {
+        touches: [{ clientX: x, clientY: y === undefined ? 0 : y }],
+        changedTouches: [{ clientX: x, clientY: y === undefined ? 0 : y }],
+        preventDefault() { ev.defaultPrevented = true; },
+        defaultPrevented: false,
+      };
+      this.canvasEvent(type, ev);
+      return ev;
+    },
+
+    // Advance the loop by `seconds` from a monotonic clock.
+    run(seconds, step) {
+      step = step || 16;
+      const n = Math.max(1, Math.round((seconds * 1000) / step));
+      for (let i = 0; i < n; i++) {
+        this.clock += step;
+        T.frame(this.clock);
+      }
+      return this;
+    },
+    // Same, but with the paddle tracking the ball so play continues. Use this
+    // when the test is about something other than survival — otherwise the ball
+    // is lost within a couple of seconds and loseLife() resets state underneath
+    // whatever you were measuring.
+    runAlive(seconds, step) {
+      step = step || 16;
+      const n = Math.max(1, Math.round((seconds * 1000) / step));
+      for (let i = 0; i < n; i++) {
+        const ball = T.state.balls[0];
+        if (ball) T.state.pointerX = ball.x;
+        this.clock += step;
+        T.frame(this.clock);
+      }
+      return this;
+    },
+
+    // One frame, for per-frame budget measurement.
+    frame(step) {
+      this.clock += step || 16;
+      T.frame(this.clock);
+      return this;
+    },
+
+    // Which overlays are currently visible.
+    shownOverlays() {
+      return registry
+        .filter((e) => /^overlay-/.test(e._attrs.id || "") && e._classes.has("show"))
+        .map((e) => e._attrs.id);
+    },
+
+    // Drive to the point where a ball is in play.
+    start() {
+      this.el("btn-start").click(1);
+      this.key("Space");
+      return this;
+    },
+  };
+
+  // Prime state.lastTime. Harmless: the phase is still "start", so this frame
+  // only paints.
+  T.frame(handle.clock);
+  counters.reset();
+
+  return handle;
+}
+
+function restoreRandom() {
+  Math.random = REAL_RANDOM;
+}
+
+module.exports = { boot, restoreRandom, HTML, BODY, SCRIPT, GAME_FILE, SEAM, makeRng };
