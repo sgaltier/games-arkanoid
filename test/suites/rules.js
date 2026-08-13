@@ -92,7 +92,10 @@ module.exports = {
         g.key("Space");
         const walls = g.T.state.bricks.filter((b) => b.hp === Infinity);
         a.gt(walls.length, 0, "this level should have walls");
+        // Bypassing brickHit means the remainingBricks counter it maintains
+        // (see #16) has to be kept in sync by hand here.
         g.T.state.bricks.forEach((b) => { if (b.hp !== Infinity) b.alive = false; });
+        g.T.state.remainingBricks = 0;
         g.frame();
         a.eq(g.T.state.phase, "levelclear", "walls left standing should not prevent a clear");
         a.ok(walls.every((w) => w.alive), "the walls should still be there");
@@ -104,9 +107,13 @@ module.exports = {
         const g = boot().start();
         const bricks = g.T.state.bricks.filter((b) => b.hp !== Infinity);
         bricks.forEach((b, i) => { b.alive = i === 0; }); // leave exactly one
+        // Bypassing brickHit means the remainingBricks counter it maintains
+        // (see #16) has to be kept in sync by hand here.
+        g.T.state.remainingBricks = 1;
         g.frame();
         a.eq(g.T.state.phase, "playing", "one brick left should keep the level going");
         bricks[0].alive = false;
+        g.T.state.remainingBricks = 0;
         g.frame();
         a.eq(g.T.state.phase, "levelclear");
       },

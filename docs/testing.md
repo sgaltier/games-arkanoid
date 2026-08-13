@@ -74,7 +74,7 @@ If a pending test *passes*, the runner reports `FIXED?` and **exits non-zero**. 
 it means the finding is resolved and the marker needs removing. The suite tells you when to close
 a finding out rather than relying on anyone remembering.
 
-Currently pending: #14, #15 (perf).
+Currently pending: none.
 
 ---
 
@@ -102,6 +102,7 @@ g.T.state.score;    // reach into the closure
 | `storageThrows` | Make every storage access throw, as in Safari private browsing |
 | `seed` | Seed for the deterministic RNG, so physics runs reproduce |
 | `dpr` | `devicePixelRatio` |
+| `canvasWidth` | Overrides the `#game` canvas's `getBoundingClientRect().width` (default 480), for testing display-size-driven backing-store sizing |
 
 Useful handle methods: `run(seconds)`, `runAlive(seconds)` (keeps the paddle under the ball so play
 continues), `frame()`, `key(code)`, `hold`/`release`, `mouseMove(x)`, `touch(type, x)`,

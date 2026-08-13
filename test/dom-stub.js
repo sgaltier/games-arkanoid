@@ -174,6 +174,20 @@ function boot(opts) {
 
   PARSED.forEach((p) => makeEl(p.tag, p.attrs));
 
+  // Every stub element reports a fixed 480x680 rect by default (see makeEl
+  // above). #17 depends on the canvas's *displayed* size differing from its
+  // logical GAME_W/GAME_H, so let a test narrow it — e.g. to emulate a phone
+  // where the canvas renders well under 480 CSS px wide.
+  if (opts.canvasWidth) {
+    const canvasStub = registry.find((e) => e._attrs.id === "game");
+    if (canvasStub) {
+      canvasStub.getBoundingClientRect = () => ({
+        left: 0, top: 0,
+        width: opts.canvasWidth, height: opts.canvasWidth * (680 / 480),
+      });
+    }
+  }
+
   const doc = {
     hidden: false,
     title: "",

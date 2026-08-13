@@ -13,9 +13,56 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #4, #5, #6 | ✅ Fixed — 2026-08-12 (`3ab988f`) |
 | #7, #8, #9, #10 | ✅ Fixed — 2026-08-13 |
 | #11, #12, #13 | ✅ Fixed — 2026-08-13 |
-| #14 – #32 | Open — 19 remaining |
+| #14, #15, #16, #17 | ✅ Fixed — 2026-08-13 |
+| #18 – #32 | Open — 15 remaining |
 
 Findings #20 and #23 were partially advanced by the bilingual work below, but both remain open.
+
+---
+
+## 2026-08-13 — Render-loop performance
+
+### Fixed
+
+**`drawDrops` no longer forces a style recalculation every frame** (#14)
+`ctx.font` was rebuilt from `getComputedStyle(document.body).fontFamily` once per falling power-up,
+per frame — a synchronous layout cost, and the single most expensive line in the render path. The
+font string is now computed once into a module-level constant; the body's font never changes at
+runtime, so there was nothing to gain from asking every frame.
+
+**The HUD only writes to the DOM when a displayed value actually changes** (#15)
+`updateHud()` ran unconditionally every frame in addition to its existing event-driven calls,
+rewriting all four HUD nodes — score, best, level, lives — 60 times a second regardless of whether
+anything on screen had moved. It now caches what's currently displayed and skips the `textContent`
+write for any field that hasn't changed. The per-frame call itself stays, since it's still what
+catches `best` needing to track a live-updating `score`.
+
+**Level-clear no longer rescans every brick every frame** (#16)
+`checkLevelClear()` ran `.some()` over the full brick array — up to 80 bricks — on every frame while
+playing. A `remainingBricks` counter is now seeded when a level is built and decremented at the one
+place a brick actually dies, turning the per-frame check into an `O(1)` comparison.
+
+**The canvas backing store now scales with how big the canvas is actually displayed** (#17)
+`fitCanvas()` always allocated `480 × 680 × devicePixelRatio` pixels, regardless of how large the
+canvas — styled `width: 100%; height: auto` — was actually rendered. On a narrow phone screen that
+wasted a lot of memory and fill-rate on pixels that were never shown. The backing store is now scaled
+by `dpr * min(1, displayWidth / GAME_W)`: unchanged whenever the canvas is shown at or above its
+logical size, shrunk when it's rendered smaller.
+
+### Notes
+
+Same procedure as prior rounds: a regression test per finding, confirmed failing against the unfixed
+code before the fix landed. #14 and #15 already had `pending` tests written ahead of time in
+`test/suites/perf.js`; those are now unpended. #16 and #17 are new entries in
+`test/suites/regressions.js`, the latter backed by a new `canvasWidth` option on the test harness's
+`boot()` so the canvas's displayed size can be overridden independently of `dpr`.
+
+The #16 fix changes an implicit invariant: `state.remainingBricks` must now stay in sync with how many
+destructible bricks in `state.bricks` are alive. A few existing tests that killed bricks directly by
+setting `.alive = false` (bypassing `brickHit`, which is the only production code path that maintains
+the counter) needed a one-line update to keep the counter in sync by hand.
+
+Full suite: 142 passed, 0 failed, 0 pending.
 
 ---
 

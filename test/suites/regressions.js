@@ -246,13 +246,73 @@ module.exports = {
         const g = boot().start();
         g.T.state.score = 999;
         // Kill every destructible brick so the level completes without ending
-        // the game outright (there are more levels after this one).
+        // the game outright (there are more levels after this one). Bypassing
+        // brickHit means the remainingBricks counter it maintains (see #16)
+        // has to be kept in sync by hand here.
         g.T.state.bricks.forEach((br) => { if (br.hp !== Infinity) br.alive = false; });
+        g.T.state.remainingBricks = 0;
         g.frame();
         a.eq(g.T.state.phase, "levelclear", "the level should have cleared, not ended the game");
         a.eq(g.T.state.best, 999, "the best score should update in memory on level clear");
         a.eq(g.store["neonbreak-best-score"], "999",
           "closing the tab right after a level clear would otherwise lose the score");
+      },
+    },
+    {
+      name: "#16 — brickHit keeps the remainingBricks counter in sync with destroyed bricks",
+      fn(a) {
+        const g = boot().start();
+        const before = g.T.state.remainingBricks;
+        const destructible = g.T.state.bricks.filter((b) => b.hp !== Infinity && b.alive);
+        a.eq(before, destructible.length,
+          "remainingBricks should start out matching the destructible bricks buildLevel just built");
+
+        // Drive the ball into one destructible brick, same as rules.js's hitBrick
+        // helper — up to 3 hits covers even a 2-hp "S" brick.
+        const target = destructible[0];
+        const ball = g.T.state.balls[0];
+        for (let i = 0; i < 3 && target.alive; i++) {
+          ball.attached = false;
+          ball.x = target.x + target.w / 2;
+          ball.y = target.y + target.h + ball.r - 2;
+          ball.dx = 0;
+          ball.dy = -1;
+          ball.speed = 1;
+          g.frame();
+        }
+        a.eq(target.alive, false, "the target brick should be destroyed within 3 hits");
+        a.eq(g.T.state.remainingBricks, before - 1,
+          "destroying exactly one destructible brick should decrement the counter by exactly one");
+      },
+    },
+    {
+      name: "#16 — checkLevelClear reads the remainingBricks counter, not a live array scan",
+      fn(a) {
+        const g = boot().start();
+        // Every destructible brick is still alive in the array; only the
+        // counter says the level is clear. The pre-fix implementation
+        // re-scanned state.bricks every frame and would have stayed "playing".
+        g.T.state.remainingBricks = 0;
+        g.frame();
+        a.eq(g.T.state.phase, "levelclear",
+          "the level should clear off the counter even though the brick array itself isn't empty");
+      },
+    },
+    {
+      name: "#17 — the canvas backing store scales down with a narrower displayed size",
+      fn(a) {
+        // On a phone the canvas often renders well under its 480 logical px
+        // wide (CSS gives it `width: 100%`); the backing store should shrink
+        // with it instead of always allocating GAME_W * dpr regardless of how
+        // small the element is actually displayed.
+        const g = boot({ dpr: 2, canvasWidth: 240 }); // half of GAME_W
+        const canvas = g.el("game");
+        a.eq(canvas.width, 480,
+          `canvas.width was ${canvas.width}; at half the displayed width it should allocate half ` +
+          `the backing-store pixels (480), not a flat GAME_W * dpr (960)`);
+        a.eq(canvas.height, 680,
+          `canvas.height was ${canvas.height}; it should scale down with canvas.width, keeping ` +
+          "the same GAME_W:GAME_H aspect ratio");
       },
     },
   ],

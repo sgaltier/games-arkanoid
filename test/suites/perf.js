@@ -1,12 +1,6 @@
 "use strict";
 /*
   Per-frame budgets, measured with the counters the DOM stub keeps.
-
-  Most of these are `pending`: they describe the budget the render loop *should*
-  meet, and fail today because the corresponding findings are still open. The
-  runner reports them as PEND, and will flag them the moment they start passing —
-  which is exactly when someone fixes #14 or #15 and needs to be told to close
-  the finding out.
 */
 
 const { boot } = require("../dom-stub");
@@ -27,7 +21,6 @@ module.exports = {
   tests: [
     {
       name: "#14 — the render loop never forces a style recalculation",
-      pending: "#14",
       fn(a) {
         const g = boot().start();
         const c = frameWithDrops(g, 3);
@@ -38,7 +31,6 @@ module.exports = {
     },
     {
       name: "#15 — a frame with no state change writes nothing to the DOM",
-      pending: "#15",
       fn(a) {
         const g = boot().start();
         g.runAlive(0.2);

@@ -523,9 +523,18 @@ canvas {
 
   function fitCanvas() {
     var dpr = Math.min(window.devicePixelRatio || 1, 2.5);
-    canvas.width = GAME_W * dpr;
-    canvas.height = GAME_H * dpr;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // The canvas is styled `width: 100%; height: auto`, so its displayed size
+    // tracks its container rather than GAME_W — on a phone that's well under
+    // 480 CSS px. Allocating GAME_W * dpr regardless wastes memory and
+    // fill-rate on pixels that never reach the screen. Scale the backing
+    // store from the smaller of the two: never upsize past `dpr` (the
+    // previous, still-correct behaviour whenever the canvas is displayed at
+    // or above its logical size), but shrink it when displayed smaller.
+    var displayWidth = canvas.getBoundingClientRect().width || GAME_W;
+    var scale = dpr * Math.min(1, displayWidth / GAME_W);
+    canvas.width = Math.round(GAME_W * scale);
+    canvas.height = Math.round(GAME_H * scale);
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
   }
   fitCanvas();
   window.addEventListener("resize", fitCanvas);
@@ -583,6 +592,10 @@ canvas {
   ];
   var POWERUP_TOTAL_WEIGHT = POWERUPS.reduce(function (s, p) { return s + p.weight; }, 0);
   var DROP_CHANCE = 0.16;
+  // Computed once — getComputedStyle forces a synchronous style recalculation,
+  // so calling it per drop per frame (as drawDrops used to) is the single most
+  // expensive line in the render path. The body font never changes at runtime.
+  var DROP_FONT = "bold 10px " + getComputedStyle(document.body).fontFamily;
 
   function rollPowerup() {
     var r = Math.random() * POWERUP_TOTAL_WEIGHT;
@@ -755,6 +768,7 @@ canvas {
     pointerX: null,
     widthEffect: null,  // {mult, remaining} — remaining is in seconds of play
     speedEffect: null,  // {mult, remaining}
+    remainingBricks: 0, // destructible bricks still alive; see buildLevel/brickHit
     muted: false,
     lang: loadLang(),
     lastTime: 0,
@@ -774,6 +788,7 @@ canvas {
   function buildLevel(idx) {
     var def = LEVELS[idx];
     var bricks = [];
+    var remaining = 0;
     for (var r = 0; r < def.rows.length; r++) {
       var row = def.rows[r];
       for (var c = 0; c < COLS; c++) {
@@ -786,9 +801,11 @@ canvas {
           w: BRICK_W, h: BRICK_H,
           type: ch, hp: hp, alive: true
         });
+        if (hp !== Infinity) remaining++;
       }
     }
     state.bricks = bricks;
+    state.remainingBricks = remaining;
   }
 
   function resetPaddleAndBall() {
@@ -1167,6 +1184,7 @@ canvas {
     if (brick.type === "S" && brick.hp > 0) { brick.type = "Sc"; beep(300, 0.06, "square"); return; }
     if (brick.hp <= 0) {
       brick.alive = false;
+      state.remainingBricks -= 1;
       var pts = (brick.type === "Sc" ? 15 : 10) * (state.levelIndex + 1);
       state.score += pts;
       beep(520 + state.levelIndex * 30, 0.07, "square");
@@ -1304,10 +1322,7 @@ canvas {
   }
 
   function checkLevelClear() {
-    var remaining = state.bricks.some(function (b) {
-      return b.alive && b.hp !== Infinity;
-    });
-    if (!remaining) {
+    if (state.remainingBricks <= 0) {
       maybeSaveBest();
       if (state.levelIndex >= LEVELS.length - 1) {
         endGame(true);
@@ -1339,14 +1354,24 @@ canvas {
   var hudBest = document.getElementById("hud-best");
   var hudLevel = document.getElementById("hud-level");
   var hudLives = document.getElementById("hud-lives");
+  // updateHud() runs both on state-changing events (brickHit, applyPowerup,
+  // loseLife, ...) and unconditionally once per frame. The frame call is what
+  // catches state.best being live-compared against state.score, but re-writing
+  // four DOM nodes 60 times a second when nothing displayed has changed is
+  // pure waste — hudLast caches what's currently on screen so each field is
+  // only touched when its value actually differs.
+  var hudLast = { score: null, best: null, level: null, lives: null };
   function updateHud() {
-    hudScore.textContent = state.score;
-    hudBest.textContent = Math.max(state.best, state.score);
-    hudLevel.textContent = (state.levelIndex + 1) + "/" + LEVELS.length;
+    var score = state.score;
+    if (hudLast.score !== score) { hudScore.textContent = score; hudLast.score = score; }
+    var best = Math.max(state.best, state.score);
+    if (hudLast.best !== best) { hudBest.textContent = best; hudLast.best = best; }
+    var level = (state.levelIndex + 1) + "/" + LEVELS.length;
+    if (hudLast.level !== level) { hudLevel.textContent = level; hudLast.level = level; }
     var dots = "";
     for (var i = 0; i < state.lives; i++) dots += "●";
     for (var j = state.lives; j < state.maxLives; j++) dots += "○";
-    hudLives.textContent = dots;
+    if (hudLast.lives !== dots) { hudLives.textContent = dots; hudLast.lives = dots; }
   }
   updateHud();
 
@@ -1431,7 +1456,7 @@ canvas {
       ctx.arc(0, 0, 10, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = "#05010e";
-      ctx.font = "bold 10px " + getComputedStyle(document.body).fontFamily;
+      ctx.font = DROP_FONT;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(d.def.label, 0, 1);

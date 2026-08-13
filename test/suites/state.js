@@ -34,8 +34,11 @@ function assertPhase(a, g, phase) {
 }
 
 // Kill every destructible brick, leaving indestructible walls standing.
+// Bypassing brickHit means the remainingBricks counter it maintains (see
+// #16) has to be kept in sync by hand here.
 function clearBricks(g) {
   g.T.state.bricks.forEach((b) => { if (b.hp !== Infinity) b.alive = false; });
+  g.T.state.remainingBricks = 0;
 }
 
 module.exports = {
