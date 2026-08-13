@@ -510,14 +510,14 @@ canvas {
         <div class="vignette" aria-hidden="true"></div>
 
         <div class="overlay show" id="overlay-start" role="status" aria-live="polite" aria-hidden="false">
-          <p class="overlay-eyebrow" id="start-eyebrow">Niveau 1 / 5</p>
+          <p class="overlay-eyebrow" id="start-eyebrow">Niveau 1 / 10</p>
           <h2 class="overlay-title">Neon Break</h2>
           <p class="overlay-sub" data-i18n="start.sub">Détruisez toutes les briques pour passer au niveau suivant. Rattrapez les bonus qui tombent &mdash; évitez les malus.</p>
           <button class="btn" id="btn-start" type="button" data-i18n="start.btn">Lancer la partie</button>
         </div>
 
         <div class="overlay" id="overlay-ready" role="status" aria-live="polite" aria-hidden="true">
-          <p class="overlay-eyebrow" id="ready-eyebrow">Niveau 1 / 5</p>
+          <p class="overlay-eyebrow" id="ready-eyebrow">Niveau 1 / 10</p>
           <h2 class="overlay-title" data-i18n="ready.title">Prêt ?</h2>
           <p class="overlay-sub" data-i18n="ready.sub">Bougez la raquette puis appuyez sur Espace, cliquez ou touchez l'écran pour lancer la balle.</p>
         </div>
@@ -634,7 +634,20 @@ canvas {
     { rows: ["2121212121", "1212121212", "SSSSSSSSSS", "3434343434", "4343434343"], speed: 1.1 },
     { rows: ["1.2.3.4.1.", ".2.3.4.1.2", "SS..SS..SS", ".2.3.4.1.2", "1.2.3.4.1.", "3.4.1.2.3."], speed: 1.2 },
     { rows: ["#1#2#3#4#1", "2222222222", "S1S2S3S4S1", "3333333333", "4S4S4S4S4S", "1111111111", "2.4.#.4.2."], speed: 1.32 },
-    { rows: ["##1#2#3#4#", "S2S3S4S1S2", "3434343434", "S4S1S2S3S4", "2323232323", "S1S2S3S4S1", "4.3.#.2.1.", "1234123412"], speed: 1.48 }
+    { rows: ["##1#2#3#4#", "S2S3S4S1S2", "3434343434", "S4S1S2S3S4", "2323232323", "S1S2S3S4S1", "4.3.#.2.1.", "1234123412"], speed: 1.48 },
+    // #32: levels 6-10 lean progressively harder on walls (`#`, indestructible
+    // — shape the ball's path rather than something to clear) and silvers
+    // (`S`, 2hp) rather than just adding more 1hp rows. Speed growth per level
+    // is smaller than levels 1-5's (~7% vs ~10-13%): level 10 is deliberately
+    // kept under the ceiling the "cannot tunnel through the paddle at maximum
+    // speed" test enforces — baseBallSpeed * speed * fast-powerup's 1.4x *
+    // the 33ms clamped max dt must stay under the paddle's thickness plus the
+    // ball's diameter, or a ball can pass through the paddle in one frame.
+    { rows: ["1#2#3#4#1#", "S1S2S3S4S1", ".2.3.4.1.2", "3S4S1S2S3S", "#3#4#1#2#3", "4.1.2.3.4.", "1234123412"], speed: 1.60 },
+    { rows: ["##2#4#1#3#", "S3S1S4S2S1", "1.3.S.2.4.", "4242424242", "S1S2S3S4S2", "#4#1#3#2#4", ".1.3.S.4.2", "3142314231"], speed: 1.70 },
+    { rows: ["#1#2#S#3#4", "2S3S1S4S2S", ".4.2.S.1.3", "1#3#S#2#4#", "4S2S1S3S4S", "#2#4#1#S#3", ".3.1.4.2.S", "2413241324"], speed: 1.82 },
+    { rows: ["#S#1#S#2#S", "3S1S4S2S1S", ".2.S.4.S.1", "4#2#S#1#3#", "1S3S2S4S3S", ".4.1.S.2.S", "#1#S#3#4#S", "4231423142", "2341234123"], speed: 1.95 },
+    { rows: ["#S#S#S#S#S", "S#S#S#S#S#", "4321432143", "S1S2S3S4S1", ".1.2.3.4.1", "2S3S4S1S2S", "#2#3#4#1#2", "3.4.1.2.3.", "S4S1S2S3S4", "1234123412"], speed: 2.08 }
   ];
 
   var BRICK_COLOR = {

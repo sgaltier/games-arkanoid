@@ -21,7 +21,53 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #33, #34 | ✅ Fixed — 2026-08-13 |
 | #35, #36 | ✅ Fixed — 2026-08-13 |
 | #37 | ✅ Fixed — 2026-08-13 |
-| #32 | Open — 1 remaining |
+| #32 | ✅ Fixed — 2026-08-13 |
+
+All 37 findings fixed — nothing open.
+
+---
+
+## 2026-08-13 — Five more levels (#32)
+
+### Fixed
+
+**Levels 6–10** — `LEVELS` grows from 5 entries to 10, taking the game from a ~20-minute run to
+roughly double that. Went with hand-authoring over the other option on the table (a procedural
+generator for endless play past level 5): every place that reads `LEVELS.length` — the win check in
+`checkLevelClear()`, the HUD's `n/total` readout, the `level.of` string — was already written
+generically, so the finite-levels-then-`victory` structure just extended without any code changes
+there. Endless mode would have meant redesigning what "winning" means; out of scope for this pass.
+
+The new levels lean harder on walls (`#`, indestructible — shape the ball's path rather than being
+something to clear) and silver bricks (`S`, 2hp) instead of just stacking more 1hp rows, continuing
+levels 1–5's escalation in kind, not just in ball speed. Speed still ramps per level, but more gently
+than before (~7% a level instead of ~10–13%): level 10's speed is deliberately capped below the
+threshold the existing "ball cannot tunnel through the paddle at maximum speed" physics test
+enforces, rather than sitting right on the edge of it.
+
+### Notes
+
+Caught one real thing along the way: my first pass at the new levels' speeds (continuing the
+original ~10–13%-per-level curve out to level 10) failed that tunneling-invariant test outright — at
+that speed, `baseBallSpeed * LEVELS[9].speed` times the fast-powerup's 1.4x times the frame loop's
+clamped max `dt` exceeded the paddle's thickness plus the ball's diameter, meaning a ball could cross
+the paddle in a single frame with no collision ever detected. Rescaled the level-10-and-under speed
+curve to stay safely under that ceiling instead of chasing the original growth rate. (Separately,
+that same test doesn't factor in the mid-level difficulty ramp — `state.difficultyMult`, up to 1.6x —
+stacked on top of the fast powerup; a check on paper suggests even level 5's original speed could
+theoretically tunnel under that fuller combination. Pre-existing, unrelated to #32, and out of scope
+here — flagging in case it's worth its own finding later.)
+
+Also updated the static "Niveau 1 / 5" markup fallback (the text shown for one frame before
+`renderDynamicText()` paints the real level count) to "Niveau 1 / 10", and CLAUDE.md's "5
+hand-authored levels" line, which was now stale.
+
+No new regression test: the existing suite already asserts level-count-agnostic invariants (every
+level loadable with at least one destructible brick, bricks laid out inside the play field, winning
+on `LEVELS.length - 1`) in a loop over `LEVELS.length`, so it exercises all 10 levels automatically
+without needing per-level test additions.
+
+Full suite: 175 passed, 0 failed, 0 pending.
 
 ---
 

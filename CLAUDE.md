@@ -29,7 +29,7 @@ Run the suite before committing.
 `arkanoid.html` is `<style>` + markup + a `<script>` containing one IIFE — the whole game is a
 closure with nothing exposed globally. Inside the IIFE, roughly top to bottom:
 
-- `LEVELS` — 5 hand-authored levels as rows of characters (brick type per cell).
+- `LEVELS` — 10 hand-authored levels as rows of characters (brick type per cell).
 - `POWERUPS` — weighted drop table (`widen`, `slow`, `multi`, `life` good; `narrow`, `fast` bad).
 - `STRINGS` / `SUPPORTED_LANGS` / `DEFAULT_LANG` — the i18n table and `t(key, params)` lookup.
 - `state` — the single mutable game-state object (phase, score, bricks, balls, paddle, active
