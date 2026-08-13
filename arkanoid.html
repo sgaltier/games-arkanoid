@@ -1104,8 +1104,15 @@ canvas {
       beep(660, 0.12, "square");
       var base = state.balls.filter(function (b) { return !b.attached; })[0];
       if (base && state.balls.length < 5) {
+        // Mirror a descending source ball's angle upward first, so a clone
+        // never starts off aimed straight down and lost within a second —
+        // "M" should never feel like a dud. The pair still spreads
+        // symmetrically to either side of that upward angle.
+        var baseAngle = Math.atan2(base.dy, base.dx);
+        if (Math.sin(baseAngle) > 0) baseAngle = -baseAngle;
         for (var i = 0; i < 2 && state.balls.length < 5; i++) {
-          var angle = Math.atan2(base.dy, base.dx) + rand(-0.6, 0.6);
+          var side = i === 0 ? -1 : 1;
+          var angle = baseAngle + side * rand(0.3, 0.6);
           state.balls.push({
             x: base.x, y: base.y, r: base.r,
             dx: Math.cos(angle), dy: Math.sin(angle),
@@ -1122,8 +1129,10 @@ canvas {
       var d = state.drops[i];
       d.y += 130 * dt;
       var pw = paddleWidth();
-      var hit = d.y + 8 >= state.paddle.y && d.y - 8 <= state.paddle.y + state.paddle.h &&
-                d.x + 8 >= state.paddle.x && d.x - 8 <= state.paddle.x + pw;
+      // Must match the 10px radius drawDrops actually renders, or the capsule
+      // visibly overlaps the paddle without being collected.
+      var hit = d.y + 10 >= state.paddle.y && d.y - 10 <= state.paddle.y + state.paddle.h &&
+                d.x + 10 >= state.paddle.x && d.x - 10 <= state.paddle.x + pw;
       if (hit) {
         applyPowerup(d.def);
         state.drops.splice(i, 1);
@@ -1278,11 +1287,22 @@ canvas {
     }
   }
 
+  // Called at every checkpoint that might raise the best score, not just game
+  // over — closing the tab mid-run, including right after clearing a level,
+  // should never lose a score that was already achieved.
+  function maybeSaveBest() {
+    if (state.score > state.best) {
+      state.best = state.score;
+      saveBest(state.best);
+    }
+  }
+
   function checkLevelClear() {
     var remaining = state.bricks.some(function (b) {
       return b.alive && b.hp !== Infinity;
     });
     if (!remaining) {
+      maybeSaveBest();
       if (state.levelIndex >= LEVELS.length - 1) {
         endGame(true);
       } else {
@@ -1294,10 +1314,7 @@ canvas {
   }
 
   function endGame(won) {
-    if (state.score > state.best) {
-      state.best = state.score;
-      saveBest(state.best);
-    }
+    maybeSaveBest();
     updateHud();
     renderDynamicText();
     if (won) {

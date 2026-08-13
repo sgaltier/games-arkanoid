@@ -203,5 +203,57 @@ module.exports = {
           "array order (brick0 first) must not override which brick was really hit");
       },
     },
+    {
+      name: "#11 — the drop hitbox matches the drawn capsule",
+      fn(a) {
+        const g = boot().start();
+        const p = g.T.state.paddle;
+        const pw = g.T.paddleWidth();
+        const def = g.T.POWERUPS.find((d) => d.type === "life");
+        // updateDrops falls the drop by 130*dt before testing for a catch, so
+        // back the start position off by one frame's fall to land it exactly
+        // 9px above the paddle top at the moment of the test — inside the
+        // drawn capsule's 10px radius, outside the old 8px hitbox.
+        const fallStep = 130 * 0.016;
+        g.T.state.drops = [{ x: p.x + pw / 2, y: p.y - 9 - fallStep, def }];
+        const lives = g.T.state.lives;
+        g.frame();
+        a.eq(g.T.state.drops.length, 0,
+          "the capsule (drawn with a 10px radius) already touches the paddle, but the hitbox missed it");
+        a.gt(g.T.state.lives, lives, "the power-up should have been collected, not just discarded");
+      },
+    },
+    {
+      name: "#12 — a multi-ball clone never spawns aimed downward",
+      fn(a) {
+        const g = boot().start();
+        const b = g.T.state.balls[0];
+        b.dx = 0;
+        b.dy = 1; // straight down
+        b.attached = false;
+        g.T.applyPowerup({ type: "multi" });
+        const clones = g.T.state.balls.slice(1);
+        a.gt(clones.length, 0, "multi-ball should have added clones");
+        for (const clone of clones) {
+          a.lt(clone.dy, 0,
+            `a clone spawned with dy=${clone.dy}, still descending from a source ball aimed straight down`);
+        }
+      },
+    },
+    {
+      name: "#13 — clearing a level persists the best score without waiting for game over",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.score = 999;
+        // Kill every destructible brick so the level completes without ending
+        // the game outright (there are more levels after this one).
+        g.T.state.bricks.forEach((br) => { if (br.hp !== Infinity) br.alive = false; });
+        g.frame();
+        a.eq(g.T.state.phase, "levelclear", "the level should have cleared, not ended the game");
+        a.eq(g.T.state.best, 999, "the best score should update in memory on level clear");
+        a.eq(g.store["neonbreak-best-score"], "999",
+          "closing the tab right after a level clear would otherwise lose the score");
+      },
+    },
   ],
 };

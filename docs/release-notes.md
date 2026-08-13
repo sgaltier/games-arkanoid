@@ -12,9 +12,38 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #1, #2, #3 | ✅ Fixed — 2026-08-12 (`18130c8`) |
 | #4, #5, #6 | ✅ Fixed — 2026-08-12 (`3ab988f`) |
 | #7, #8, #9, #10 | ✅ Fixed — 2026-08-13 |
-| #11 – #32 | Open — 22 remaining |
+| #11, #12, #13 | ✅ Fixed — 2026-08-13 |
+| #14 – #32 | Open — 19 remaining |
 
 Findings #20 and #23 were partially advanced by the bilingual work below, but both remain open.
+
+---
+
+## 2026-08-13 — Drops, multi-ball, and score persistence
+
+### Fixed
+
+**A falling power-up no longer visually clips the paddle without being caught** (#11)
+`updateDrops`'s hit test used an 8px radius while `drawDrops` renders the capsule with a 10px radius,
+so a drop could visibly overlap the paddle for a couple of pixels without registering as collected.
+The hit test now matches the drawn radius.
+
+**A multi-ball clone can no longer spawn aimed straight down** (#12)
+The clone angle used to be the source ball's exact angle plus a small random offset, so a descending
+source ball produced two descending clones that were usually lost within a second — "M" felt like a
+dud. The source angle is now mirrored upward first when it's descending, then the pair spreads
+symmetrically to either side of that upward angle.
+
+**The best score now survives closing the tab right after a level clear** (#13)
+Only `endGame()` used to call `saveBest()`, so clearing four levels and closing the tab before losing
+lost the whole score. A shared `maybeSaveBest()` helper is now also called from `checkLevelClear()`,
+checkpointing progress at every level clear rather than only at the very end of the run.
+
+### Notes
+
+Same procedure as the round above: a regression test per finding, added to
+`test/suites/regressions.js` and confirmed failing against the unfixed code before the fix landed.
+Full suite: 137 passed, 0 failed, 2 pending (#14, #15, unrelated performance findings).
 
 ---
 
