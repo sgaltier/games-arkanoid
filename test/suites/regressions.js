@@ -870,5 +870,42 @@ module.exports = {
           "the start overlay's own button should be focused, same as any overlay reached via setPhase()");
       },
     },
+    {
+      name: "#35 — touchend doesn't launch while a second finger is still down",
+      fn(a) {
+        const g = boot();
+        g.el("btn-start").click(1);
+        a.eq(g.T.state.phase, "ready");
+
+        g.touch("touchstart", 100);
+        // A second finger is still touching the canvas when the primary one
+        // lifts — e.touches reports one remaining.
+        g.touch("touchend", 100, 0, 1);
+        a.eq(g.T.state.phase, "ready",
+          "lifting one of two fingers should not launch — the player hasn't committed to the serve");
+
+        g.touch("touchend", 100); // the last finger lifts — no touches remain
+        a.eq(g.T.state.phase, "playing", "lifting the last finger should launch");
+      },
+    },
+    {
+      name: "#36 — the overlay and its button are one hand-authored entry per phase, not two maps to sync",
+      fn(a) {
+        const g = boot();
+        const PHASE_OVERLAY = g.T.PHASE_OVERLAY;
+        a.ok(PHASE_OVERLAY, "PHASE_OVERLAY should be exposed");
+        // Every phase that has a call-to-action button carries it right
+        // alongside its overlay id, in the same entry — not in a second,
+        // separately-maintained map that could drift out of sync.
+        ["start", "paused", "levelclear", "victory", "gameover"].forEach((phase) => {
+          const entry = PHASE_OVERLAY[phase];
+          a.ok(entry && entry.overlay && entry.button,
+            `${phase} should carry both its overlay and its button in one entry`);
+        });
+        a.ok(PHASE_OVERLAY.ready && PHASE_OVERLAY.ready.overlay && !PHASE_OVERLAY.ready.button,
+          "ready shows an overlay but deliberately has no button of its own");
+        a.eq(PHASE_OVERLAY.playing, null, "playing shows no overlay");
+      },
+    },
   ],
 };

@@ -19,7 +19,42 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #26, #27, #28, #29 | ✅ Fixed — 2026-08-13 |
 | #30, #31 | ✅ Fixed — 2026-08-13 |
 | #33, #34 | ✅ Fixed — 2026-08-13 |
-| #32, #35, #36 | Open — 3 remaining |
+| #35, #36 | ✅ Fixed — 2026-08-13 |
+| #32, #37 | Open — 2 remaining |
+
+---
+
+## 2026-08-13 — Touch launch guard and a merged overlay/button map (#35, #36)
+
+### Fixed
+
+**`touchend` no longer launches while a second finger is still down** (#35)
+The touch-launch handler ran off the lifted finger's `changedTouches` entry with no check for
+whether another finger was still touching the canvas. Resting a second finger on the canvas — easy
+to do by accident on a phone — while dragging the primary one to aim during `"ready"` launched the
+ball the instant that primary finger lifted, even though the player hadn't committed to the serve.
+Guarded the launch with `e.touches.length === 0`; aiming (`changedTouches`) still updates
+unconditionally, so a lone finger drags and launches exactly as before.
+
+**`OVERLAY_PRIMARY_BTN` and `PHASE_OVERLAY` folded into one map** (#36)
+These were two hand-synced lookups — `PHASE_OVERLAY` mapping phase → overlay id, `OVERLAY_PRIMARY_BTN`
+separately mapping overlay id → button id — with nothing tying them together, so a future phase added
+to one without the other would show its overlay but never focus its button. `PHASE_OVERLAY` now
+carries both per phase in one entry (e.g. `paused: { overlay: "overlay-pause", button: "btn-resume" }`),
+`OVERLAY_PRIMARY_BTN` is gone, and both `showOverlay()`'s stale-focus guard (#33's `OVERLAY_BUTTON_IDS`)
+and `setPhase()` derive what they need from the single map.
+
+### Notes
+
+Both were found by the same `/code-review` pass over `bb8ebf1` that surfaced #33/#34, tracked as open
+findings in `code-review.md` until this round. Regression tests per finding (`#35`, `#36` in
+`test/suites/regressions.js`), confirmed failing against the unfixed code first. `#35`'s test needed
+`test/dom-stub.js`'s `touch()` helper to actually empty `e.touches` on `touchend` (matching a real
+touch event) and to accept an explicit remaining-finger count, since the stub previously always
+reported one finger down regardless of event type. `#36`'s test exposed `PHASE_OVERLAY` through the
+`SEAM`, a deliberate addition since the finding is specifically about that map's shape.
+
+Full suite: 175 passed, 0 failed, 0 pending.
 
 ---
 

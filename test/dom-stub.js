@@ -31,7 +31,7 @@ const SEAM = [
   "setPhase", "startLevel", "newGame", "launchBall", "togglePause",
   "applyPowerup", "paddleWidth", "ballSpeedMult", "circleRectCollide",
   "applyLanguage", "detectLang", "renderDynamicText", "t",
-  "STRINGS", "SUPPORTED_LANGS", "DEFAULT_LANG", "handleLaunchOrResume",
+  "STRINGS", "SUPPORTED_LANGS", "DEFAULT_LANG", "handleLaunchOrResume", "PHASE_OVERLAY",
 ];
 
 const TAIL = "})();";
@@ -359,10 +359,18 @@ function boot(opts) {
       this.canvasEvent("mousedown", ev);
       return ev;
     },
-    touch(type, x, y) {
+    // touchesLeft overrides how many fingers e.touches reports still being
+    // down; defaults to matching real touch events — empty by "touchend"
+    // (the lifted finger is gone), one finger otherwise. Pass it explicitly
+    // to simulate a second finger still down when the primary one lifts (#35).
+    touch(type, x, y, touchesLeft) {
+      const point = { clientX: x, clientY: y === undefined ? 0 : y };
+      const touches = touchesLeft === undefined
+        ? (type === "touchend" ? [] : [point])
+        : Array.from({ length: touchesLeft }, () => point);
       const ev = {
-        touches: [{ clientX: x, clientY: y === undefined ? 0 : y }],
-        changedTouches: [{ clientX: x, clientY: y === undefined ? 0 : y }],
+        touches,
+        changedTouches: [point],
         preventDefault() { ev.defaultPrevented = true; },
         defaultPrevented: false,
       };

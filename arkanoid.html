@@ -1111,7 +1111,12 @@ canvas {
       var p = pointerToLogical(touch.clientX, touch.clientY);
       state.pointerX = p.x;
     }
-    handleLaunchOrResume();
+    // e.touches still lists any finger that hasn't lifted yet. A second
+    // finger resting on the canvas — easy to do by accident on a phone —
+    // while the primary one drags to aim would otherwise launch the ball
+    // the moment that primary finger lifts, even though the player hasn't
+    // committed to the serve.
+    if (e.touches.length === 0) handleLaunchOrResume();
   }, { passive: false });
 
   function handleLaunchOrResume() {
@@ -1174,26 +1179,34 @@ canvas {
   ["start", "ready", "pause", "levelclear", "victory", "gameover"].forEach(function (name) {
     overlays[name] = document.getElementById("overlay-" + name);
   });
-  // The call-to-action button focused when each overlay appears — see #26.
-  // "ready" has none: it's dismissed by moving the paddle or pressing Space,
-  // not by a button.
-  var OVERLAY_PRIMARY_BTN = {
-    "overlay-start": "btn-start",
-    "overlay-pause": "btn-resume",
-    "overlay-levelclear": "btn-next",
-    "overlay-victory": "btn-restart-win",
-    "overlay-gameover": "btn-restart"
+  // The single source of truth for which overlay a phase shows and which
+  // button on it gets focus — see #26 for the focus half, #36 for why this
+  // is one map instead of two. "playing" shows no overlay; "ready" shows one
+  // with no button of its own (it's dismissed by moving the paddle or
+  // pressing Space, not by clicking anything). Every phase transition should
+  // flow through setPhase() below rather than assigning state.phase or
+  // calling showOverlay() directly, or this mapping and reality can drift
+  // apart (see #18, #34).
+  var PHASE_OVERLAY = {
+    start: { overlay: "overlay-start", button: "btn-start" },
+    ready: { overlay: "overlay-ready" },
+    playing: null,
+    paused: { overlay: "overlay-pause", button: "btn-resume" },
+    levelclear: { overlay: "overlay-levelclear", button: "btn-next" },
+    victory: { overlay: "overlay-victory", button: "btn-restart-win" },
+    gameover: { overlay: "overlay-gameover", button: "btn-restart" }
   };
-  // The inverse of OVERLAY_PRIMARY_BTN's values, as a lookup set — every
-  // button id that belongs to *some* overlay. Used below (#33) to tell an
-  // overlay's own call-to-action button apart from the deck's mute/pause
+  // Every button id that's some phase's call-to-action button, as a lookup
+  // set, derived from PHASE_OVERLAY rather than hand-duplicated. Used below
+  // (#33) to tell an overlay's own button apart from the deck's mute/pause
   // buttons, which also hold focus after a click (see #6/#23) but have
   // nothing to do with which overlay is showing.
   var OVERLAY_BUTTON_IDS = {};
-  Object.keys(OVERLAY_PRIMARY_BTN).forEach(function (k) {
-    OVERLAY_BUTTON_IDS[OVERLAY_PRIMARY_BTN[k]] = true;
+  Object.keys(PHASE_OVERLAY).forEach(function (p) {
+    var entry = PHASE_OVERLAY[p];
+    if (entry && entry.button) OVERLAY_BUTTON_IDS[entry.button] = true;
   });
-  function showOverlay(id) {
+  function showOverlay(id, buttonId) {
     // aria-hidden mirrors .show: a hidden overlay's role="status"/aria-live
     // content is pulled out of the accessibility tree entirely, so screen
     // readers only ever pick up the one overlay actually on screen.
@@ -1221,27 +1234,17 @@ canvas {
       // and Enter work from every overlay, not just "ready"/"paused": once the
       // button holds focus, isButtonFocused() hands Space back to the browser
       // (see #6), and the browser's native button activation does the rest.
-      var primaryBtnId = OVERLAY_PRIMARY_BTN[id];
-      if (primaryBtnId) document.getElementById(primaryBtnId).focus();
+      if (buttonId) document.getElementById(buttonId).focus();
     }
   }
-  // The single source of truth for which overlay a phase shows. Every phase
-  // transition should flow through setPhase() below rather than assigning
-  // state.phase directly, or this mapping and reality can drift apart.
-  var PHASE_OVERLAY = {
-    start: "overlay-start",
-    ready: "overlay-ready",
-    playing: null,
-    paused: "overlay-pause",
-    levelclear: "overlay-levelclear",
-    victory: "overlay-victory",
-    gameover: "overlay-gameover"
-  };
   function setPhase(p) {
     state.phase = p;
     renderDynamicText();
     renderPauseButton();
-    if (p in PHASE_OVERLAY) showOverlay(PHASE_OVERLAY[p]);
+    if (p in PHASE_OVERLAY) {
+      var entry = PHASE_OVERLAY[p];
+      showOverlay(entry && entry.overlay, entry && entry.button);
+    }
   }
 
   // ---------------------------------------------------------------------
