@@ -112,12 +112,15 @@ module.exports = {
         // Companion to #6: the deck and language buttons stay visible, so a mouse
         // click would leave one focused and it would then swallow the Space the
         // player expects to launch with.
+        // btn-pause is excluded here: since #26, its click also transitions
+        // the phase to "paused", which refocuses the pause overlay's own
+        // resume button — a different, and separately regression-tested (#26),
+        // interaction that would confound this assertion.
         const g = boot().start();
-        for (const id of ["btn-pause", "btn-mute"]) {
-          g.doc.activeElement = g.el(id);
-          g.el(id).click(1);
-          a.eq(g.doc.activeElement, g.doc.body, `${id} kept focus after a pointer click`);
-        }
+        g.doc.activeElement = g.el("btn-mute");
+        g.el("btn-mute").click(1);
+        a.eq(g.doc.activeElement, g.doc.body, "btn-mute kept focus after a pointer click");
+
         g.doc.activeElement = g.langButton("en");
         g.langButton("en").click(1);
         a.eq(g.doc.activeElement, g.doc.body, "the language toggle kept focus after a pointer click");
@@ -523,6 +526,191 @@ module.exports = {
         a.gt(before, after,
           "toggling the OS setting mid-session should immediately affect the next burst, not " +
           "require a reload");
+      },
+    },
+    {
+      name: "#26 — every overlay's primary button gets focus when it appears",
+      fn(a) {
+        const g = boot();
+        a.eq(g.doc.activeElement, g.el("btn-start"),
+          "the start screen's own button should be focused at boot, not just after a later transition");
+
+        [
+          ["paused", "btn-resume"],
+          ["levelclear", "btn-next"],
+          ["victory", "btn-restart-win"],
+          ["gameover", "btn-restart"],
+        ].forEach(([phase, btnId]) => {
+          g.T.setPhase(phase);
+          a.eq(g.doc.activeElement, g.el(btnId),
+            `setPhase("${phase}") should focus ${btnId}, so Space/Enter activates it`);
+        });
+
+        // "ready" has no button of its own — a stale focus left over from
+        // whichever overlay was showing before must not linger and keep
+        // swallowing Space via isButtonFocused() (see #6).
+        g.T.setPhase("ready");
+        a.ne(g.doc.activeElement.tagName, "BUTTON",
+          "no button should remain focused once an overlay with none of its own is shown");
+      },
+    },
+    {
+      name: "#26b — clicking pause hands focus straight to the resume button",
+      fn(a) {
+        const g = boot().start();
+        g.el("btn-pause").click(1);
+        a.eq(g.T.state.phase, "paused");
+        a.eq(g.doc.activeElement, g.el("btn-resume"),
+          "a mouse click blurs btn-pause (see #6), but the phase transition should immediately " +
+          "hand focus to the new overlay's own button");
+      },
+    },
+    {
+      name: "#27 — a touch aims on touchstart/touchmove but only launches on touchend",
+      fn(a) {
+        const g = boot();
+        g.el("btn-start").click(1);
+        a.eq(g.T.state.phase, "ready");
+
+        g.touch("touchstart", 100);
+        a.eq(g.T.state.phase, "ready", "touchstart alone should only aim the paddle, not launch");
+        a.eq(g.T.state.pointerX, 100);
+
+        g.touch("touchmove", 200);
+        a.eq(g.T.state.phase, "ready", "touchmove should keep aiming, not launch");
+        a.eq(g.T.state.pointerX, 200, "the paddle should still be positionable after the first touch");
+
+        g.touch("touchend", 200);
+        a.eq(g.T.state.phase, "playing", "touchend should launch");
+      },
+    },
+    {
+      name: "#28a — reaching the top wall ramps up the difficulty multiplier, capped at CONFIG.difficulty.max",
+      fn(a) {
+        const g = boot().start();
+        const ball = g.T.state.balls[0];
+        for (let i = 0; i < 60; i++) {
+          ball.attached = false;
+          ball.x = 240;
+          ball.y = 5; // already above the wall threshold (ball.r is 7)
+          ball.dx = 0;
+          ball.dy = -1;
+          ball.speed = 1;
+          g.frame();
+        }
+        a.gt(g.T.state.difficultyMult, 1, "repeated top-wall bounces should have raised the multiplier");
+        a.lte(g.T.state.difficultyMult, g.T.CONFIG.difficulty.max,
+          "the multiplier must never exceed CONFIG.difficulty.max");
+      },
+    },
+    {
+      name: "#28b — every CONFIG.difficulty.brickMilestone bricks destroyed also ramps the difficulty",
+      fn(a) {
+        const g = boot().start();
+        const milestone = g.T.CONFIG.difficulty.brickMilestone;
+        const before = g.T.state.difficultyMult;
+        const ball = g.T.state.balls[0];
+        for (let i = 0; i < milestone; i++) {
+          const target = g.T.state.bricks.find((b) => b.hp !== Infinity && b.alive);
+          ball.attached = false;
+          ball.x = target.x + target.w / 2;
+          ball.y = target.y + target.h + ball.r - 2;
+          ball.dx = 0;
+          ball.dy = -1;
+          ball.speed = 1;
+          g.frame();
+        }
+        a.gt(g.T.state.difficultyMult, before,
+          `destroying ${milestone} bricks should have crossed a difficulty milestone`);
+      },
+    },
+    {
+      name: "#28c — the difficulty multiplier actually scales ball speed, and resets on a new level",
+      fn(a) {
+        const g = boot().start();
+        const ball = g.T.state.balls[0];
+        ball.attached = false;
+        ball.x = 240;
+        ball.y = 300;
+        ball.dx = 1;
+        ball.dy = 0;
+        ball.speed = 100;
+
+        g.T.state.difficultyMult = 1;
+        g.frame();
+        const slowDx = g.T.state.balls[0].x - 240;
+
+        ball.x = 240;
+        g.T.state.difficultyMult = 1.5;
+        g.frame();
+        const fastDx = g.T.state.balls[0].x - 240;
+
+        a.gt(fastDx, slowDx, "a higher difficultyMult should move the ball further in the same frame");
+
+        g.T.startLevel(1);
+        a.eq(g.T.state.difficultyMult, 1, "a new level should start the ramp back at 1");
+      },
+    },
+    {
+      name: "#29a — destroying a brick spawns a floating score pop-up at its position",
+      fn(a) {
+        const g = boot().start();
+        const target = g.T.state.bricks.find((b) => b.hp !== Infinity && b.alive);
+        const ball = g.T.state.balls[0];
+        ball.attached = false;
+        ball.x = target.x + target.w / 2;
+        ball.y = target.y + target.h + ball.r - 2;
+        ball.dx = 0;
+        ball.dy = -1;
+        ball.speed = 1;
+        a.eq(g.T.state.floatingTexts.length, 0);
+        g.frame();
+        a.eq(g.T.state.floatingTexts.length, 1, "destroying a brick should spawn one floating text");
+        a.match(g.T.state.floatingTexts[0].text, /^\+\d+/,
+          `floating text "${g.T.state.floatingTexts[0].text}" should read as a score gain`);
+      },
+    },
+    {
+      name: "#29b — consecutive brick hits without a paddle touch build a score combo",
+      fn(a) {
+        const g = boot().start();
+        const scores = [];
+        const ball = g.T.state.balls[0];
+        for (let i = 0; i < 3; i++) {
+          const target = g.T.state.bricks.find((b) => b.hp !== Infinity && b.alive);
+          const before = g.T.state.score;
+          ball.attached = false;
+          ball.x = target.x + target.w / 2;
+          ball.y = target.y + target.h + ball.r - 2;
+          ball.dx = 0;
+          ball.dy = -1;
+          ball.speed = 1;
+          g.frame();
+          scores.push(g.T.state.score - before);
+        }
+        a.eq(g.T.state.combo, 3,
+          "three consecutive hits with no paddle touch between them should read as a combo of 3");
+        a.gt(scores[2], scores[0], "a later hit in an unbroken combo should score more than the first");
+      },
+    },
+    {
+      name: "#29c — touching the paddle resets the combo",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.combo = 5;
+        const p = g.T.state.paddle;
+        const ball = g.T.state.balls[0];
+        ball.attached = false;
+        // Already overlapping the paddle before this frame's movement, like
+        // #9's side-hit setup — a high speed here would tunnel straight
+        // through the paddle's 12px height instead of colliding with it.
+        ball.x = p.x + 10;
+        ball.y = p.y + p.h / 2;
+        ball.dx = 0;
+        ball.dy = 1;
+        ball.speed = 1;
+        g.frame();
+        a.eq(g.T.state.combo, 0, "any paddle contact should end the combo streak");
       },
     },
   ],

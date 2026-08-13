@@ -100,14 +100,18 @@ module.exports = {
       },
     },
     {
-      name: "a touch aims the paddle and launches the ball",
+      name: "a touch aims the paddle on touchstart and launches on touchend",
       fn(a) {
+        // #27: touchstart alone must not launch — it only aims — so the
+        // player gets a chance to drag the paddle into position first.
         const g = boot();
         g.el("btn-start").click(1);
         a.eq(g.T.state.phase, "ready");
         g.touch("touchstart", 150);
-        a.eq(g.T.state.phase, "playing", "a touch should launch from ready");
+        a.eq(g.T.state.phase, "ready", "touchstart alone should only aim, not launch");
         a.eq(g.T.state.pointerX, 150, "the touch should set the pointer position");
+        g.touch("touchend", 150);
+        a.eq(g.T.state.phase, "playing", "touchend should launch");
       },
     },
     {
@@ -158,9 +162,13 @@ module.exports = {
     {
       name: "deck buttons drop focus after a pointer click but keep it for keyboard",
       fn(a) {
+        // Uses btn-mute rather than btn-pause: pause's click also transitions
+        // the phase, which (since #26) refocuses the pause overlay's own
+        // button and would confound this assertion. That interaction has its
+        // own regression test (#26 in regressions.js).
         const g = boot().start();
-        g.doc.activeElement = g.el("btn-pause");
-        g.el("btn-pause").click(1);
+        g.doc.activeElement = g.el("btn-mute");
+        g.el("btn-mute").click(1);
         a.eq(g.doc.activeElement, g.doc.body, "a pointer click should leave the button unfocused");
 
         g.doc.activeElement = g.el("btn-mute");

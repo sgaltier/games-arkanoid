@@ -601,6 +601,8 @@ canvas {
   // so calling it per drop per frame (as drawDrops used to) is the single most
   // expensive line in the render path. The body font never changes at runtime.
   var DROP_FONT = "bold 10px " + getComputedStyle(document.body).fontFamily;
+  // Same reasoning as DROP_FONT: computed once, reused by drawFloatingTexts.
+  var SCORE_FONT = "bold 13px " + getComputedStyle(document.body).fontFamily;
 
   function rollPowerup() {
     var r = Math.random() * POWERUP_TOTAL_WEIGHT;
@@ -627,6 +629,28 @@ canvas {
       narrow: { mult: 0.6, duration: 8 },
       slow:   { mult: 0.7, duration: 8 },
       fast:   { mult: 1.4, duration: 8 }
+    },
+    // A stalemate on the last couple of bricks is the classic Breakout
+    // failure mode; nudging the ball faster over the course of a level
+    // heads that off. Both triggers are cumulative and multiplicative,
+    // capped at `max` so a long level doesn't spiral out of control.
+    difficulty: {
+      wallBounceMult: 1.03,     // applied every time the ball hits the top wall
+      brickMilestone: 8,        // bump every N bricks destroyed this level
+      brickMilestoneMult: 1.05,
+      max: 1.6
+    },
+    // Rewards keeping the ball off the paddle: each brick destroyed without
+    // an intervening paddle touch raises the score multiplier for the next
+    // one, up to `max`. combo itself (the streak length) resets on any
+    // paddle contact — see updateBalls().
+    combo: {
+      step: 0.15,
+      max: 2.5
+    },
+    floatingText: {
+      rise: 40,  // px/s the "+N" pop-up drifts upward
+      life: 0.7  // seconds before it fully fades
     }
   };
 
@@ -792,6 +816,7 @@ canvas {
     bricks: [],
     balls: [],
     particles: [],
+    floatingTexts: [], // "+30"-style score pop-ups; see spawnFloatingText
     drops: [],
     paddle: { x: GAME_W / 2 - 35, y: GAME_H - 34, h: 12, baseW: 70, speed: 460 },
     keys: {},
@@ -799,6 +824,9 @@ canvas {
     widthEffect: null,  // {mult, remaining} — remaining is in seconds of play
     speedEffect: null,  // {mult, remaining}
     remainingBricks: 0, // destructible bricks still alive; see buildLevel/brickHit
+    bricksDestroyed: 0, // this level, toward the next difficulty milestone
+    difficultyMult: 1,  // ramps up within a level; see CONFIG.difficulty
+    combo: 0,           // consecutive bricks destroyed without a paddle touch
     muted: loadMuted(),
     lang: loadLang(),
     lastTime: 0,
@@ -810,6 +838,11 @@ canvas {
   }
   function ballSpeedMult() {
     return state.speedEffect ? state.speedEffect.mult : 1;
+  }
+  // Cumulative, multiplicative, and capped — see CONFIG.difficulty. Called
+  // from both difficulty triggers (top-wall bounce, brick milestones).
+  function bumpDifficulty(mult) {
+    state.difficultyMult = Math.min(CONFIG.difficulty.max, state.difficultyMult * mult);
   }
 
   // ---------------------------------------------------------------------
@@ -836,6 +869,8 @@ canvas {
     }
     state.bricks = bricks;
     state.remainingBricks = remaining;
+    state.bricksDestroyed = 0;
+    state.difficultyMult = 1;
   }
 
   function resetPaddleAndBall() {
@@ -850,6 +885,8 @@ canvas {
     }];
     state.drops = [];
     state.particles = [];
+    state.floatingTexts = [];
+    state.combo = 0;
   }
 
   function startLevel(idx) {
@@ -890,6 +927,17 @@ canvas {
         life: rand(0.3, 0.6), age: 0, color: color, size: rand(2, 4)
       });
     }
+  }
+
+  // A brief "+N" pop-up at the brick a hit just scored on — the only canvas
+  // feedback for scoring beyond the HUD number. Rides its own age/life pair,
+  // same shape as particles, so updateFloatingTexts/drawFloatingTexts below
+  // mirror updateParticles/drawParticles.
+  function spawnFloatingText(x, y, points, combo) {
+    state.floatingTexts.push({
+      x: x, y: y, age: 0, life: CONFIG.floatingText.life,
+      text: "+" + points + (combo > 1 ? " ×" + combo : "")
+    });
   }
 
   // ---------------------------------------------------------------------
@@ -946,18 +994,32 @@ canvas {
     if (e.button !== 0) return; // ignore right/middle click, e.g. a context menu
     handleLaunchOrResume();
   });
+  // Aiming happens on touchstart/touchmove; launching is deferred to touchend
+  // (below) so the player gets a chance to drag the paddle into position
+  // before committing to serve, instead of the ball launching from wherever
+  // the finger first landed.
   canvas.addEventListener("touchstart", function (e) {
     e.preventDefault();
     var touch = e.touches[0];
     var p = pointerToLogical(touch.clientX, touch.clientY);
     state.pointerX = p.x;
-    handleLaunchOrResume();
   }, { passive: false });
   canvas.addEventListener("touchmove", function (e) {
     e.preventDefault();
     var touch = e.touches[0];
     var p = pointerToLogical(touch.clientX, touch.clientY);
     state.pointerX = p.x;
+  }, { passive: false });
+  canvas.addEventListener("touchend", function (e) {
+    e.preventDefault();
+    // changedTouches (not touches, which is already empty by touchend) holds
+    // the finger's final position, in case it moved since the last touchmove.
+    var touch = e.changedTouches[0];
+    if (touch) {
+      var p = pointerToLogical(touch.clientX, touch.clientY);
+      state.pointerX = p.x;
+    }
+    handleLaunchOrResume();
   }, { passive: false });
 
   function handleLaunchOrResume() {
@@ -988,6 +1050,16 @@ canvas {
   ["start", "ready", "pause", "levelclear", "victory", "gameover"].forEach(function (name) {
     overlays[name] = document.getElementById("overlay-" + name);
   });
+  // The call-to-action button focused when each overlay appears — see #26.
+  // "ready" has none: it's dismissed by moving the paddle or pressing Space,
+  // not by a button.
+  var OVERLAY_PRIMARY_BTN = {
+    "overlay-start": "btn-start",
+    "overlay-pause": "btn-resume",
+    "overlay-levelclear": "btn-next",
+    "overlay-victory": "btn-restart-win",
+    "overlay-gameover": "btn-restart"
+  };
   function showOverlay(id) {
     // aria-hidden mirrors .show: a hidden overlay's role="status"/aria-live
     // content is pulled out of the accessibility tree entirely, so screen
@@ -996,10 +1068,21 @@ canvas {
       overlays[k].classList.remove("show");
       overlays[k].setAttribute("aria-hidden", "true");
     });
+    // A focused button left over from the overlay that just hid would
+    // otherwise keep swallowing Space via isButtonFocused() (see #6) once
+    // the new overlay has no button of its own to take over — "ready" has
+    // none, for instance.
+    if (isButtonFocused()) document.activeElement.blur();
     if (id) {
       var el = document.getElementById(id);
       el.classList.add("show");
       el.setAttribute("aria-hidden", "false");
+      // Focusing the overlay's own call-to-action button is what makes Space
+      // and Enter work from every overlay, not just "ready"/"paused": once the
+      // button holds focus, isButtonFocused() hands Space back to the browser
+      // (see #6), and the browser's native button activation does the rest.
+      var primaryBtnId = OVERLAY_PRIMARY_BTN[id];
+      if (primaryBtnId) document.getElementById(primaryBtnId).focus();
     }
   }
   // The single source of truth for which overlay a phase shows. Every phase
@@ -1264,6 +1347,15 @@ canvas {
     }
   }
 
+  function updateFloatingTexts(dt) {
+    for (var i = state.floatingTexts.length - 1; i >= 0; i--) {
+      var f = state.floatingTexts[i];
+      f.age += dt;
+      if (f.age > f.life) { state.floatingTexts.splice(i, 1); continue; }
+      f.y -= CONFIG.floatingText.rise * dt;
+    }
+  }
+
   function brickHit(brick) {
     var color = BRICK_COLOR[brick.type] || BRICK_COLOR["1"];
     burst(brick.x + brick.w / 2, brick.y + brick.h / 2, color.fill, 10);
@@ -1274,8 +1366,19 @@ canvas {
     if (brick.hp <= 0) {
       brick.alive = false;
       state.remainingBricks -= 1;
-      var pts = (brick.type === "Sc" ? 15 : 10) * (state.levelIndex + 1);
+      state.bricksDestroyed += 1;
+      if (state.bricksDestroyed % CONFIG.difficulty.brickMilestone === 0) {
+        bumpDifficulty(CONFIG.difficulty.brickMilestoneMult);
+      }
+      // Consecutive bricks destroyed without the ball touching the paddle in
+      // between build a combo — see the reset in updateBalls()'s paddle
+      // collision. comboMult scales score, capped so it can't run away.
+      state.combo += 1;
+      var comboMult = Math.min(CONFIG.combo.max, 1 + (state.combo - 1) * CONFIG.combo.step);
+      var basePts = (brick.type === "Sc" ? 15 : 10) * (state.levelIndex + 1);
+      var pts = Math.round(basePts * comboMult);
       state.score += pts;
+      spawnFloatingText(brick.x + brick.w / 2, brick.y + brick.h / 2, pts, state.combo);
       beep(520 + state.levelIndex * 30, 0.07, "square");
       if (Math.random() < DROP_CHANCE) {
         var def = rollPowerup();
@@ -1327,17 +1430,24 @@ canvas {
       if (ball.attached) continue;
 
       var prevY = ball.y;
-      var v = ball.speed * mult * dt;
+      var v = ball.speed * mult * state.difficultyMult * dt;
       ball.x += ball.dx * v;
       ball.y += ball.dy * v;
 
       if (ball.x - ball.r < 0) { ball.x = ball.r; ball.dx = Math.abs(ball.dx); beep(300, 0.05, "sine"); }
       if (ball.x + ball.r > GAME_W) { ball.x = GAME_W - ball.r; ball.dx = -Math.abs(ball.dx); beep(300, 0.05, "sine"); }
-      if (ball.y - ball.r < 0) { ball.y = ball.r; ball.dy = Math.abs(ball.dy); beep(300, 0.05, "sine"); }
+      // Reaching the top wall is the classic Breakout difficulty trigger —
+      // nudge the ramp so a level can't stall out forever bouncing at a
+      // leisurely pace waiting for the last brick or two.
+      if (ball.y - ball.r < 0) {
+        ball.y = ball.r; ball.dy = Math.abs(ball.dy); beep(300, 0.05, "sine");
+        bumpDifficulty(CONFIG.difficulty.wallBounceMult);
+      }
 
       // paddle
       var pr = { x: state.paddle.x, y: state.paddle.y, w: pw, h: state.paddle.h };
       if (ball.dy > 0 && circleRectCollide(ball, pr)) {
+        state.combo = 0; // any paddle touch — top face or side clip — ends the streak
         if (prevY + ball.r <= pr.y) {
           // The ball was above the paddle top before this frame moved it in —
           // a genuine top-face hit. Steer it by where it landed.
@@ -1556,6 +1666,23 @@ canvas {
     }
   }
 
+  function drawFloatingTexts() {
+    for (var i = 0; i < state.floatingTexts.length; i++) {
+      var f = state.floatingTexts[i];
+      var alpha = 1 - f.age / f.life;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, alpha);
+      ctx.font = SCORE_FONT;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.shadowColor = "#ffe066";
+      ctx.shadowBlur = 6;
+      ctx.fillStyle = "#fff9e6";
+      ctx.fillText(f.text, f.x, f.y);
+      ctx.restore();
+    }
+  }
+
   function draw() {
     drawBackground();
     drawBricks();
@@ -1563,6 +1690,7 @@ canvas {
     drawParticles();
     drawPaddle();
     drawBalls();
+    drawFloatingTexts();
   }
 
   // ---------------------------------------------------------------------
@@ -1580,10 +1708,12 @@ canvas {
       updateBalls(dt);
       updateDrops(dt);
       updateParticles(dt);
+      updateFloatingTexts(dt);
       if (state.phase === "playing") checkLevelClear();
       updateHud();
-    } else if (state.particles.length) {
+    } else if (state.particles.length || state.floatingTexts.length) {
       updateParticles(dt);
+      updateFloatingTexts(dt);
     }
 
     draw();
@@ -1591,6 +1721,11 @@ canvas {
   }
 
   applyLanguage(state.lang);
+  // The start overlay is already showing in the static markup, but routing
+  // through showOverlay() here (rather than leaving it purely to markup) is
+  // what focuses "Lancer la partie" so Space/Enter works from the very first
+  // screen too, not just after a phase transition.
+  showOverlay("overlay-start");
   requestAnimationFrame(frame);
 })();
 </script>

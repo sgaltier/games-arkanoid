@@ -16,7 +16,64 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #14, #15, #16, #17 | ✅ Fixed — 2026-08-13 |
 | #18, #19, #20, #21 | ✅ Fixed — 2026-08-13 |
 | #22, #23, #24, #25 | ✅ Fixed — 2026-08-13 |
-| #26 – #32 | Open — 7 remaining |
+| #26, #27, #28, #29 | ✅ Fixed — 2026-08-13 |
+| #30 – #32 | Open — 3 remaining |
+
+---
+
+## 2026-08-13 — Gameplay/UX: keyboard overlays, touch-and-drag, difficulty ramp, score feel
+
+### Fixed
+
+**Space and Enter now work from every overlay, including the very first screen** (#26)
+`showOverlay()` now focuses the overlay's own call-to-action button whenever one appears — "Rejouer"
+on game over, "Niveau suivant" on level clear, "Reprendre" on pause, and "Lancer la partie" even at
+boot, routed through `showOverlay()` instead of relying purely on the static markup. Once a button
+holds focus, the existing `isButtonFocused()` guard (#6) hands Space back to the browser and native
+button activation does the rest. A companion fix: `showOverlay()` now also blurs a stale focus left
+over from the overlay that just hid, so it can't keep swallowing Space once the new overlay (like
+"ready") has no button of its own to take over.
+
+**A touch now aims before it launches** (#27)
+`touchstart` used to set the paddle position and immediately serve the ball in the same instant — you
+could not aim before the ball launched, and your finger sat right on top of the paddle blocking the
+view. Launching moved to a new `touchend` handler; `touchstart`/`touchmove` now only update the aim,
+so dragging into position before lifting your finger works as expected. The "vertical offset" half of
+the original suggestion — making the paddle itself track above the finger — was deliberately skipped:
+the paddle only ever steers horizontally, and adding vertical tracking would be a materially bigger
+change (new collision geometry, different feel from mouse/keyboard play) than the fix this bug
+actually needed.
+
+**Ball speed now ramps up over the course of a level** (#28)
+Classic Breakout speeds the ball up so a level can't stall out forever on the last couple of bricks.
+`state.difficultyMult` now does the same here: it bumps (cumulative, multiplicative, capped) every
+time the ball hits the top wall, and every `CONFIG.difficulty.brickMilestone` bricks destroyed, then
+multiplies directly into ball velocity alongside the existing power-up speed effect. It resets to 1
+at the start of every level.
+
+**Destroying bricks now has canvas feedback, and a combo rewards not touching the paddle** (#29)
+Points were only ever visible in the HUD number. Each brick destroyed now pops a floating `"+N"` at
+its position that rises and fades. Consecutive bricks destroyed without the ball touching the paddle
+in between also build a combo that scales the points awarded (capped), reset by any paddle contact —
+top face or side clip alike. This changes the scoring curve going forward: an unbroken combo now
+scores more than the same bricks hit in isolation, so newly-earned best scores aren't directly
+comparable to ones saved before this change.
+
+### Notes
+
+Same procedure as prior rounds: a regression test per finding, confirmed failing against the unfixed
+code before the fix landed. Fixing #26 (focusing overlay buttons on every transition, including at
+boot) surfaced a real interaction the test suite hadn't previously exercised: a button left focused
+from a prior overlay was silently blocking Space once a buttonless overlay like "ready" appeared —
+this is the `showOverlay()`-blurs-stale-focus fix folded into #26 above, and it required updating a
+couple of existing focus tests (`#6b`, and an input-suite test) to stop asserting the old "always ends
+up unfocused" behavior for the pause button specifically, since it now correctly ends up focused on
+the pause overlay's own resume button instead.
+
+No new test-harness capabilities were needed; #26–#29 are all exercised through the existing seam
+(`setPhase`, `state`, `CONFIG`, touch events).
+
+Full suite: 164 passed, 0 failed, 0 pending.
 
 ---
 
