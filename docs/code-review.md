@@ -8,7 +8,7 @@ breakout game. Vanilla ES5-style JS in an IIFE, 2D canvas, no build step, no dep
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** #1–#29 fixed, 3 items open. What shipped and when is tracked in
+**Status:** #1–#29 fixed, 7 items open. What shipped and when is tracked in
 [release-notes.md](release-notes.md); individual items below carry a `✅ FIXED` note with the details.
 
 **Line references below are re-anchored after each round of fixes** — they are only valid against the
@@ -410,6 +410,72 @@ Fix: a thin depleting bar under the HUD, or a shrinking ring on the paddle. Chea
 ### 32. Only 5 levels, hand-authored (M)
 [:562–568](../arkanoid.html#L562-L568). Options: add more hand-authored layouts, or add a procedural
 generator for endless mode past level 5.
+
+---
+
+## F. Regressions surfaced by the #26–29 pass
+
+Found by an `/code-review` pass over commit `bb8ebf1` ("Fix findings #26-#29: overlay focus, touch
+aim, difficulty ramp, combo score"). Not yet fixed.
+
+### 33. `showOverlay()` blurs any focused button, not just its own (S)
+
+The stale-focus guard added under #26 — `if (isButtonFocused()) document.activeElement.blur();`
+[:1075](../arkanoid.html#L1075) — runs unconditionally on every phase transition, regardless of
+*which* button currently holds focus. It was written to drop a stale button focus left over from
+the overlay that just hid (see #26), but it doesn't check whether the focused element actually
+belongs to that overlay.
+
+The deck's mute and language-toggle buttons deliberately keep focus after a keyboard activation
+(see #6/#23) so they stay operable. If a keyboard user tabs to one of those while a level is still
+in progress, then the ball falls (`loseLife` → `resetPaddleAndBall` → `setPhase("ready")`) or the
+level clears — events with nothing to do with that button — `showOverlay()` silently blurs it,
+yanking focus back to `document.body` with no user action.
+
+Fix: scope the blur to only fire when the focused button belongs to the overlay being hidden (or
+skip it when the incoming overlay is `"ready"`/none and no overlay-owned button is involved).
+
+### 34. Boot-time overlay focus bypasses `setPhase()` again (S)
+
+`showOverlay("overlay-start")` is now called directly at boot [:1728](../arkanoid.html#L1728) to
+focus "Lancer la partie" on the very first frame (added under #26). That's exactly the pattern #18
+fixed and removed — every phase transition going through `setPhase()`, which owns the
+phase→overlay mapping via `PHASE_OVERLAY`. This call bypasses it because `"start"` isn't a key in
+`PHASE_OVERLAY` [:1091–1098](../arkanoid.html#L1091-L1098) (only
+`ready`/`playing`/`paused`/`levelclear`/`victory`/`gameover` are — `state.phase` itself starts as
+`"start"` per the initial state object, so there's no natural transition *into* it to route
+through `setPhase` in the first place).
+
+Fix: add a `"start"` entry to `PHASE_OVERLAY`/`OVERLAY_PRIMARY_BTN` and call
+`setPhase("start")` at boot instead of calling `showOverlay` directly — keeps the single entry
+point single, and stops a future contributor extending `PHASE_OVERLAY` without noticing this
+boot-time call needs updating too.
+
+### 35. Touch launch fires while a second finger is still down (S)
+
+`touchend`'s `handleLaunchOrResume()` [:1022](../arkanoid.html#L1022) runs off the lifted finger's
+`changedTouches` entry without checking whether any other touch is still active on the canvas
+(`e.touches.length === 0`).
+
+A player resting a second finger on the canvas — easy to do by accident on a phone — while
+dragging the primary finger to aim during `"ready"` will launch the ball the moment the *primary*
+finger lifts, even though a finger is still down and they hadn't committed to the serve.
+
+Fix: guard the call with `if (e.touches.length === 0) handleLaunchOrResume();`.
+
+### 36. `OVERLAY_PRIMARY_BTN` and `PHASE_OVERLAY` are two hand-synced maps (S/M)
+
+`PHASE_OVERLAY` [:1091–1098](../arkanoid.html#L1091-L1098) maps phase → overlay id;
+`OVERLAY_PRIMARY_BTN` [:1056–1062](../arkanoid.html#L1056-L1062) separately maps overlay id →
+button id. Nothing ties them together, so they can drift.
+
+If a future phase/overlay is added to `PHASE_OVERLAY` with its own call-to-action button but the
+matching `OVERLAY_PRIMARY_BTN` entry is forgotten (or vice versa), the overlay shows but its button
+never gets focus — Space/Enter silently stops working from that screen. Same class of desync #18
+fixed for `state.phase`/`showOverlay`, just one map over.
+
+Fix: fold both into one lookup keyed by phase, e.g. `{ phase: { overlay, button } }`, so there's
+one place to add a new phase's overlay+button pair instead of two.
 
 ---
 
