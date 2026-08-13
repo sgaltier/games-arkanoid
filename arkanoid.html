@@ -258,6 +258,7 @@ canvas {
   text-align: center;
   padding: 24px;
   background: rgba(5, 1, 14, .82);
+  -webkit-backdrop-filter: blur(1px);
   backdrop-filter: blur(1px);
   opacity: 0;
   visibility: hidden;
@@ -401,6 +402,11 @@ canvas {
   flex: none;
 }
 
+.swatch-widen { background: var(--neon-lime); }
+.swatch-slow { background: var(--neon-cyan); }
+.swatch-multi { background: var(--neon-magenta); }
+.swatch-narrow { background: var(--danger); }
+
 @media (max-width: 420px) {
   .tagline { display: none; }
   .hud-label { letter-spacing: .06em; }
@@ -497,10 +503,10 @@ canvas {
   </div>
 
   <div class="legend">
-    <span class="legend-item"><span class="swatch" style="background:var(--neon-lime)"></span><span data-i18n="legend.widen">Agrandit la raquette</span></span>
-    <span class="legend-item"><span class="swatch" style="background:var(--neon-cyan)"></span><span data-i18n="legend.slow">Balle lente</span></span>
-    <span class="legend-item"><span class="swatch" style="background:var(--neon-magenta)"></span><span data-i18n="legend.multi">Multi-balle</span></span>
-    <span class="legend-item"><span class="swatch" style="background:var(--danger)"></span><span data-i18n="legend.narrow">Raquette rétrécie</span></span>
+    <span class="legend-item"><span class="swatch swatch-widen"></span><span data-i18n="legend.widen">Agrandit la raquette</span></span>
+    <span class="legend-item"><span class="swatch swatch-slow"></span><span data-i18n="legend.slow">Balle lente</span></span>
+    <span class="legend-item"><span class="swatch swatch-multi"></span><span data-i18n="legend.multi">Multi-balle</span></span>
+    <span class="legend-item"><span class="swatch swatch-narrow"></span><span data-i18n="legend.narrow">Raquette rétrécie</span></span>
   </div>
 </div>
 
