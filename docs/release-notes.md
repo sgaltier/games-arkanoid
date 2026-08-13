@@ -17,7 +17,89 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #18, #19, #20, #21 | ✅ Fixed — 2026-08-13 |
 | #22, #23, #24, #25 | ✅ Fixed — 2026-08-13 |
 | #26, #27, #28, #29 | ✅ Fixed — 2026-08-13 |
-| #30 – #32 | Open — 3 remaining |
+| #30, #31 | ✅ Fixed — 2026-08-13 |
+| #33, #34 | ✅ Fixed — 2026-08-13 |
+| #32, #35, #36 | Open — 3 remaining |
+
+---
+
+## 2026-08-13 — Overlay focus regressions (#33, #34)
+
+### Fixed
+
+**`showOverlay()` no longer blurs buttons that aren't its own** (#33)
+The stale-focus guard added under #26 — meant to drop a stray button focus left over from whatever
+overlay had just hidden — ran unconditionally on every phase transition, regardless of which button
+actually held focus. The deck's mute and pause buttons deliberately keep focus after a keyboard
+activation (#6/#23) so they stay operable via Space; a level clearing or a life being lost while one
+of them had focus silently yanked it back to `document.body`, with no user action behind it. The
+blur is now scoped to buttons that actually belong to an overlay, via a small `OVERLAY_BUTTON_IDS`
+lookup built from `OVERLAY_PRIMARY_BTN`'s own values — the deck buttons never appear in it, so they're
+never touched by a transition that has nothing to do with them.
+
+**Boot routes through `setPhase()` again** (#34)
+`showOverlay("overlay-start")` was being called directly at boot to focus "Lancer la partie" on the
+first frame — exactly the pattern #18 fixed and removed elsewhere, reintroduced because `"start"`
+wasn't a key in `PHASE_OVERLAY`. Added a `start: "overlay-start"` entry (`OVERLAY_PRIMARY_BTN` already
+had the matching button since #26) and boot now calls `setPhase("start")` instead, keeping the single
+entry point single and closing the gap #18 left for a future phase to reopen.
+
+### Notes
+
+Both were found by an `/code-review` pass over `bb8ebf1` and tracked as open findings in
+`code-review.md` before this round fixed them. Same procedure as prior rounds: a regression test per
+finding (`#33`, `#34` in `test/suites/regressions.js`), confirmed failing against the unfixed code,
+then fixed.
+
+Full suite: 173 passed, 0 failed, 0 pending.
+
+---
+
+## 2026-08-13 — Sticky paddle, laser, and power-up timer bars
+
+### Fixed
+
+**Two new power-ups: sticky paddle and laser** (#30)
+The suggested "natural additions" are in. **Sticky** re-attaches a ball on a genuine top-face paddle
+hit while active, letting you aim before serving again — capped to one ball at a time so multi-ball
+can't stack several on the paddle at once. **Laser** gives the existing action button (Space, click,
+or tap) a second job during play: fire classic twin bolts from the paddle, on a cooldown, that destroy
+whatever brick they reach via the same `brickHit()` path a ball hit goes through — so scoring, combo,
+and difficulty all just work. Releasing a stuck ball and firing both route through the same
+`handleLaunchOrResume()` entry point every other input already uses. Both slot into the existing
+timed-effect architecture (`POWERUPS`, `CONFIG.effects`, `applyPowerup`) rather than inventing a
+parallel system.
+
+One existing assumption needed generalizing: `updatePaddle()`'s attached-ball tracking was hardcoded
+to `balls[0]` (true only because, before sticky, that was the only ball that could ever be attached).
+It now loops over every ball, since sticky can catch any of them mid-play.
+
+**Active power-up timers are now visible** (#31)
+A thin depleting bar per effect now sits under the HUD — one each for the paddle-width effect, the
+ball-speed effect, sticky, and laser — resized every frame from `remaining / duration` and hidden
+entirely when that effect isn't active. Reuses the same "recover which specific powerup from the sign
+of `mult`" trick `drawPaddle()`'s colour swap already relied on, rather than teaching `widthEffect`/
+`speedEffect` to remember which powerup produced them.
+
+### Notes
+
+Same procedure as prior rounds: a regression test per finding, confirmed failing against the unfixed
+code before the fix landed. One test (`#30c`, sticky's "at most one ball" cap) needed a rewrite after
+its first version passed against the *unfixed* code for the wrong reason — with no sticky feature at
+all, "the second ball doesn't stick" was trivially true. Restructured it to first prove a lone catch
+*does* stick (the control), so the test actually depends on the cap existing rather than passing by
+accident.
+
+Fixing #30 also exposed a real, unrelated invariant gap in `test/suites/physics.js`'s power-up sweep:
+it asserted every ball's direction vector has unit length, which had always been vacuously true before
+(only ever the pre-serve ball, and only outside the `"playing"` phase where that sweep runs) but breaks
+now that a ball can legitimately go stationary (`dx = dy = 0`) *during* active play. Excluded attached
+balls from that specific assertion.
+
+Extended the test harness's `SEAM` with `handleLaunchOrResume`, needed to drive the sticky-release and
+laser-fire paths directly rather than simulating a full DOM event round-trip.
+
+Full suite: 171 passed, 0 failed, 0 pending.
 
 ---
 

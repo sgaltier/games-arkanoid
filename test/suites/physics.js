@@ -38,7 +38,11 @@ function checkInvariants(a, g, opts) {
   for (const b of g.T.state.balls) {
     a.ok(isFinite(b.x) && isFinite(b.y), `ball position went non-finite: ${b.x},${b.y}`);
     a.ok(isFinite(b.dx) && isFinite(b.dy), `ball direction went non-finite: ${b.dx},${b.dy}`);
-    a.near(len(b), 1, 1e-9, "the direction vector stopped being a unit vector");
+    // An attached ball (serving, or caught by the sticky powerup, #30) is
+    // stationary by design — dx/dy are deliberately 0, not a unit vector.
+    if (!b.attached) {
+      a.near(len(b), 1, 1e-9, "the direction vector stopped being a unit vector");
+    }
     a.gte(b.x, -b.r - 1, "ball escaped through the left wall");
     a.lte(b.x, GAME_W + b.r + 1, "ball escaped through the right wall");
     a.gte(b.y, -b.r - 1, "ball escaped through the ceiling");

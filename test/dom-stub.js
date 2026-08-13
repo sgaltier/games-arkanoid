@@ -31,7 +31,7 @@ const SEAM = [
   "setPhase", "startLevel", "newGame", "launchBall", "togglePause",
   "applyPowerup", "paddleWidth", "ballSpeedMult", "circleRectCollide",
   "applyLanguage", "detectLang", "renderDynamicText", "t",
-  "STRINGS", "SUPPORTED_LANGS", "DEFAULT_LANG",
+  "STRINGS", "SUPPORTED_LANGS", "DEFAULT_LANG", "handleLaunchOrResume",
 ];
 
 const TAIL = "})();";

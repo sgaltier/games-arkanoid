@@ -199,6 +199,47 @@ body {
 .hud-cell.level .hud-value { color: var(--neon-amber); text-shadow: 0 0 8px rgba(255,182,39,.6); }
 .hud-cell.best  .hud-value { color: var(--neon-silver); text-shadow: 0 0 8px rgba(195,206,224,.5); }
 
+/* ---------- effect timers ---------- */
+/* #31: how long an active power-up has left. Each slot is toggled with the
+   `hidden` attribute and resized via the fill's inline width — see
+   renderEffectBars() — rather than created/destroyed, so there's nothing to
+   animate into existence, just a width transition. */
+.effect-bars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.effect-bar {
+  position: relative;
+  flex: 1 1 90px;
+  height: 14px;
+  border-radius: 7px;
+  overflow: hidden;
+  background: var(--bg-deep);
+  border: 1px solid var(--line);
+}
+
+.effect-bar-fill {
+  position: absolute;
+  inset: 0;
+  width: 0%;
+  transition: width .2s linear;
+}
+
+.effect-bar-label {
+  position: relative;
+  z-index: 1;
+  display: block;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 14px;
+  color: var(--bg-void);
+  text-shadow: 0 0 2px rgba(255,255,255,.5);
+}
+
 /* ---------- screen ---------- */
 .screen-wrap {
   position: relative;
@@ -410,6 +451,8 @@ canvas {
 .swatch-widen { background: var(--neon-lime); }
 .swatch-slow { background: var(--neon-cyan); }
 .swatch-multi { background: var(--neon-magenta); }
+.swatch-sticky { background: var(--neon-silver); }
+.swatch-laser { background: #ffe600; }
 .swatch-narrow { background: var(--danger); }
 
 @media (max-width: 420px) {
@@ -446,6 +489,28 @@ canvas {
     <div class="hud-cell lives">
       <div class="hud-label" data-i18n="hud.lives">Vies</div>
       <div class="hud-value" id="hud-lives">●●●</div>
+    </div>
+  </div>
+
+  <!-- One slot per timed effect, shown/hidden and resized in JS as effects
+       come and go — see renderEffectBars(). Decorative and rapidly-updating,
+       so kept out of the accessibility tree entirely rather than announced. -->
+  <div class="effect-bars" id="effect-bars" aria-hidden="true">
+    <div class="effect-bar" id="bar-width" hidden>
+      <div class="effect-bar-fill" id="bar-width-fill"></div>
+      <span class="effect-bar-label" id="bar-width-label"></span>
+    </div>
+    <div class="effect-bar" id="bar-speed" hidden>
+      <div class="effect-bar-fill" id="bar-speed-fill"></div>
+      <span class="effect-bar-label" id="bar-speed-label"></span>
+    </div>
+    <div class="effect-bar" id="bar-sticky" hidden>
+      <div class="effect-bar-fill" id="bar-sticky-fill"></div>
+      <span class="effect-bar-label">St</span>
+    </div>
+    <div class="effect-bar" id="bar-laser" hidden>
+      <div class="effect-bar-fill" id="bar-laser-fill"></div>
+      <span class="effect-bar-label">L</span>
     </div>
   </div>
 
@@ -511,6 +576,8 @@ canvas {
     <span class="legend-item"><span class="swatch swatch-widen"></span><span data-i18n="legend.widen">Agrandit la raquette</span></span>
     <span class="legend-item"><span class="swatch swatch-slow"></span><span data-i18n="legend.slow">Balle lente</span></span>
     <span class="legend-item"><span class="swatch swatch-multi"></span><span data-i18n="legend.multi">Multi-balle</span></span>
+    <span class="legend-item"><span class="swatch swatch-sticky"></span><span data-i18n="legend.sticky">Raquette collante</span></span>
+    <span class="legend-item"><span class="swatch swatch-laser"></span><span data-i18n="legend.laser">Tir laser</span></span>
     <span class="legend-item"><span class="swatch swatch-narrow"></span><span data-i18n="legend.narrow">Raquette rétrécie</span></span>
   </div>
 </div>
@@ -592,6 +659,8 @@ canvas {
     { type: "slow", color: "#2de2e6", weight: 5, good: true, label: "S" },
     { type: "multi", color: "#ff2e88", weight: 3, good: true, label: "M" },
     { type: "life", color: "#ffb627", weight: 1, good: true, label: "+1" },
+    { type: "sticky", color: "#c3cee0", weight: 3, good: true, label: "St" },
+    { type: "laser", color: "#ffe600", weight: 2, good: true, label: "L" },
     { type: "narrow", color: "#ff3b3b", weight: 4, good: false, label: "N" },
     { type: "fast", color: "#ff7a3b", weight: 4, good: false, label: "F" }
   ];
@@ -628,7 +697,18 @@ canvas {
       widen:  { mult: 1.6, duration: 10 },
       narrow: { mult: 0.6, duration: 8 },
       slow:   { mult: 0.7, duration: 8 },
-      fast:   { mult: 1.4, duration: 8 }
+      fast:   { mult: 1.4, duration: 8 },
+      sticky: { duration: 10 }, // no mult — a boolean-ish effect, see applyPowerup
+      laser:  { duration: 8 }
+    },
+    // Twin bolts fired from the paddle while laserEffect is active — see
+    // fireLaser()/updateLasers(). cooldown stops holding Space from emptying
+    // the whole duration into a single instant of fire.
+    laser: {
+      speed: 500,    // px/s the bolts travel upward
+      cooldown: 0.25, // seconds between shots
+      width: 3,
+      height: 12
     },
     // A stalemate on the last couple of bricks is the classic Breakout
     // failure mode; nudging the ball faster over the course of a level
@@ -703,6 +783,8 @@ canvas {
       "legend.widen": "Agrandit la raquette",
       "legend.slow": "Balle lente",
       "legend.multi": "Multi-balle",
+      "legend.sticky": "Raquette collante",
+      "legend.laser": "Tir laser",
       "legend.narrow": "Raquette rétrécie"
     },
     en: {
@@ -744,6 +826,8 @@ canvas {
       "legend.widen": "Widens the paddle",
       "legend.slow": "Slow ball",
       "legend.multi": "Multi-ball",
+      "legend.sticky": "Sticky paddle",
+      "legend.laser": "Laser shot",
       "legend.narrow": "Paddle shrunk"
     }
   };
@@ -818,11 +902,15 @@ canvas {
     particles: [],
     floatingTexts: [], // "+30"-style score pop-ups; see spawnFloatingText
     drops: [],
+    lasers: [],        // {x, y} bolts in flight; see fireLaser/updateLasers
+    laserCooldown: 0,
     paddle: { x: GAME_W / 2 - 35, y: GAME_H - 34, h: 12, baseW: 70, speed: 460 },
     keys: {},
     pointerX: null,
     widthEffect: null,  // {mult, remaining} — remaining is in seconds of play
     speedEffect: null,  // {mult, remaining}
+    stickyEffect: null, // {remaining} — a ball touching the paddle re-attaches
+    laserEffect: null,  // {remaining} — the fire button shoots instead of a no-op
     remainingBricks: 0, // destructible bricks still alive; see buildLevel/brickHit
     bricksDestroyed: 0, // this level, toward the next difficulty milestone
     difficultyMult: 1,  // ramps up within a level; see CONFIG.difficulty
@@ -877,6 +965,8 @@ canvas {
     state.paddle.baseW = 70;
     state.widthEffect = null;
     state.speedEffect = null;
+    state.stickyEffect = null;
+    state.laserEffect = null;
     state.paddle.x = clamp(state.paddle.x, 0, GAME_W - paddleWidth());
     var speed = state.baseBallSpeed * LEVELS[state.levelIndex].speed;
     state.balls = [{
@@ -886,6 +976,8 @@ canvas {
     state.drops = [];
     state.particles = [];
     state.floatingTexts = [];
+    state.lasers = [];
+    state.laserCooldown = 0;
     state.combo = 0;
   }
 
@@ -1025,16 +1117,48 @@ canvas {
   function handleLaunchOrResume() {
     if (state.phase === "ready") launchBall();
     else if (state.phase === "paused") resume();
+    else if (state.phase === "playing") {
+      // The same action button doubles as "release a stuck ball" (#30
+      // sticky) and "fire" (#30 laser) once the game is actually in play —
+      // both are no-ops unless their effect is active.
+      launchAttachedBalls();
+      fireLaser();
+    }
+  }
+
+  // Gives every currently-attached ball a fresh launch angle. Used both to
+  // serve at the start of a life ("ready" → "playing", where balls[0] is
+  // the only ball and is always attached) and to release a ball the sticky
+  // effect (#30) caught mid-play.
+  function launchAttachedBalls() {
+    for (var i = 0; i < state.balls.length; i++) {
+      var b = state.balls[i];
+      if (!b.attached) continue;
+      var angle = rand(-0.55, 0.55) - Math.PI / 2;
+      b.dx = Math.cos(angle);
+      b.dy = Math.sin(angle);
+      b.attached = false;
+    }
   }
 
   function launchBall() {
-    var b = state.balls[0];
-    if (!b) return;
-    var angle = rand(-0.55, 0.55) - Math.PI / 2;
-    b.dx = Math.cos(angle);
-    b.dy = Math.sin(angle);
-    b.attached = false;
+    if (!state.balls.length) return;
+    launchAttachedBalls();
     setPhase("playing");
+  }
+
+  // Twin bolts from the paddle — classic Arkanoid laser power-up. A no-op
+  // without an active laserEffect or while its cooldown hasn't elapsed, so
+  // this is safe to call unconditionally from the action button.
+  function fireLaser() {
+    if (!state.laserEffect || state.laserCooldown > 0) return;
+    state.laserCooldown = CONFIG.laser.cooldown;
+    var pw = paddleWidth();
+    state.lasers.push(
+      { x: state.paddle.x + pw * 0.25, y: state.paddle.y },
+      { x: state.paddle.x + pw * 0.75, y: state.paddle.y }
+    );
+    beep(720, 0.05, "square", 0.04);
   }
 
   function togglePause() {
@@ -1060,6 +1184,15 @@ canvas {
     "overlay-victory": "btn-restart-win",
     "overlay-gameover": "btn-restart"
   };
+  // The inverse of OVERLAY_PRIMARY_BTN's values, as a lookup set — every
+  // button id that belongs to *some* overlay. Used below (#33) to tell an
+  // overlay's own call-to-action button apart from the deck's mute/pause
+  // buttons, which also hold focus after a click (see #6/#23) but have
+  // nothing to do with which overlay is showing.
+  var OVERLAY_BUTTON_IDS = {};
+  Object.keys(OVERLAY_PRIMARY_BTN).forEach(function (k) {
+    OVERLAY_BUTTON_IDS[OVERLAY_PRIMARY_BTN[k]] = true;
+  });
   function showOverlay(id) {
     // aria-hidden mirrors .show: a hidden overlay's role="status"/aria-live
     // content is pulled out of the accessibility tree entirely, so screen
@@ -1071,8 +1204,15 @@ canvas {
     // A focused button left over from the overlay that just hid would
     // otherwise keep swallowing Space via isButtonFocused() (see #6) once
     // the new overlay has no button of its own to take over — "ready" has
-    // none, for instance.
-    if (isButtonFocused()) document.activeElement.blur();
+    // none, for instance. Scoped to buttons that actually belong to an
+    // overlay (#33): the deck's mute/pause buttons deliberately keep focus
+    // after a keyboard activation (see #6/#23), and a level clearing or a
+    // life being lost — events with nothing to do with those buttons —
+    // must not yank focus away from them.
+    var focused = document.activeElement;
+    if (focused && focused.tagName === "BUTTON" && OVERLAY_BUTTON_IDS[focused.id]) {
+      focused.blur();
+    }
     if (id) {
       var el = document.getElementById(id);
       el.classList.add("show");
@@ -1089,6 +1229,7 @@ canvas {
   // transition should flow through setPhase() below rather than assigning
   // state.phase directly, or this mapping and reality can drift apart.
   var PHASE_OVERLAY = {
+    start: "overlay-start",
     ready: "overlay-ready",
     playing: null,
     paused: "overlay-pause",
@@ -1260,8 +1401,10 @@ canvas {
     if (state.pointerX !== null) state.paddle.x = state.pointerX - w / 2;
     state.paddle.x = clamp(state.paddle.x, 0, GAME_W - w);
 
-    if (state.balls.length && state.balls[0].attached) {
-      state.balls[0].x = state.paddle.x + w / 2;
+    // Usually only balls[0] (at the start of a life), but the sticky effect
+    // (#30) can re-attach any ball mid-play, so every ball needs checking.
+    for (var i = 0; i < state.balls.length; i++) {
+      if (state.balls[i].attached) state.balls[i].x = state.paddle.x + w / 2;
     }
   }
 
@@ -1276,6 +1419,14 @@ canvas {
     if (state.speedEffect) {
       state.speedEffect.remaining -= dt;
       if (state.speedEffect.remaining <= 0) state.speedEffect = null;
+    }
+    if (state.stickyEffect) {
+      state.stickyEffect.remaining -= dt;
+      if (state.stickyEffect.remaining <= 0) state.stickyEffect = null;
+    }
+    if (state.laserEffect) {
+      state.laserEffect.remaining -= dt;
+      if (state.laserEffect.remaining <= 0) state.laserEffect = null;
     }
   }
 
@@ -1295,6 +1446,12 @@ canvas {
     } else if (p.type === "life") {
       state.lives = Math.min(state.maxLives, state.lives + 1);
       beep(1040, 0.18, "triangle");
+    } else if (p.type === "sticky") {
+      state.stickyEffect = { remaining: CONFIG.effects.sticky.duration };
+      beep(320, 0.1, "sine");
+    } else if (p.type === "laser") {
+      state.laserEffect = { remaining: CONFIG.effects.laser.duration };
+      beep(900, 0.1, "square");
     } else if (p.type === "multi") {
       beep(660, 0.12, "square");
       var base = state.balls.filter(function (b) { return !b.attached; })[0];
@@ -1317,6 +1474,7 @@ canvas {
       }
     }
     updateHud();
+    renderEffectBars();
   }
 
   function updateDrops(dt) {
@@ -1333,6 +1491,29 @@ canvas {
         state.drops.splice(i, 1);
       } else if (d.y > GAME_H + 20) {
         state.drops.splice(i, 1);
+      }
+    }
+  }
+
+  function updateLasers(dt) {
+    if (state.laserCooldown > 0) state.laserCooldown -= dt;
+    for (var i = state.lasers.length - 1; i >= 0; i--) {
+      var laser = state.lasers[i];
+      laser.y -= CONFIG.laser.speed * dt;
+      if (laser.y < 0) { state.lasers.splice(i, 1); continue; }
+      var hit = null;
+      for (var j = 0; j < state.bricks.length; j++) {
+        var brick = state.bricks[j];
+        if (!brick.alive) continue;
+        if (laser.x >= brick.x && laser.x <= brick.x + brick.w &&
+            laser.y >= brick.y && laser.y <= brick.y + brick.h) {
+          hit = brick;
+          break;
+        }
+      }
+      if (hit) {
+        brickHit(hit);
+        state.lasers.splice(i, 1);
       }
     }
   }
@@ -1448,15 +1629,26 @@ canvas {
       var pr = { x: state.paddle.x, y: state.paddle.y, w: pw, h: state.paddle.h };
       if (ball.dy > 0 && circleRectCollide(ball, pr)) {
         state.combo = 0; // any paddle touch — top face or side clip — ends the streak
-        if (prevY + ball.r <= pr.y) {
-          // The ball was above the paddle top before this frame moved it in —
-          // a genuine top-face hit. Steer it by where it landed.
+        var isTopHit = prevY + ball.r <= pr.y; // was above the paddle top before this frame moved it in
+        if (isTopHit && state.stickyEffect && !state.balls.some(function (o) { return o.attached; })) {
+          // #30: catch it instead of bouncing. updatePaddle() keeps it
+          // centered on the paddle every frame until launchAttachedBalls()
+          // (the action button, during "playing") sends it back out. Capped
+          // to one attached ball at a time — a second sticky catch while one
+          // is already held just bounces normally, below.
+          ball.attached = true;
+          ball.dx = 0;
+          ball.dy = 0;
+          beep(320, 0.08, "sine");
+        } else if (isTopHit) {
+          // A genuine top-face hit. Steer it by where it landed.
           var rel = (ball.x - (pr.x + pw / 2)) / (pw / 2);
           rel = clamp(rel, -1, 1);
           var angle = rel * CONFIG.paddleBounceSpread - Math.PI / 2;
           ball.dx = Math.cos(angle);
           ball.dy = Math.sin(angle);
           ball.y = pr.y - ball.r - 0.5;
+          beep(440, 0.06, "triangle");
         } else {
           // Already level with the paddle before it moved this frame: a side
           // clip, not a top bounce. Reflect horizontally only, like a brick's
@@ -1464,8 +1656,8 @@ canvas {
           var fromLeft = ball.dx > 0;
           ball.dx = -ball.dx;
           ball.x = fromLeft ? pr.x - ball.r - 0.5 : pr.x + pw + ball.r + 0.5;
+          beep(440, 0.06, "triangle");
         }
-        beep(440, 0.06, "triangle");
       }
 
       // bricks — a ball can overlap two adjacent bricks at once near a corner;
@@ -1566,6 +1758,56 @@ canvas {
   updateHud();
 
   // ---------------------------------------------------------------------
+  // Power-up timers (#31)
+  //   state.widthEffect/speedEffect don't record which powerup produced
+  //   them (just the resulting mult), so the sign of mult recovers it —
+  //   the same trick drawPaddle() already uses for its colour swap.
+  // ---------------------------------------------------------------------
+  var barWidth = document.getElementById("bar-width");
+  var barWidthFill = document.getElementById("bar-width-fill");
+  var barWidthLabel = document.getElementById("bar-width-label");
+  var barSpeed = document.getElementById("bar-speed");
+  var barSpeedFill = document.getElementById("bar-speed-fill");
+  var barSpeedLabel = document.getElementById("bar-speed-label");
+  var barSticky = document.getElementById("bar-sticky");
+  var barStickyFill = document.getElementById("bar-sticky-fill");
+  var barLaser = document.getElementById("bar-laser");
+  var barLaserFill = document.getElementById("bar-laser-fill");
+
+  // `effect` is the {remaining} object (or null); `duration`/`color`/`label`
+  // describe whichever specific powerup is currently behind it.
+  function updateEffectBar(barEl, fillEl, labelEl, effect, duration, color, label) {
+    if (!effect) {
+      if (!barEl.hidden) barEl.hidden = true;
+      return;
+    }
+    if (barEl.hidden) barEl.hidden = false;
+    fillEl.style.background = color;
+    fillEl.style.width = (Math.max(0, effect.remaining) / duration * 100) + "%";
+    if (labelEl && labelEl.textContent !== label) labelEl.textContent = label;
+  }
+
+  function renderEffectBars() {
+    var we = state.widthEffect;
+    updateEffectBar(barWidth, barWidthFill, barWidthLabel, we,
+      we && (we.mult > 1 ? CONFIG.effects.widen.duration : CONFIG.effects.narrow.duration),
+      we && (we.mult > 1 ? "#9dff1e" : "#ff3b3b"),
+      we && (we.mult > 1 ? "W" : "N"));
+
+    var se = state.speedEffect;
+    updateEffectBar(barSpeed, barSpeedFill, barSpeedLabel, se,
+      se && (se.mult > 1 ? CONFIG.effects.fast.duration : CONFIG.effects.slow.duration),
+      se && (se.mult > 1 ? "#ff7a3b" : "#2de2e6"),
+      se && (se.mult > 1 ? "F" : "S"));
+
+    updateEffectBar(barSticky, barStickyFill, null, state.stickyEffect,
+      CONFIG.effects.sticky.duration, "#c3cee0", "St");
+    updateEffectBar(barLaser, barLaserFill, null, state.laserEffect,
+      CONFIG.effects.laser.duration, "#ffe600", "L");
+  }
+  renderEffectBars();
+
+  // ---------------------------------------------------------------------
   // Draw
   // ---------------------------------------------------------------------
   function drawBackground() {
@@ -1654,6 +1896,21 @@ canvas {
     }
   }
 
+  function drawLasers() {
+    for (var i = 0; i < state.lasers.length; i++) {
+      var laser = state.lasers[i];
+      ctx.save();
+      ctx.shadowColor = "#ffe600";
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = "#ffe600";
+      ctx.fillRect(
+        laser.x - CONFIG.laser.width / 2, laser.y - CONFIG.laser.height,
+        CONFIG.laser.width, CONFIG.laser.height
+      );
+      ctx.restore();
+    }
+  }
+
   function drawParticles() {
     for (var i = 0; i < state.particles.length; i++) {
       var p = state.particles[i];
@@ -1687,6 +1944,7 @@ canvas {
     drawBackground();
     drawBricks();
     drawDrops();
+    drawLasers();
     drawParticles();
     drawPaddle();
     drawBalls();
@@ -1707,6 +1965,7 @@ canvas {
       updateEffects(dt);
       updateBalls(dt);
       updateDrops(dt);
+      updateLasers(dt);
       updateParticles(dt);
       updateFloatingTexts(dt);
       if (state.phase === "playing") checkLevelClear();
@@ -1715,6 +1974,7 @@ canvas {
       updateParticles(dt);
       updateFloatingTexts(dt);
     }
+    renderEffectBars();
 
     draw();
     requestAnimationFrame(frame);
@@ -1722,10 +1982,12 @@ canvas {
 
   applyLanguage(state.lang);
   // The start overlay is already showing in the static markup, but routing
-  // through showOverlay() here (rather than leaving it purely to markup) is
-  // what focuses "Lancer la partie" so Space/Enter works from the very first
-  // screen too, not just after a phase transition.
-  showOverlay("overlay-start");
+  // through setPhase() here (rather than leaving it purely to markup, or
+  // calling showOverlay() directly — see #34) is what focuses "Lancer la
+  // partie" so Space/Enter works from the very first screen too, not just
+  // after a phase transition, while keeping setPhase() the single entry
+  // point for every phase→overlay transition, boot included.
+  setPhase("start");
   requestAnimationFrame(frame);
 })();
 </script>

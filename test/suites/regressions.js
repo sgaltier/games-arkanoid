@@ -713,5 +713,162 @@ module.exports = {
         a.eq(g.T.state.combo, 0, "any paddle contact should end the combo streak");
       },
     },
+    {
+      name: "#30a — sticky catches a ball on a genuine top-face paddle hit",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.stickyEffect = { remaining: 10 };
+        const p = g.T.state.paddle;
+        const ball = g.T.state.balls[0];
+        ball.attached = false;
+        // Above the paddle before this frame's movement — a genuine top-face
+        // hit, not a side clip (see #9).
+        ball.x = p.x + 10;
+        ball.y = p.y - ball.r - 2;
+        ball.dx = 0;
+        ball.dy = 1;
+        ball.speed = 200;
+        g.frame();
+        a.eq(ball.attached, true, "a top-face hit during sticky should catch the ball, not bounce it");
+        a.eq(ball.dx, 0);
+        a.eq(ball.dy, 0);
+      },
+    },
+    {
+      name: "#30b — the action button releases a sticky-caught ball mid-play",
+      fn(a) {
+        const g = boot().start();
+        const ball = g.T.state.balls[0];
+        ball.attached = true;
+        ball.dx = 0;
+        ball.dy = 0;
+        a.eq(g.T.state.phase, "playing");
+        g.T.handleLaunchOrResume();
+        a.eq(ball.attached, false, "the action button should release a stuck ball during play");
+        a.near(Math.hypot(ball.dx, ball.dy), 1, 1e-9, "the released ball should get a real launch direction");
+        a.lt(ball.dy, 0, "the released ball should head back upward");
+      },
+    },
+    {
+      name: "#30c — sticky catches at most one ball at a time",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.stickyEffect = { remaining: 10 };
+        const p = g.T.state.paddle;
+
+        // Control: with nothing already stuck, a lone top hit sticks — same
+        // setup as #30a. Establishes the baseline the cap assertion below
+        // actually depends on, so this test fails pre-fix rather than
+        // trivially passing because sticky doesn't exist at all yet.
+        const control = g.T.state.balls[0];
+        control.attached = false;
+        control.x = p.x + 10;
+        control.y = p.y - control.r - 2;
+        control.dx = 0;
+        control.dy = 1;
+        control.speed = 200;
+        g.frame();
+        a.eq(control.attached, true, "sanity check: a lone top hit should stick under sticky");
+
+        const second = { x: p.x + 30, y: p.y - 8, r: 7, dx: 0, dy: 1, speed: 200, attached: false };
+        g.T.state.balls.push(second);
+        second.y = p.y - second.r - 2;
+        g.frame();
+        a.eq(second.attached, false,
+          "a second ball should bounce normally, not also stick, while one is already caught");
+      },
+    },
+    {
+      name: "#30d — the action button fires the laser instead of a no-op during play",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.laserEffect = { remaining: 8 };
+        a.eq(g.T.state.lasers.length, 0);
+        g.T.handleLaunchOrResume();
+        a.eq(g.T.state.lasers.length, 2, "firing should spawn the classic twin bolts");
+      },
+    },
+    {
+      name: "#30e — the laser has a cooldown between shots",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.laserEffect = { remaining: 8 };
+        g.T.handleLaunchOrResume();
+        const afterFirst = g.T.state.lasers.length;
+        g.T.handleLaunchOrResume(); // immediately again, cooldown should block it
+        a.eq(g.T.state.lasers.length, afterFirst,
+          "firing again before the cooldown elapses should not add more bolts");
+      },
+    },
+    {
+      name: "#30f — a laser bolt destroys the brick it reaches",
+      fn(a) {
+        const g = boot().start();
+        const target = g.T.state.bricks.find((b) => b.hp !== Infinity && b.alive);
+        g.T.state.lasers.push({ x: target.x + target.w / 2, y: target.y + target.h - 1 });
+        g.frame();
+        a.eq(target.alive, false, "a laser bolt reaching a brick should destroy it, same as a ball hit");
+        a.eq(g.T.state.lasers.length, 0, "the bolt should be consumed on impact");
+      },
+    },
+    {
+      name: "#31 — active power-up timers show as depleting bars",
+      fn(a) {
+        const g = boot().start();
+        const widthBar = g.el("bar-width");
+        const widthFill = g.el("bar-width-fill");
+        const widthLabel = g.el("bar-width-label");
+        a.eq(widthBar.hidden, true, "no bar should show before any effect is active");
+
+        g.T.applyPowerup({ type: "widen" });
+        a.eq(widthBar.hidden, false, "the width bar should appear once widen is active");
+        a.eq(widthLabel.textContent, "W");
+        const full = parseFloat(widthFill.style.width);
+        a.near(full, 100, 1, "a freshly-applied effect should start at a full bar");
+
+        g.T.state.widthEffect.remaining = g.T.CONFIG.effects.widen.duration / 2;
+        g.frame();
+        const half = parseFloat(widthFill.style.width);
+        a.lt(half, full, "the bar should deplete as the effect's remaining time counts down");
+
+        g.T.state.widthEffect = null;
+        g.frame();
+        a.eq(widthBar.hidden, true, "the bar should hide again once the effect ends");
+      },
+    },
+    {
+      name: "#33 — showOverlay only blurs a button that belongs to the overlay it's hiding",
+      fn(a) {
+        const g = boot().start();
+        // A real browser focuses a button on click; the stub doesn't, so focus()
+        // stands in for that. detail 0 on the click itself mimics keyboard
+        // activation, which deliberately keeps focus on the deck buttons
+        // (see #6/#23) so they stay reachable via Space.
+        g.el("btn-mute").focus();
+        g.el("btn-mute").click(0);
+        a.eq(g.doc.activeElement, g.el("btn-mute"),
+          "a keyboard-activated mute button should hold focus");
+        // "ready" has no primary button of its own (see #26), so nothing
+        // re-focuses anything afterward — this isolates the blur itself.
+        g.T.setPhase("ready");
+        a.eq(g.doc.activeElement, g.el("btn-mute"),
+          "the ready overlay has nothing to do with the mute button; it must not be blurred");
+      },
+    },
+    {
+      name: "#34 — \"start\" is a phase routed through setPhase()/PHASE_OVERLAY, not a boot-only special case",
+      fn(a) {
+        const g = boot().start();
+        g.T.setPhase("levelclear"); // move away from "start" so the transition back is visible
+        g.T.setPhase("start");
+        a.eq(g.T.state.phase, "start");
+        a.eq(g.shownOverlays()[0], "overlay-start",
+          "setPhase(\"start\") should route through PHASE_OVERLAY like every other phase, the " +
+          "same single entry point #18 established — not rely on a boot-time showOverlay() call " +
+          "that bypasses it");
+        a.eq(g.doc.activeElement, g.el("btn-start"),
+          "the start overlay's own button should be focused, same as any overlay reached via setPhase()");
+      },
+    },
   ],
 };
