@@ -156,5 +156,52 @@ module.exports = {
           "the label read the same muted and unmuted, so it was wrong half the time");
       },
     },
+    {
+      name: "#9 — a ball that clips the paddle's side is not teleported onto the top",
+      fn(a) {
+        const g = boot().start();
+        const p = g.T.state.paddle;
+        const b = g.T.state.balls[0];
+        // The ball is already level with the paddle's middle before this frame
+        // moves it — i.e. it did not approach from above. A fast, mostly
+        // horizontal ball can reach the paddle's side face within one frame.
+        b.x = p.x - 20;
+        b.y = p.y + p.h / 2;
+        b.dx = 1;
+        b.dy = 0.05;
+        b.speed = 2000;
+        b.attached = false;
+        g.frame();
+        a.gte(b.y, p.y,
+          "a side clip snapped the ball onto the paddle's top face, which reads as a phantom save");
+        a.gt(b.dy, 0,
+          "a side hit reversed vertical travel like a top bounce instead of just deflecting sideways");
+      },
+    },
+    {
+      name: "#10 — the closest overlapping brick is resolved, not the first one in array order",
+      fn(a) {
+        const g = boot().start();
+        // Two bricks positioned so a ball sitting in the notch between them
+        // overlaps both, but penetrates the second one less deeply. Bricks are
+        // otherwise stored top-row-first, so brick0 (the "upper" one) is always
+        // checked first.
+        const brick0 = { x: 100, y: 100, w: 40, h: 20, type: "1", hp: 1, alive: true };
+        const brick1 = { x: 140, y: 120, w: 40, h: 20, type: "1", hp: 1, alive: true };
+        g.T.state.bricks = [brick0, brick1];
+        const b = g.T.state.balls[0];
+        b.x = 138;
+        b.y = 119;
+        b.dx = 0;
+        b.dy = 0;
+        b.speed = 0;
+        b.attached = false;
+        g.frame();
+        a.not(brick1.alive,
+          "the ball penetrates brick1 more shallowly, so that is the face it actually struck");
+        a.ok(brick0.alive,
+          "array order (brick0 first) must not override which brick was really hit");
+      },
+    },
   ],
 };

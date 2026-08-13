@@ -844,6 +844,11 @@ canvas {
     // otherwise a stale mouse position would keep overriding it every frame.
     if (e.code === "ArrowLeft" || e.code === "ArrowRight" || e.code === "KeyA" || e.code === "KeyD") {
       state.pointerX = null;
+      // The arrow keys scroll the page by default; on a narrow viewport where
+      // the cabinet overflows, steering the paddle would scroll the document
+      // under it. KeyA/KeyD don't scroll anything, but suppressing them too is
+      // harmless and keeps all four movement codes behaving the same.
+      e.preventDefault();
     }
     if (e.code === "Space" && !isButtonFocused()) { e.preventDefault(); handleLaunchOrResume(); }
     if (e.code === "KeyP" || e.code === "Escape") togglePause();
@@ -872,7 +877,10 @@ canvas {
     state.pointerX = p.x;
   });
   canvas.addEventListener("mouseleave", function () { state.pointerX = null; });
-  canvas.addEventListener("mousedown", function () { handleLaunchOrResume(); });
+  canvas.addEventListener("mousedown", function (e) {
+    if (e.button !== 0) return; // ignore right/middle click, e.g. a context menu
+    handleLaunchOrResume();
+  });
   canvas.addEventListener("touchstart", function (e) {
     e.preventDefault();
     var touch = e.touches[0];
@@ -1164,6 +1172,17 @@ canvas {
     return (dx * dx + dy * dy) < ball.r * ball.r;
   }
 
+  // The smaller of the two overlaps is also the axis resolveBrickCollision
+  // will push out along — and the shallower that penetration, the closer the
+  // ball's centre is to that face, so it doubles as "how good a match is this
+  // brick for the face actually struck".
+  function brickPenetration(ball, r) {
+    var cx = r.x + r.w / 2, cy = r.y + r.h / 2;
+    var overlapX = (ball.r + r.w / 2) - Math.abs(ball.x - cx);
+    var overlapY = (ball.r + r.h / 2) - Math.abs(ball.y - cy);
+    return Math.min(overlapX, overlapY);
+  }
+
   function resolveBrickCollision(ball, r) {
     var cx = r.x + r.w / 2, cy = r.y + r.h / 2;
     var overlapX = (ball.r + r.w / 2) - Math.abs(ball.x - cx);
@@ -1185,6 +1204,7 @@ canvas {
       var ball = state.balls[bi];
       if (ball.attached) continue;
 
+      var prevY = ball.y;
       var v = ball.speed * mult * dt;
       ball.x += ball.dx * v;
       ball.y += ball.dy * v;
@@ -1196,24 +1216,44 @@ canvas {
       // paddle
       var pr = { x: state.paddle.x, y: state.paddle.y, w: pw, h: state.paddle.h };
       if (ball.dy > 0 && circleRectCollide(ball, pr)) {
-        var rel = (ball.x - (pr.x + pw / 2)) / (pw / 2);
-        rel = clamp(rel, -1, 1);
-        var angle = rel * 1.05 - Math.PI / 2;
-        ball.dx = Math.cos(angle);
-        ball.dy = Math.sin(angle);
-        ball.y = pr.y - ball.r - 0.5;
+        if (prevY + ball.r <= pr.y) {
+          // The ball was above the paddle top before this frame moved it in —
+          // a genuine top-face hit. Steer it by where it landed.
+          var rel = (ball.x - (pr.x + pw / 2)) / (pw / 2);
+          rel = clamp(rel, -1, 1);
+          var angle = rel * 1.05 - Math.PI / 2;
+          ball.dx = Math.cos(angle);
+          ball.dy = Math.sin(angle);
+          ball.y = pr.y - ball.r - 0.5;
+        } else {
+          // Already level with the paddle before it moved this frame: a side
+          // clip, not a top bounce. Reflect horizontally only, like a brick's
+          // side face, instead of warping the ball onto the top.
+          var fromLeft = ball.dx > 0;
+          ball.dx = -ball.dx;
+          ball.x = fromLeft ? pr.x - ball.r - 0.5 : pr.x + pw + ball.r + 0.5;
+        }
         beep(440, 0.06, "triangle");
       }
 
-      // bricks
+      // bricks — a ball can overlap two adjacent bricks at once near a corner;
+      // resolve against whichever it penetrates least, not just the first
+      // match in array order (bricks are stored top-row-first).
+      var hitBrick = null, hitPenetration = Infinity;
       for (var i = 0; i < state.bricks.length; i++) {
         var brick = state.bricks[i];
         if (!brick.alive) continue;
         if (circleRectCollide(ball, brick)) {
-          resolveBrickCollision(ball, brick);
-          brickHit(brick);
-          break;
+          var penetration = brickPenetration(ball, brick);
+          if (penetration < hitPenetration) {
+            hitPenetration = penetration;
+            hitBrick = brick;
+          }
         }
+      }
+      if (hitBrick) {
+        resolveBrickCollision(ball, hitBrick);
+        brickHit(hitBrick);
       }
 
       // lost off bottom

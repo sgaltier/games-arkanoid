@@ -1,10 +1,6 @@
 "use strict";
 /*
   Keyboard, mouse and touch.
-
-  Two tests here are `pending`: they describe how open findings #7 and #8 should
-  behave once fixed. They fail today by design; the runner reports them as PEND
-  and will flag them the moment they start passing.
 */
 
 const { boot } = require("../dom-stub");
@@ -174,7 +170,6 @@ module.exports = {
     },
     {
       name: "#7 — arrow keys suppress page scrolling",
-      pending: "#7",
       fn(a) {
         const g = boot().start();
         for (const code of ["ArrowLeft", "ArrowRight"]) {
@@ -185,7 +180,6 @@ module.exports = {
     },
     {
       name: "#8 — only the primary mouse button launches the ball",
-      pending: "#8",
       fn(a) {
         const g = boot();
         g.el("btn-start").click(1);

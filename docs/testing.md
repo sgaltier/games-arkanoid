@@ -74,7 +74,7 @@ If a pending test *passes*, the runner reports `FIXED?` and **exits non-zero**. 
 it means the finding is resolved and the marker needs removing. The suite tells you when to close
 a finding out rather than relying on anyone remembering.
 
-Currently pending: #7, #8 (input), #14, #15 (perf).
+Currently pending: #14, #15 (perf).
 
 ---
 

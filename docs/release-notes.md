@@ -11,9 +11,46 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 |---|---|
 | #1, #2, #3 | ✅ Fixed — 2026-08-12 (`18130c8`) |
 | #4, #5, #6 | ✅ Fixed — 2026-08-12 (`3ab988f`) |
-| #7 – #32 | Open — 26 remaining |
+| #7, #8, #9, #10 | ✅ Fixed — 2026-08-13 |
+| #11 – #32 | Open — 22 remaining |
 
 Findings #20 and #23 were partially advanced by the bilingual work below, but both remain open.
+
+---
+
+## 2026-08-13 — Input handling and collision fixes
+
+### Fixed
+
+**Arrow keys no longer scroll the page** (#7)
+`ArrowLeft`/`ArrowRight`/`KeyA`/`KeyD` are now `preventDefault`ed in the `keydown` handler alongside
+the existing pointer-release logic. On a narrow viewport where the cabinet overflows, steering the
+paddle used to scroll the document under it.
+
+**Right- and middle-click no longer launch the ball** (#8)
+`mousedown` on the canvas now checks `e.button === 0` before treating the click as a launch/resume.
+Previously any mouse button did it, so opening a context menu with a right-click also served the ball.
+
+**A ball clipping the paddle's side is no longer teleported onto the top** (#9)
+The paddle collision now remembers the ball's `y` from before the frame moved it. Only a ball that was
+above the paddle top resolves as a top-face bounce; a ball that was already level with the paddle
+resolves as a side hit instead — horizontal reflection only, same treatment a brick's side face gets.
+Previously any downward-moving ball touching the paddle at all was snapped onto the top, which read as
+a phantom save when the ball had actually clipped the side.
+
+**Corner brick collisions now resolve against the brick actually struck, not array order** (#10)
+When a ball overlaps two adjacent bricks at once — a corner between them — the collision now scores
+each overlapping brick by penetration depth and resolves against the shallowest one. It previously
+just took the first overlap in array order, which is always the top-row brick since that's how bricks
+are stored, producing occasional wrong-direction ricochets in the dense levels 4–5.
+
+### Notes
+
+Each fix landed with a regression test added first against the unfixed code and confirmed failing,
+per the convention in [testing.md](testing.md). #7 and #8 already had `pending` tests written ahead of
+time in `test/suites/input.js`; those are now unpended. #9 and #10 are new entries in
+`test/suites/regressions.js`. Full suite: 134 passed, 0 failed, 2 pending (#14, #15, unrelated
+performance findings).
 
 ---
 
