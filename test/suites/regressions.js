@@ -12,7 +12,7 @@
   what must never come back.
 */
 
-const { boot, HTML } = require("../dom-stub");
+const { boot, HTML, SCRIPT } = require("../dom-stub");
 
 module.exports = {
   name: "regressions — one test per fixed finding",
@@ -313,6 +313,96 @@ module.exports = {
         a.eq(canvas.height, 680,
           `canvas.height was ${canvas.height}; it should scale down with canvas.width, keeping ` +
           "the same GAME_W:GAME_H aspect ratio");
+      },
+    },
+    {
+      name: "#18 — setPhase owns the levelclear/victory/gameover overlay mapping",
+      fn(a) {
+        // Before the fix, setPhase()'s if/else chain simply had no branch for
+        // these three phases, so calling it directly — which is exactly what
+        // checkLevelClear()/endGame() now do instead of duplicating the
+        // overlay logic themselves — would silently leave the wrong overlay
+        // (or none) on screen.
+        const g = boot();
+        g.T.setPhase("levelclear");
+        a.eq(g.shownOverlays()[0], "overlay-levelclear");
+        g.T.setPhase("victory");
+        a.eq(g.shownOverlays()[0], "overlay-victory");
+        g.T.setPhase("gameover");
+        a.eq(g.shownOverlays()[0], "overlay-gameover");
+      },
+    },
+    {
+      name: "#19a — state.paddle.w is no longer a dead, stale field",
+      fn(a) {
+        // paddleWidth() is the actual source of truth everywhere; nothing
+        // ever read the assignment updatePaddle() used to make.
+        const g = boot().start();
+        a.eq(g.T.state.paddle.w, undefined,
+          "paddle.w should no longer be set at all, not just left unread");
+      },
+    },
+    {
+      name: "#19b — the redundant initial full-canvas paint before the first rAF frame is gone",
+      fn(a) {
+        a.not(/updateHud\(\);\s*drawBackground\(\);\s*drawBricks\(\);\s*drawPaddle\(\);/.test(SCRIPT),
+          "the four calls right before the first requestAnimationFrame(frame) duplicated exactly " +
+          "what that first frame paints ~16ms later");
+      },
+    },
+    {
+      name: "#19c — updateBalls no longer takes an unused now parameter",
+      fn(a) {
+        a.match(SCRIPT, /function updateBalls\(dt\)\s*\{/,
+          "updateBalls should declare only the dt parameter it actually uses");
+        a.not(/updateBalls\(dt, now\)/.test(SCRIPT),
+          "the call site should no longer pass the removed now argument");
+      },
+    },
+    {
+      name: "#20b — a suspended AudioContext is resumed on first use",
+      fn(a) {
+        // Some browsers hand back a "suspended" context unless it was built
+        // directly inside a user-gesture handler; without an explicit
+        // resume() call the game would be silently mute for the rest of the
+        // session.
+        const g = boot();
+        g.T.applyPowerup({ type: "life" }); // any powerup beeps
+        a.gt(g.counters.audioResumes, 0, "beep() should have resumed the suspended context");
+      },
+    },
+    {
+      name: "#20c — muting is remembered across a reload",
+      fn(a) {
+        const first = boot();
+        a.eq(first.T.state.muted, false, "starts unmuted by default");
+        first.el("btn-mute").click(1);
+        a.eq(first.T.state.muted, true);
+        a.eq(first.store["neonbreak-muted"], "1",
+          "the mute toggle should write straight through to storage, like the language toggle does");
+
+        const second = boot({ storage: first.store });
+        a.eq(second.T.state.muted, true, "a later session should boot back into the remembered state");
+      },
+    },
+    {
+      name: "#21 — scattered magic numbers are collected into one CONFIG object",
+      fn(a) {
+        const g = boot().start();
+        const CONFIG = g.T.CONFIG;
+        a.ok(CONFIG, "CONFIG should be exposed for tuning");
+        a.eq(CONFIG.maxBalls, 5);
+        a.eq(CONFIG.paddleBounceSpread, 1.05);
+        a.eq(CONFIG.dropFallSpeed, 130);
+        a.eq(CONFIG.particleGravity, 260);
+        a.eq(CONFIG.effects.widen.mult, 1.6);
+        a.eq(CONFIG.effects.widen.duration, 10);
+
+        // Prove gameplay actually reads from CONFIG rather than a separate,
+        // still-duplicated literal that happens to agree with it today.
+        g.T.applyPowerup({ type: "widen" });
+        a.eq(g.T.state.widthEffect.mult, CONFIG.effects.widen.mult);
+        a.eq(g.T.state.widthEffect.remaining, CONFIG.effects.widen.duration);
       },
     },
   ],

@@ -607,6 +607,25 @@ canvas {
   }
 
   // ---------------------------------------------------------------------
+  // Tuning
+  //   The gameplay constants that used to be magic numbers scattered through
+  //   update logic, collected here so the game can be tuned without hunting
+  //   through the physics for them.
+  // ---------------------------------------------------------------------
+  var CONFIG = {
+    dropFallSpeed: 130,      // px/s a dropped power-up capsule falls at
+    particleGravity: 260,    // px/s² downward acceleration on burst particles
+    maxBalls: 5,             // multi-ball never grows the ball count past this
+    paddleBounceSpread: 1.05, // max radians a paddle bounce steers off vertical
+    effects: {
+      widen:  { mult: 1.6, duration: 10 },
+      narrow: { mult: 0.6, duration: 8 },
+      slow:   { mult: 0.7, duration: 8 },
+      fast:   { mult: 1.4, duration: 8 }
+    }
+  };
+
+  // ---------------------------------------------------------------------
   // Localisation
   //   Static text is tagged in the markup with data-i18n (textContent),
   //   data-i18n-html (markup, e.g. the <kbd> hint) or data-i18n-attr
@@ -729,6 +748,7 @@ canvas {
   // ---------------------------------------------------------------------
   var BEST_KEY = "neonbreak-best-score";
   var LANG_KEY = "neonbreak-lang";
+  var MUTED_KEY = "neonbreak-muted";
 
   // Touching localStorage can throw outright — Safari private browsing, blocked
   // site data, some sandboxed file:// contexts. Since these are read while
@@ -752,6 +772,9 @@ canvas {
   }
   function saveLang(value) { storageSet(LANG_KEY, value); }
 
+  function loadMuted() { return storageGet(MUTED_KEY) === "1"; }
+  function saveMuted(value) { storageSet(MUTED_KEY, value ? "1" : "0"); }
+
   var state = {
     phase: "start", // start | ready | playing | paused | levelclear | victory | gameover
     levelIndex: 0,
@@ -763,13 +786,13 @@ canvas {
     balls: [],
     particles: [],
     drops: [],
-    paddle: { x: GAME_W / 2 - 35, y: GAME_H - 34, w: 70, h: 12, baseW: 70, speed: 460 },
+    paddle: { x: GAME_W / 2 - 35, y: GAME_H - 34, h: 12, baseW: 70, speed: 460 },
     keys: {},
     pointerX: null,
     widthEffect: null,  // {mult, remaining} — remaining is in seconds of play
     speedEffect: null,  // {mult, remaining}
     remainingBricks: 0, // destructible bricks still alive; see buildLevel/brickHit
-    muted: false,
+    muted: loadMuted(),
     lang: loadLang(),
     lastTime: 0,
     baseBallSpeed: 250
@@ -934,7 +957,7 @@ canvas {
   }
 
   function togglePause() {
-    if (state.phase === "playing") { state.phase = "paused"; showOverlay("overlay-pause"); }
+    if (state.phase === "playing") setPhase("paused");
     else if (state.phase === "paused") resume();
   }
   function resume() { setPhase("playing"); }
@@ -950,16 +973,21 @@ canvas {
     Object.keys(overlays).forEach(function (k) { overlays[k].classList.remove("show"); });
     if (id) document.getElementById(id).classList.add("show");
   }
+  // The single source of truth for which overlay a phase shows. Every phase
+  // transition should flow through setPhase() below rather than assigning
+  // state.phase directly, or this mapping and reality can drift apart.
+  var PHASE_OVERLAY = {
+    ready: "overlay-ready",
+    playing: null,
+    paused: "overlay-pause",
+    levelclear: "overlay-levelclear",
+    victory: "overlay-victory",
+    gameover: "overlay-gameover"
+  };
   function setPhase(p) {
     state.phase = p;
     renderDynamicText();
-    if (p === "ready") {
-      showOverlay("overlay-ready");
-    } else if (p === "playing") {
-      showOverlay(null);
-    } else if (p === "paused") {
-      showOverlay("overlay-pause");
-    }
+    if (p in PHASE_OVERLAY) showOverlay(PHASE_OVERLAY[p]);
   }
 
   // ---------------------------------------------------------------------
@@ -1053,6 +1081,7 @@ canvas {
   muteBtn.addEventListener("click", function (e) {
     blurIfPointerClick(e);
     state.muted = !state.muted;
+    saveMuted(state.muted);
     renderMuteButton();
   });
 
@@ -1073,6 +1102,12 @@ canvas {
     if (state.muted) return;
     try {
       if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+      // Some browsers create a context "suspended" unless construction happens
+      // directly inside a user-gesture handler; without this, a context first
+      // built from code (rather than a click/keypress) stays silently mute for
+      // the rest of the session. Resuming an already-running context is a
+      // harmless no-op.
+      if (actx.state === "suspended") actx.resume();
       var o = actx.createOscillator();
       var g = actx.createGain();
       o.type = type || "square";
@@ -1091,7 +1126,6 @@ canvas {
   // ---------------------------------------------------------------------
   function updatePaddle(dt) {
     var w = paddleWidth();
-    state.paddle.w = w;
     var speed = state.paddle.speed;
     if (state.keys.ArrowLeft || state.keys.KeyA) state.paddle.x -= speed * dt;
     if (state.keys.ArrowRight || state.keys.KeyD) state.paddle.x += speed * dt;
@@ -1118,22 +1152,32 @@ canvas {
   }
 
   function applyPowerup(p) {
-    if (p.type === "widen") { state.widthEffect = { mult: 1.6, remaining: 10 }; beep(880, 0.12, "triangle"); }
-    else if (p.type === "narrow") { state.widthEffect = { mult: 0.6, remaining: 8 }; beep(180, 0.15, "sawtooth"); }
-    else if (p.type === "slow") { state.speedEffect = { mult: 0.7, remaining: 8 }; beep(520, 0.12, "sine"); }
-    else if (p.type === "fast") { state.speedEffect = { mult: 1.4, remaining: 8 }; beep(140, 0.15, "sawtooth"); }
-    else if (p.type === "life") { state.lives = Math.min(state.maxLives, state.lives + 1); beep(1040, 0.18, "triangle"); }
-    else if (p.type === "multi") {
+    if (p.type === "widen") {
+      state.widthEffect = { mult: CONFIG.effects.widen.mult, remaining: CONFIG.effects.widen.duration };
+      beep(880, 0.12, "triangle");
+    } else if (p.type === "narrow") {
+      state.widthEffect = { mult: CONFIG.effects.narrow.mult, remaining: CONFIG.effects.narrow.duration };
+      beep(180, 0.15, "sawtooth");
+    } else if (p.type === "slow") {
+      state.speedEffect = { mult: CONFIG.effects.slow.mult, remaining: CONFIG.effects.slow.duration };
+      beep(520, 0.12, "sine");
+    } else if (p.type === "fast") {
+      state.speedEffect = { mult: CONFIG.effects.fast.mult, remaining: CONFIG.effects.fast.duration };
+      beep(140, 0.15, "sawtooth");
+    } else if (p.type === "life") {
+      state.lives = Math.min(state.maxLives, state.lives + 1);
+      beep(1040, 0.18, "triangle");
+    } else if (p.type === "multi") {
       beep(660, 0.12, "square");
       var base = state.balls.filter(function (b) { return !b.attached; })[0];
-      if (base && state.balls.length < 5) {
+      if (base && state.balls.length < CONFIG.maxBalls) {
         // Mirror a descending source ball's angle upward first, so a clone
         // never starts off aimed straight down and lost within a second —
         // "M" should never feel like a dud. The pair still spreads
         // symmetrically to either side of that upward angle.
         var baseAngle = Math.atan2(base.dy, base.dx);
         if (Math.sin(baseAngle) > 0) baseAngle = -baseAngle;
-        for (var i = 0; i < 2 && state.balls.length < 5; i++) {
+        for (var i = 0; i < 2 && state.balls.length < CONFIG.maxBalls; i++) {
           var side = i === 0 ? -1 : 1;
           var angle = baseAngle + side * rand(0.3, 0.6);
           state.balls.push({
@@ -1150,7 +1194,7 @@ canvas {
   function updateDrops(dt) {
     for (var i = state.drops.length - 1; i >= 0; i--) {
       var d = state.drops[i];
-      d.y += 130 * dt;
+      d.y += CONFIG.dropFallSpeed * dt;
       var pw = paddleWidth();
       // Must match the 10px radius drawDrops actually renders, or the capsule
       // visibly overlaps the paddle without being collected.
@@ -1171,7 +1215,7 @@ canvas {
       p.age += dt;
       if (p.age > p.life) { state.particles.splice(i, 1); continue; }
       p.x += p.vx * dt; p.y += p.vy * dt;
-      p.vy += 260 * dt;
+      p.vy += CONFIG.particleGravity * dt;
     }
   }
 
@@ -1229,7 +1273,7 @@ canvas {
     }
   }
 
-  function updateBalls(dt, now) {
+  function updateBalls(dt) {
     var pw = paddleWidth();
     var mult = ballSpeedMult();
 
@@ -1254,7 +1298,7 @@ canvas {
           // a genuine top-face hit. Steer it by where it landed.
           var rel = (ball.x - (pr.x + pw / 2)) / (pw / 2);
           rel = clamp(rel, -1, 1);
-          var angle = rel * 1.05 - Math.PI / 2;
+          var angle = rel * CONFIG.paddleBounceSpread - Math.PI / 2;
           ball.dx = Math.cos(angle);
           ball.dy = Math.sin(angle);
           ball.y = pr.y - ball.r - 0.5;
@@ -1327,9 +1371,7 @@ canvas {
       if (state.levelIndex >= LEVELS.length - 1) {
         endGame(true);
       } else {
-        state.phase = "levelclear";
-        renderDynamicText();
-        showOverlay("overlay-levelclear");
+        setPhase("levelclear");
       }
     }
   }
@@ -1337,14 +1379,7 @@ canvas {
   function endGame(won) {
     maybeSaveBest();
     updateHud();
-    renderDynamicText();
-    if (won) {
-      state.phase = "victory";
-      showOverlay("overlay-victory");
-    } else {
-      state.phase = "gameover";
-      showOverlay("overlay-gameover");
-    }
+    setPhase(won ? "victory" : "gameover");
   }
 
   // ---------------------------------------------------------------------
@@ -1497,7 +1532,7 @@ canvas {
     }
     if (state.phase === "playing") {
       updateEffects(dt);
-      updateBalls(dt, now);
+      updateBalls(dt);
       updateDrops(dt);
       updateParticles(dt);
       if (state.phase === "playing") checkLevelClear();
@@ -1511,10 +1546,6 @@ canvas {
   }
 
   applyLanguage(state.lang);
-  updateHud();
-  drawBackground();
-  drawBricks();
-  drawPaddle();
   requestAnimationFrame(frame);
 })();
 </script>

@@ -14,9 +14,59 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #7, #8, #9, #10 | ✅ Fixed — 2026-08-13 |
 | #11, #12, #13 | ✅ Fixed — 2026-08-13 |
 | #14, #15, #16, #17 | ✅ Fixed — 2026-08-13 |
-| #18 – #32 | Open — 15 remaining |
+| #18, #19, #20, #21 | ✅ Fixed — 2026-08-13 |
+| #22 – #32 | Open — 11 remaining |
 
-Findings #20 and #23 were partially advanced by the bilingual work below, but both remain open.
+Finding #23 was partially advanced by the bilingual work below, but remains open.
+
+---
+
+## 2026-08-13 — Structure cleanup: phase transitions, dead code, audio, tuning
+
+### Fixed
+
+**Every phase transition now flows through `setPhase()`** (#18)
+`togglePause`, `checkLevelClear`, and `endGame` each used to assign `state.phase` and call
+`showOverlay()` directly instead of going through `setPhase()`, which existed to be the single place
+that mapping lives. `setPhase()` didn't even handle the `levelclear`/`victory`/`gameover` phases —
+those three call sites existed *because* of that gap. `setPhase()` now owns the complete
+phase→overlay mapping (via a `PHASE_OVERLAY` lookup), and all three call sites just call
+`setPhase(...)`. No behavior change; this closes off a duplication that would have caused an
+overlay/phase desync the next time a phase was added.
+
+**Three pieces of dead/redundant code removed** (#19)
+`state.paddle.w` was assigned on every `updatePaddle()` call but nothing ever read it —
+`paddleWidth()` was always the actual source of truth. The four calls right before the first
+`requestAnimationFrame(frame)` (`updateHud(); drawBackground(); drawBricks(); drawPaddle();`)
+duplicated exactly what that first frame already paints ~16ms later. `updateBalls(dt, now)` declared
+a `now` parameter it never used.
+
+**A suspended `AudioContext` is now resumed, and muting now survives a reload** (#20)
+Some browsers hand back an `AudioContext` in a `"suspended"` state unless it's constructed directly
+inside a user-gesture handler; `beep()` now calls `actx.resume()` whenever that happens, rescuing
+audio for the rest of the session instead of staying silently mute. Separately, `state.muted` now
+round-trips through the same `storageGet`/`storageSet` pair already used for the best score and the
+language preference — the "same three lines as `loadLang`/`saveLang`" the finding called for.
+
+**Scattered magic numbers collected into one `CONFIG` object** (#21)
+Drop fall speed, particle gravity, the ball cap, the paddle bounce spread, and each power-up's
+mult/duration pair were literals repeated (or coincidentally matching) across `applyPowerup`,
+`updateDrops`, `updateParticles`, and `updateBalls`. They're now one `CONFIG` object near the top of
+the file, and every call site reads from it. Purely a refactor — the values themselves are unchanged.
+
+### Notes
+
+Same procedure as prior rounds: a regression test per finding, confirmed failing against the unfixed
+code before the fix landed (#18 and #21 needed `CONFIG` added to the test harness's `SEAM`; #20's audio
+resume needed the harness's `AudioContext` stub to grow a `state`/`resume()` pair, defaulting to
+`"suspended"` so a missing `resume()` call shows up as a real failure rather than passing by luck).
+
+Re-anchored every line reference in `docs/code-review.md` that shifted as a result — including one
+long-stale pre-existing anchor this pass happened to touch: finding #1's third citation had pointed at
+unrelated mid-script content since at least the previous round; it now points at the closing
+`</body></html>` tags it was always meant to cite.
+
+Full suite: 149 passed, 0 failed, 0 pending.
 
 ---
 

@@ -27,7 +27,7 @@ const BODY_END = HTML.indexOf("</body>");
 const BODY = BODY_START !== -1 && BODY_END !== -1 ? HTML.slice(BODY_START, BODY_END) : "";
 
 const SEAM = [
-  "state", "frame", "LEVELS", "POWERUPS", "GAME_W", "GAME_H",
+  "state", "frame", "LEVELS", "POWERUPS", "GAME_W", "GAME_H", "CONFIG",
   "setPhase", "startLevel", "newGame", "launchBall", "togglePause",
   "applyPowerup", "paddleWidth", "ballSpeedMult", "circleRectCollide",
   "applyLanguage", "detectLang", "renderDynamicText", "t",
@@ -89,11 +89,13 @@ function boot(opts) {
     textWrites: 0,
     attrWrites: 0,
     canvasOps: 0,
+    audioResumes: 0,
     reset() {
       this.getComputedStyle = 0;
       this.textWrites = 0;
       this.attrWrites = 0;
       this.canvasOps = 0;
+      this.audioResumes = 0;
     },
   };
 
@@ -223,7 +225,12 @@ function boot(opts) {
     devicePixelRatio: opts.dpr || 1,
     addEventListener(type, fn) { (winL[type] || (winL[type] = [])).push(fn); },
     AudioContext: function () {
-      return {
+      // Real browsers may hand back a context that starts "suspended" unless
+      // its construction happens directly inside a user-gesture handler —
+      // default to that worst case so a missing resume() call (finding #20)
+      // shows up as silence rather than passing by accident.
+      const actx = {
+        state: "suspended",
         currentTime: 0,
         destination: {},
         createOscillator: () => ({ frequency: {}, connect() {}, start() {}, stop() {} }),
@@ -231,7 +238,9 @@ function boot(opts) {
           gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {} },
           connect() {},
         }),
+        resume() { actx.state = "running"; counters.audioResumes++; },
       };
+      return actx;
     },
   };
   globalThis.document = doc;
