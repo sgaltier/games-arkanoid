@@ -103,10 +103,11 @@ g.T.state.score;    // reach into the closure
 | `seed` | Seed for the deterministic RNG, so physics runs reproduce |
 | `dpr` | `devicePixelRatio` |
 | `canvasWidth` | Overrides the `#game` canvas's `getBoundingClientRect().width` (default 480), for testing display-size-driven backing-store sizing |
+| `reducedMotion` | Seeds `matchMedia("(prefers-reduced-motion: reduce)").matches` |
 
 Useful handle methods: `run(seconds)`, `runAlive(seconds)` (keeps the paddle under the ball so play
 continues), `frame()`, `key(code)`, `hold`/`release`, `mouseMove(x)`, `touch(type, x)`,
-`fireWin(type)`, `fireDoc(type)`, `el(id)`, `byKey(i18nKey)`, `langButton(lang)`,
+`fireWin(type)`, `fireDoc(type)`, `fireMedia(query, matches)`, `el(id)`, `byKey(i18nKey)`, `langButton(lang)`,
 `shownOverlays()`, and `counters` for per-frame budgets.
 
 ### Two traps worth knowing about

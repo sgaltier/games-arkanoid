@@ -15,9 +15,50 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #11, #12, #13 | ✅ Fixed — 2026-08-13 |
 | #14, #15, #16, #17 | ✅ Fixed — 2026-08-13 |
 | #18, #19, #20, #21 | ✅ Fixed — 2026-08-13 |
-| #22 – #32 | Open — 11 remaining |
+| #22, #23, #24, #25 | ✅ Fixed — 2026-08-13 |
+| #26 – #32 | Open — 7 remaining |
 
-Finding #23 was partially advanced by the bilingual work below, but remains open.
+---
+
+## 2026-08-13 — Accessibility: overlay announcements, toggle state, reduced motion
+
+### Fixed
+
+**Overlay changes are now announced to screen readers** (#22)
+Level-clear, game-over, and victory overlays used to swap in silently. All six overlays now carry
+`role="status" aria-live="polite"`, and `showOverlay()` keeps `aria-hidden` in sync with the `.show`
+class on every transition — the overlay actually on screen is the only one ever left in the
+accessibility tree, which is what lets a screen reader announce it as it appears.
+
+**Both deck buttons now expose `aria-pressed`, and the pause button finally reflects its own state** (#23)
+Neither the mute nor the pause icon button told assistive tech (or a glance) whether it was currently
+"on." Both now default to and track `aria-pressed`. The pause button previously showed the same "II"
+icon and "Mettre en pause" label at all times, even while already paused — it now swaps to a play
+icon and a "Reprendre la partie" label, mirroring the mute button's existing muted/unmuted swap, kept
+in sync on every phase change and language switch.
+
+**The canvas now points assistive tech at the HUD** (#24)
+The canvas had an `aria-label` but no live text of its own for score or lives, and the real HUD text
+sitting right above it wasn't referenced from it. Confirmed the HUD was already reachable — plain,
+unhidden DOM text ahead of the canvas in reading order — so no fallback content inside the canvas was
+needed; it just needed `aria-describedby` pointing at the HUD, for a screen-reader user who lands
+directly on the canvas rather than reading the page in order.
+
+**`prefers-reduced-motion` now reaches the canvas, not just the CSS title flicker** (#25)
+Brick-hit particle bursts kept their full particle count regardless of the OS motion preference, since
+CSS media queries can't reach into canvas drawing. `burst()` now reads
+`matchMedia("(prefers-reduced-motion: reduce)")` and scales its particle count down to roughly a
+third (never to zero) when it matches — read live via a `change` listener, so toggling the setting
+mid-session takes effect on the very next burst rather than needing a reload.
+
+### Notes
+
+Same procedure as prior rounds: a regression test per finding, confirmed failing against the unfixed
+code before the fix landed. The test harness grew a `matchMedia` stub (one `MediaQueryList` per
+distinct query, plus a `fireMedia(query, matches)` handle method to simulate the OS setting changing
+mid-session) and a `reducedMotion` boot option to seed it.
+
+Full suite: 155 passed, 0 failed, 0 pending.
 
 ---
 

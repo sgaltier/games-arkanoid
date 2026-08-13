@@ -221,9 +221,32 @@ function boot(opts) {
   doc.body = makeEl("BODY", {});
   doc.activeElement = doc.body;
 
+  // Minimal matchMedia: one MediaQueryList per distinct query string, kept
+  // around by reference so a later fireMedia() mutates the same object the
+  // game already holds (mirroring how a real browser updates .matches on the
+  // MediaQueryList it handed out, rather than firing events at a new one).
+  const mediaQueries = {};
+  function getOrCreateMQL(query) {
+    if (!mediaQueries[query]) {
+      const listeners = [];
+      const mql = {
+        media: query,
+        matches: query.indexOf("prefers-reduced-motion") !== -1 && !!opts.reducedMotion,
+        addEventListener(type, fn) { listeners.push(fn); },
+        removeEventListener(type, fn) {
+          const i = listeners.indexOf(fn);
+          if (i !== -1) listeners.splice(i, 1);
+        },
+      };
+      mediaQueries[query] = { mql, listeners };
+    }
+    return mediaQueries[query];
+  }
+
   globalThis.window = {
     devicePixelRatio: opts.dpr || 1,
     addEventListener(type, fn) { (winL[type] || (winL[type] = [])).push(fn); },
+    matchMedia(query) { return getOrCreateMQL(query).mql; },
     AudioContext: function () {
       // Real browsers may hand back a context that starts "suspended" unless
       // its construction happens directly inside a user-gesture handler —
@@ -302,6 +325,14 @@ function boot(opts) {
 
     fireWin(type, ev) { (winL[type] || []).forEach((f) => f(ev || {})); },
     fireDoc(type, ev) { (docL[type] || []).forEach((f) => f(ev || {})); },
+    // Flip a MediaQueryList's .matches and notify anyone who addEventListener'd
+    // "change" on it — for simulating the OS-level setting changing mid-session.
+    fireMedia(query, matches) {
+      const entry = mediaQueries[query];
+      if (!entry) return;
+      entry.mql.matches = matches;
+      entry.listeners.forEach((f) => f({ matches, media: query }));
+    },
 
     key(code, opts2) {
       const ev = Object.assign({ code, preventDefault() { ev.defaultPrevented = true; } },

@@ -405,5 +405,125 @@ module.exports = {
         a.eq(g.T.state.widthEffect.remaining, CONFIG.effects.widen.duration);
       },
     },
+    {
+      name: "#22 — overlay changes are announced to assistive tech",
+      fn(a) {
+        const g = boot().start();
+        const overlayIds = [
+          "overlay-start", "overlay-ready", "overlay-pause",
+          "overlay-levelclear", "overlay-victory", "overlay-gameover",
+        ];
+        overlayIds.forEach((id) => {
+          const el = g.el(id);
+          a.eq(el.getAttribute("role"), "status",
+            `${id} should be a live region so a screen reader hears it appear`);
+          a.eq(el.getAttribute("aria-live"), "polite",
+            `${id} should announce politely rather than interrupting`);
+        });
+
+        g.T.setPhase("levelclear");
+        a.eq(g.el("overlay-levelclear").getAttribute("aria-hidden"), "false",
+          "the overlay actually on screen must be out of aria-hidden or its live-region content " +
+          "is never announced");
+        a.eq(g.el("overlay-ready").getAttribute("aria-hidden"), "true",
+          "every overlay not on screen should stay aria-hidden so it isn't announced as if it were");
+      },
+    },
+    {
+      name: "#23b — the pause button reflects paused state via aria-pressed, icon and label",
+      fn(a) {
+        const g = boot().start();
+        const pauseBtn = g.el("btn-pause");
+        a.eq(pauseBtn.getAttribute("aria-pressed"), "false");
+        const playingLabel = pauseBtn.getAttribute("aria-label");
+        const playingIcon = pauseBtn.innerHTML;
+
+        g.T.togglePause();
+        a.eq(g.T.state.phase, "paused");
+        a.eq(pauseBtn.getAttribute("aria-pressed"), "true",
+          "aria-pressed should flip once the game is actually paused");
+        a.ne(pauseBtn.getAttribute("aria-label"), playingLabel,
+          "the label should change between pause and resume, like the mute button already does");
+        a.ne(pauseBtn.innerHTML, playingIcon,
+          "the icon should change too, not just the label");
+
+        g.T.togglePause();
+        a.eq(g.T.state.phase, "playing");
+        a.eq(pauseBtn.getAttribute("aria-pressed"), "false");
+      },
+    },
+    {
+      name: "#23c — the mute button now exposes aria-pressed",
+      fn(a) {
+        const g = boot();
+        const muteBtn = g.el("btn-mute");
+        a.eq(muteBtn.getAttribute("aria-pressed"), "false");
+        muteBtn.click(1);
+        a.eq(muteBtn.getAttribute("aria-pressed"), "true");
+      },
+    },
+    {
+      name: "#24 — the canvas points assistive tech at the live HUD text",
+      fn(a) {
+        const g = boot();
+        const hud = g.el("hud");
+        a.ok(hud.getAttribute("id"), "the HUD container needs a stable id to be described-by");
+        a.eq(g.el("game").getAttribute("aria-describedby"), hud.getAttribute("id"),
+          "the canvas should reference the HUD as its accessible description, since the canvas " +
+          "itself carries no live text for score/lives");
+      },
+    },
+    {
+      name: "#25a — particle bursts are reduced under prefers-reduced-motion",
+      fn(a) {
+        // Drive an identical brick hit against two otherwise-identical boots
+        // and compare how many particles the burst actually added.
+        function hitFirstBrickDelta(g) {
+          const before = g.T.state.particles.length;
+          const target = g.T.state.bricks.find((b) => b.hp !== Infinity && b.alive);
+          const ball = g.T.state.balls[0];
+          ball.attached = false;
+          ball.x = target.x + target.w / 2;
+          ball.y = target.y + target.h + ball.r - 2;
+          ball.dx = 0;
+          ball.dy = -1;
+          ball.speed = 1;
+          g.frame();
+          return g.T.state.particles.length - before;
+        }
+
+        const normal = hitFirstBrickDelta(boot().start());
+        const reduced = hitFirstBrickDelta(boot({ reducedMotion: true }).start());
+        a.gt(normal, reduced,
+          `a burst under reduced motion should spawn fewer particles (${reduced} vs ${normal})`);
+        a.gt(reduced, 0, "reduced motion should still give some feedback, not none at all");
+      },
+    },
+    {
+      name: "#25b — the reduced-motion preference is read live, not just once at load",
+      fn(a) {
+        const g = boot({ reducedMotion: false }).start();
+        function hitBrickDelta() {
+          const before = g.T.state.particles.length;
+          const target = g.T.state.bricks.find((b) => b.hp !== Infinity && b.alive);
+          const ball = g.T.state.balls[0];
+          ball.attached = false;
+          ball.x = target.x + target.w / 2;
+          ball.y = target.y + target.h + ball.r - 2;
+          ball.dx = 0;
+          ball.dy = -1;
+          ball.speed = 1;
+          g.frame();
+          return g.T.state.particles.length - before;
+        }
+
+        const before = hitBrickDelta();
+        g.fireMedia("(prefers-reduced-motion: reduce)", true);
+        const after = hitBrickDelta();
+        a.gt(before, after,
+          "toggling the OS setting mid-session should immediately affect the next burst, not " +
+          "require a reload");
+      },
+    },
   ],
 };

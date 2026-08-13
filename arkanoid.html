@@ -376,6 +376,11 @@ canvas {
 
 .icon-btn:hover { color: var(--text-primary); border-color: var(--neon-cyan); }
 .icon-btn:focus-visible { outline: 2px solid var(--neon-amber); outline-offset: 2px; }
+.icon-btn[aria-pressed="true"] {
+  background: rgba(45, 226, 230, .14);
+  color: var(--neon-cyan);
+  border-color: var(--neon-cyan);
+}
 
 /* ---------- legend ---------- */
 .legend {
@@ -425,7 +430,7 @@ canvas {
     </div>
   </header>
 
-  <div class="hud">
+  <div class="hud" id="hud">
     <div class="hud-cell score">
       <div class="hud-label" data-i18n="hud.score">Score</div>
       <div class="hud-value" id="hud-score">0</div>
@@ -446,37 +451,37 @@ canvas {
 
   <div class="screen-wrap">
     <div class="screen">
-      <canvas id="game" width="480" height="680" data-i18n-attr="aria-label:canvas.label" aria-label="Zone de jeu Neon Break"></canvas>
+      <canvas id="game" width="480" height="680" data-i18n-attr="aria-label:canvas.label" aria-label="Zone de jeu Neon Break" aria-describedby="hud"></canvas>
       <div class="scanlines" aria-hidden="true"></div>
       <div class="vignette" aria-hidden="true"></div>
 
-      <div class="overlay show" id="overlay-start">
+      <div class="overlay show" id="overlay-start" role="status" aria-live="polite" aria-hidden="false">
         <p class="overlay-eyebrow" id="start-eyebrow">Niveau 1 / 5</p>
         <h2 class="overlay-title">Neon Break</h2>
         <p class="overlay-sub" data-i18n="start.sub">Détruisez toutes les briques pour passer au niveau suivant. Rattrapez les bonus qui tombent &mdash; évitez les malus.</p>
         <button class="btn" id="btn-start" type="button" data-i18n="start.btn">Lancer la partie</button>
       </div>
 
-      <div class="overlay" id="overlay-ready">
+      <div class="overlay" id="overlay-ready" role="status" aria-live="polite" aria-hidden="true">
         <p class="overlay-eyebrow" id="ready-eyebrow">Niveau 1 / 5</p>
         <h2 class="overlay-title" data-i18n="ready.title">Prêt ?</h2>
         <p class="overlay-sub" data-i18n="ready.sub">Bougez la raquette puis appuyez sur Espace, cliquez ou touchez l'écran pour lancer la balle.</p>
       </div>
 
-      <div class="overlay" id="overlay-pause">
+      <div class="overlay" id="overlay-pause" role="status" aria-live="polite" aria-hidden="true">
         <p class="overlay-eyebrow" data-i18n="pause.eyebrow">Pause</p>
         <h2 class="overlay-title" data-i18n="pause.title">Jeu en pause</h2>
         <button class="btn" id="btn-resume" type="button" data-i18n="pause.btn">Reprendre</button>
       </div>
 
-      <div class="overlay" id="overlay-levelclear">
+      <div class="overlay" id="overlay-levelclear" role="status" aria-live="polite" aria-hidden="true">
         <p class="overlay-eyebrow" data-i18n="levelclear.eyebrow">Bravo</p>
         <h2 class="overlay-title" id="levelclear-title">Niveau clair !</h2>
         <p class="overlay-score" id="levelclear-score">Score : 0</p>
         <button class="btn" id="btn-next" type="button" data-i18n="levelclear.btn">Niveau suivant</button>
       </div>
 
-      <div class="overlay" id="overlay-victory">
+      <div class="overlay" id="overlay-victory" role="status" aria-live="polite" aria-hidden="true">
         <p class="overlay-eyebrow" data-i18n="victory.eyebrow">Partie terminée</p>
         <h2 class="overlay-title" data-i18n="victory.title">Cabinet vaincu !</h2>
         <p class="overlay-score" id="victory-score">Score final : 0</p>
@@ -484,7 +489,7 @@ canvas {
         <button class="btn" id="btn-restart-win" type="button" data-i18n="victory.btn">Rejouer</button>
       </div>
 
-      <div class="overlay" id="overlay-gameover">
+      <div class="overlay" id="overlay-gameover" role="status" aria-live="polite" aria-hidden="true">
         <p class="overlay-eyebrow" data-i18n="gameover.eyebrow">Game Over</p>
         <h2 class="overlay-title" data-i18n="gameover.title">Balle perdue</h2>
         <p class="overlay-score" id="gameover-score">Score : 0</p>
@@ -497,8 +502,8 @@ canvas {
   <div class="deck">
     <p class="hint" data-i18n-html="hint"><kbd>&larr;</kbd> <kbd>&rarr;</kbd> ou souris/doigt &middot; <kbd>Espace</kbd> lancer &middot; <kbd>P</kbd> pause</p>
     <div class="deck-btns">
-      <button class="icon-btn" id="btn-pause" type="button" data-i18n-attr="title:btn.pause.title|aria-label:btn.pause.aria" title="Pause" aria-label="Mettre en pause">&#10074;&#10074;</button>
-      <button class="icon-btn" id="btn-mute" type="button" title="Son" aria-label="Couper le son">&#128266;</button>
+      <button class="icon-btn" id="btn-pause" type="button" title="Pause" aria-label="Mettre en pause" aria-pressed="false">&#10074;&#10074;</button>
+      <button class="icon-btn" id="btn-mute" type="button" title="Son" aria-label="Couper le son" aria-pressed="false">&#128266;</button>
     </div>
   </div>
 
@@ -667,6 +672,7 @@ canvas {
       "hint": "<kbd>&larr;</kbd> <kbd>&rarr;</kbd> ou souris/doigt &middot; <kbd>Espace</kbd> lancer &middot; <kbd>P</kbd> pause",
       "btn.pause.title": "Pause",
       "btn.pause.aria": "Mettre en pause",
+      "btn.pause.resume": "Reprendre la partie",
       "btn.mute.title": "Son",
       "btn.mute.mute": "Couper le son",
       "btn.mute.unmute": "Activer le son",
@@ -707,6 +713,7 @@ canvas {
       "hint": "<kbd>&larr;</kbd> <kbd>&rarr;</kbd> or mouse/finger &middot; <kbd>Space</kbd> launch &middot; <kbd>P</kbd> pause",
       "btn.pause.title": "Pause",
       "btn.pause.aria": "Pause the game",
+      "btn.pause.resume": "Resume the game",
       "btn.mute.title": "Sound",
       "btn.mute.mute": "Mute sound",
       "btn.mute.unmute": "Unmute sound",
@@ -861,8 +868,20 @@ canvas {
 
   // ---------------------------------------------------------------------
   // Particles
+  //   The CSS media query at the top of the file already turns off the title
+  //   flicker for prefers-reduced-motion; canvas particle bursts need their
+  //   own JS-side read of the same query since CSS can't reach into canvas
+  //   drawing. Read live (not just once at load) in case the OS setting
+  //   changes while the game is running.
   // ---------------------------------------------------------------------
+  var reduceMotionQuery = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)");
+  var reduceMotion = !!(reduceMotionQuery && reduceMotionQuery.matches);
+  if (reduceMotionQuery && reduceMotionQuery.addEventListener) {
+    reduceMotionQuery.addEventListener("change", function (e) { reduceMotion = e.matches; });
+  }
+
   function burst(x, y, color, n) {
+    if (reduceMotion) n = Math.max(1, Math.ceil(n / 3));
     for (var i = 0; i < n; i++) {
       var a = rand(0, Math.PI * 2);
       var sp = rand(40, 200);
@@ -970,8 +989,18 @@ canvas {
     overlays[name] = document.getElementById("overlay-" + name);
   });
   function showOverlay(id) {
-    Object.keys(overlays).forEach(function (k) { overlays[k].classList.remove("show"); });
-    if (id) document.getElementById(id).classList.add("show");
+    // aria-hidden mirrors .show: a hidden overlay's role="status"/aria-live
+    // content is pulled out of the accessibility tree entirely, so screen
+    // readers only ever pick up the one overlay actually on screen.
+    Object.keys(overlays).forEach(function (k) {
+      overlays[k].classList.remove("show");
+      overlays[k].setAttribute("aria-hidden", "true");
+    });
+    if (id) {
+      var el = document.getElementById(id);
+      el.classList.add("show");
+      el.setAttribute("aria-hidden", "false");
+    }
   }
   // The single source of truth for which overlay a phase shows. Every phase
   // transition should flow through setPhase() below rather than assigning
@@ -987,6 +1016,7 @@ canvas {
   function setPhase(p) {
     state.phase = p;
     renderDynamicText();
+    renderPauseButton();
     if (p in PHASE_OVERLAY) showOverlay(PHASE_OVERLAY[p]);
   }
 
@@ -1017,6 +1047,19 @@ canvas {
     muteBtn.innerHTML = state.muted ? "&#128263;" : "&#128266;";
     muteBtn.setAttribute("title", t("btn.mute.title"));
     muteBtn.setAttribute("aria-label", state.muted ? t("btn.mute.unmute") : t("btn.mute.mute"));
+    muteBtn.setAttribute("aria-pressed", state.muted ? "true" : "false");
+  }
+
+  // Same idea as renderMuteButton(): the icon and label swap between "pause"
+  // and "resume" depending on state, so a screen-reader user (or a sighted
+  // one glancing at the deck) can tell the button apart from the always-on
+  // pause icon it used to show regardless of whether the game was paused.
+  function renderPauseButton() {
+    var paused = state.phase === "paused";
+    pauseBtn.innerHTML = paused ? "&#9654;" : "&#10074;&#10074;";
+    pauseBtn.setAttribute("title", t("btn.pause.title"));
+    pauseBtn.setAttribute("aria-label", paused ? t("btn.pause.resume") : t("btn.pause.aria"));
+    pauseBtn.setAttribute("aria-pressed", paused ? "true" : "false");
   }
 
   var langButtons = document.querySelectorAll(".lang-btn");
@@ -1054,6 +1097,7 @@ canvas {
     }
 
     renderMuteButton();
+    renderPauseButton();
     renderDynamicText();
     updateHud();
     saveLang(state.lang);
@@ -1067,7 +1111,8 @@ canvas {
   function blurIfPointerClick(e) {
     if (e.detail > 0) e.currentTarget.blur();
   }
-  document.getElementById("btn-pause").addEventListener("click", function (e) {
+  var pauseBtn = document.getElementById("btn-pause");
+  pauseBtn.addEventListener("click", function (e) {
     blurIfPointerClick(e);
     togglePause();
   });
