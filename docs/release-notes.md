@@ -9,8 +9,8 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 
 | Findings | Status |
 |---|---|
-| #1, #2, #3 | ✅ Fixed — 2026-08-12 (`18130c8`) |
-| #4, #5, #6 | ✅ Fixed — 2026-08-12 (`3ab988f`) |
+| #1, #2, #3 | ✅ Fixed — 2026-08-12 |
+| #4, #5, #6 | ✅ Fixed — 2026-08-12 |
 | #7, #8, #9, #10 | ✅ Fixed — 2026-08-13 |
 | #11, #12, #13 | ✅ Fixed — 2026-08-13 |
 | #14, #15, #16, #17 | ✅ Fixed — 2026-08-13 |
@@ -20,7 +20,44 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #30, #31 | ✅ Fixed — 2026-08-13 |
 | #33, #34 | ✅ Fixed — 2026-08-13 |
 | #35, #36 | ✅ Fixed — 2026-08-13 |
-| #32, #37 | Open — 2 remaining |
+| #37 | ✅ Fixed — 2026-08-13 |
+| #32 | Open — 1 remaining |
+
+---
+
+## 2026-08-13 — Power-up timer bars no longer shift the canvas (#37)
+
+### Fixed
+
+**The effect-bars sidebar is now a flex sibling of the screen, not a block above it**
+`.effect-bars` used to sit between the HUD and `.screen-wrap` in `.cabinet`'s flex column, with
+each timer slot toggled via the `hidden` attribute (#31). Every time a power-up started or every
+active one ended, the bars container's height changed, and because it lived in that same flex
+column, the change pushed `.screen-wrap` — and the `<canvas>` inside it — up or down. Catching a
+power-up mid-rally, exactly when the player's eyes and mouse/thumb are locked onto the canvas, made
+the whole play field hop.
+
+Moved the bars markup to sit *beside* `.screen-wrap` instead of above it, wrapped together in a new
+`.play-row` flex row. `.effect-bars` now takes a fixed-width column (`flex: 0 0 84px`) rather than
+wrapping horizontally, so a slot appearing or hiding resizes only that column's own height — the
+screen next to it, and the canvas inside it, never move. The canvas needed no code changes to get
+narrower to make room: `fitCanvas()` (#17) already re-derives the backing-store size from the
+canvas's actual displayed width on every resize.
+
+Below a 560px-viewport breakpoint there's no width to spare for a side column without squeezing the
+canvas uncomfortably small, so the layout falls back to the original stacked arrangement there — the
+canvas-shift comes back on small phones, an accepted trade-off (the bug was specifically about the
+*shift*, not the bars' position) rather than a full fix for every viewport.
+
+### Notes
+
+This one came directly from the user playing the game and noticing the canvas hop, rather than from
+a `/code-review` pass — filed as #37 in `code-review.md` and fixed the same session. Pure CSS/markup
+change with no JS logic touched, so there's nothing for the existing regression-test harness (which
+drives game logic against a DOM stub with hardcoded element geometry, not real flexbox layout) to
+usefully assert; verified by re-reading the resulting box model by hand instead.
+
+Full suite: 175 passed, 0 failed, 0 pending.
 
 ---
 

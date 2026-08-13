@@ -56,7 +56,9 @@ body {
 
 .cabinet {
   width: 100%;
-  max-width: 560px;
+  /* Widened from 560px now that the legend row is gone — nothing else needs
+     that width budget, so the screen (and the canvas inside it) can use it. */
+  max-width: 640px;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -203,17 +205,23 @@ body {
 /* #31: how long an active power-up has left. Each slot is toggled with the
    `hidden` attribute and resized via the fill's inline width — see
    renderEffectBars() — rather than created/destroyed, so there's nothing to
-   animate into existence, just a width transition. */
+   animate into existence, just a width transition. #37: the column itself
+   sits beside the screen (see .play-row) at a fixed width instead of above
+   it, so a slot appearing/hiding changes the column's own height only —
+   never the canvas's position, since the two are independent flex siblings.
+   .play-row falls back to stacking them above the screen, the pre-#37
+   layout, once there's no width to spare for a side column. */
 .effect-bars {
+  flex: 0 0 84px;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 6px;
 }
 
 .effect-bar {
   position: relative;
-  flex: 1 1 90px;
-  height: 14px;
+  flex: 0 0 auto;
+  height: 16px;
   border-radius: 7px;
   overflow: hidden;
   background: var(--bg-deep);
@@ -235,14 +243,27 @@ body {
   font-family: var(--font-mono);
   font-size: 9px;
   font-weight: 700;
-  line-height: 14px;
+  line-height: 16px;
   color: var(--bg-void);
   text-shadow: 0 0 2px rgba(255,255,255,.5);
 }
 
 /* ---------- screen ---------- */
+/* #37: the screen and the effect-bars sidebar are independent flex siblings,
+   so the sidebar's own height (which changes as timer slots come and go)
+   never affects the screen's — the canvas doesn't move. Below the narrow-
+   viewport breakpoint there's no room for a side column, so this collapses
+   back to the pre-#37 stacked layout instead (see the media query below). */
+.play-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
 .screen-wrap {
   position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
   border-radius: 16px;
   padding: 10px;
   background: linear-gradient(160deg, var(--bg-panel), var(--bg-deep));
@@ -423,41 +444,27 @@ canvas {
   border-color: var(--neon-cyan);
 }
 
-/* ---------- legend ---------- */
-.legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  padding: 2px 4px 0;
-}
-
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  color: var(--text-dim);
-  letter-spacing: .02em;
-}
-
-.swatch {
-  width: 9px;
-  height: 9px;
-  border-radius: 2px;
-  flex: none;
-}
-
-.swatch-widen { background: var(--neon-lime); }
-.swatch-slow { background: var(--neon-cyan); }
-.swatch-multi { background: var(--neon-magenta); }
-.swatch-sticky { background: var(--neon-silver); }
-.swatch-laser { background: #ffe600; }
-.swatch-narrow { background: var(--danger); }
-
 @media (max-width: 420px) {
   .tagline { display: none; }
   .hud-label { letter-spacing: .06em; }
+}
+
+/* #37: below this there's no width to spare for the effect-bars side column
+   (the canvas would get uncomfortably small) without shrinking the canvas
+   more than is worth it, so fall back to the pre-#37 layout — bars stacked
+   above the screen, wrapping horizontally like the HUD does. That reintroduces
+   the canvas-shifts-when-a-timer-appears behaviour on small phones, which is
+   an accepted trade-off (see #37 in code-review.md) rather than a full fix. */
+@media (max-width: 560px) {
+  .play-row { flex-direction: column; }
+  .effect-bars {
+    flex: 0 0 auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+  .effect-bar { flex: 1 1 90px; height: 14px; }
+  .effect-bar-label { line-height: 14px; }
 }
 </style>
 </head>
@@ -492,74 +499,79 @@ canvas {
     </div>
   </div>
 
-  <!-- One slot per timed effect, shown/hidden and resized in JS as effects
-       come and go — see renderEffectBars(). Decorative and rapidly-updating,
-       so kept out of the accessibility tree entirely rather than announced. -->
-  <div class="effect-bars" id="effect-bars" aria-hidden="true">
-    <div class="effect-bar" id="bar-width" hidden>
-      <div class="effect-bar-fill" id="bar-width-fill"></div>
-      <span class="effect-bar-label" id="bar-width-label"></span>
+  <!-- #37: the effect-bars sidebar is a flex sibling of screen-wrap (see
+       .play-row), not a sibling of the HUD above it, so a slot appearing or
+       hiding resizes only this column — never the canvas next to it. -->
+  <div class="play-row">
+    <div class="screen-wrap">
+      <div class="screen">
+        <canvas id="game" width="480" height="680" data-i18n-attr="aria-label:canvas.label" aria-label="Zone de jeu Neon Break" aria-describedby="hud"></canvas>
+        <div class="scanlines" aria-hidden="true"></div>
+        <div class="vignette" aria-hidden="true"></div>
+
+        <div class="overlay show" id="overlay-start" role="status" aria-live="polite" aria-hidden="false">
+          <p class="overlay-eyebrow" id="start-eyebrow">Niveau 1 / 5</p>
+          <h2 class="overlay-title">Neon Break</h2>
+          <p class="overlay-sub" data-i18n="start.sub">Détruisez toutes les briques pour passer au niveau suivant. Rattrapez les bonus qui tombent &mdash; évitez les malus.</p>
+          <button class="btn" id="btn-start" type="button" data-i18n="start.btn">Lancer la partie</button>
+        </div>
+
+        <div class="overlay" id="overlay-ready" role="status" aria-live="polite" aria-hidden="true">
+          <p class="overlay-eyebrow" id="ready-eyebrow">Niveau 1 / 5</p>
+          <h2 class="overlay-title" data-i18n="ready.title">Prêt ?</h2>
+          <p class="overlay-sub" data-i18n="ready.sub">Bougez la raquette puis appuyez sur Espace, cliquez ou touchez l'écran pour lancer la balle.</p>
+        </div>
+
+        <div class="overlay" id="overlay-pause" role="status" aria-live="polite" aria-hidden="true">
+          <p class="overlay-eyebrow" data-i18n="pause.eyebrow">Pause</p>
+          <h2 class="overlay-title" data-i18n="pause.title">Jeu en pause</h2>
+          <button class="btn" id="btn-resume" type="button" data-i18n="pause.btn">Reprendre</button>
+        </div>
+
+        <div class="overlay" id="overlay-levelclear" role="status" aria-live="polite" aria-hidden="true">
+          <p class="overlay-eyebrow" data-i18n="levelclear.eyebrow">Bravo</p>
+          <h2 class="overlay-title" id="levelclear-title">Niveau clair !</h2>
+          <p class="overlay-score" id="levelclear-score">Score : 0</p>
+          <button class="btn" id="btn-next" type="button" data-i18n="levelclear.btn">Niveau suivant</button>
+        </div>
+
+        <div class="overlay" id="overlay-victory" role="status" aria-live="polite" aria-hidden="true">
+          <p class="overlay-eyebrow" data-i18n="victory.eyebrow">Partie terminée</p>
+          <h2 class="overlay-title" data-i18n="victory.title">Cabinet vaincu !</h2>
+          <p class="overlay-score" id="victory-score">Score final : 0</p>
+          <p class="overlay-sub" id="victory-best">Meilleur score : 0</p>
+          <button class="btn" id="btn-restart-win" type="button" data-i18n="victory.btn">Rejouer</button>
+        </div>
+
+        <div class="overlay" id="overlay-gameover" role="status" aria-live="polite" aria-hidden="true">
+          <p class="overlay-eyebrow" data-i18n="gameover.eyebrow">Game Over</p>
+          <h2 class="overlay-title" data-i18n="gameover.title">Balle perdue</h2>
+          <p class="overlay-score" id="gameover-score">Score : 0</p>
+          <p class="overlay-sub" id="gameover-best">Meilleur score : 0</p>
+          <button class="btn" id="btn-restart" type="button" data-i18n="gameover.btn">Rejouer</button>
+        </div>
+      </div>
     </div>
-    <div class="effect-bar" id="bar-speed" hidden>
-      <div class="effect-bar-fill" id="bar-speed-fill"></div>
-      <span class="effect-bar-label" id="bar-speed-label"></span>
-    </div>
-    <div class="effect-bar" id="bar-sticky" hidden>
-      <div class="effect-bar-fill" id="bar-sticky-fill"></div>
-      <span class="effect-bar-label">St</span>
-    </div>
-    <div class="effect-bar" id="bar-laser" hidden>
-      <div class="effect-bar-fill" id="bar-laser-fill"></div>
-      <span class="effect-bar-label">L</span>
-    </div>
-  </div>
 
-  <div class="screen-wrap">
-    <div class="screen">
-      <canvas id="game" width="480" height="680" data-i18n-attr="aria-label:canvas.label" aria-label="Zone de jeu Neon Break" aria-describedby="hud"></canvas>
-      <div class="scanlines" aria-hidden="true"></div>
-      <div class="vignette" aria-hidden="true"></div>
-
-      <div class="overlay show" id="overlay-start" role="status" aria-live="polite" aria-hidden="false">
-        <p class="overlay-eyebrow" id="start-eyebrow">Niveau 1 / 5</p>
-        <h2 class="overlay-title">Neon Break</h2>
-        <p class="overlay-sub" data-i18n="start.sub">Détruisez toutes les briques pour passer au niveau suivant. Rattrapez les bonus qui tombent &mdash; évitez les malus.</p>
-        <button class="btn" id="btn-start" type="button" data-i18n="start.btn">Lancer la partie</button>
+    <!-- One slot per timed effect, shown/hidden and resized in JS as effects
+         come and go — see renderEffectBars(). Decorative and rapidly-updating,
+         so kept out of the accessibility tree entirely rather than announced. -->
+    <div class="effect-bars" id="effect-bars" aria-hidden="true">
+      <div class="effect-bar" id="bar-width" hidden>
+        <div class="effect-bar-fill" id="bar-width-fill"></div>
+        <span class="effect-bar-label" id="bar-width-label"></span>
       </div>
-
-      <div class="overlay" id="overlay-ready" role="status" aria-live="polite" aria-hidden="true">
-        <p class="overlay-eyebrow" id="ready-eyebrow">Niveau 1 / 5</p>
-        <h2 class="overlay-title" data-i18n="ready.title">Prêt ?</h2>
-        <p class="overlay-sub" data-i18n="ready.sub">Bougez la raquette puis appuyez sur Espace, cliquez ou touchez l'écran pour lancer la balle.</p>
+      <div class="effect-bar" id="bar-speed" hidden>
+        <div class="effect-bar-fill" id="bar-speed-fill"></div>
+        <span class="effect-bar-label" id="bar-speed-label"></span>
       </div>
-
-      <div class="overlay" id="overlay-pause" role="status" aria-live="polite" aria-hidden="true">
-        <p class="overlay-eyebrow" data-i18n="pause.eyebrow">Pause</p>
-        <h2 class="overlay-title" data-i18n="pause.title">Jeu en pause</h2>
-        <button class="btn" id="btn-resume" type="button" data-i18n="pause.btn">Reprendre</button>
+      <div class="effect-bar" id="bar-sticky" hidden>
+        <div class="effect-bar-fill" id="bar-sticky-fill"></div>
+        <span class="effect-bar-label">St</span>
       </div>
-
-      <div class="overlay" id="overlay-levelclear" role="status" aria-live="polite" aria-hidden="true">
-        <p class="overlay-eyebrow" data-i18n="levelclear.eyebrow">Bravo</p>
-        <h2 class="overlay-title" id="levelclear-title">Niveau clair !</h2>
-        <p class="overlay-score" id="levelclear-score">Score : 0</p>
-        <button class="btn" id="btn-next" type="button" data-i18n="levelclear.btn">Niveau suivant</button>
-      </div>
-
-      <div class="overlay" id="overlay-victory" role="status" aria-live="polite" aria-hidden="true">
-        <p class="overlay-eyebrow" data-i18n="victory.eyebrow">Partie terminée</p>
-        <h2 class="overlay-title" data-i18n="victory.title">Cabinet vaincu !</h2>
-        <p class="overlay-score" id="victory-score">Score final : 0</p>
-        <p class="overlay-sub" id="victory-best">Meilleur score : 0</p>
-        <button class="btn" id="btn-restart-win" type="button" data-i18n="victory.btn">Rejouer</button>
-      </div>
-
-      <div class="overlay" id="overlay-gameover" role="status" aria-live="polite" aria-hidden="true">
-        <p class="overlay-eyebrow" data-i18n="gameover.eyebrow">Game Over</p>
-        <h2 class="overlay-title" data-i18n="gameover.title">Balle perdue</h2>
-        <p class="overlay-score" id="gameover-score">Score : 0</p>
-        <p class="overlay-sub" id="gameover-best">Meilleur score : 0</p>
-        <button class="btn" id="btn-restart" type="button" data-i18n="gameover.btn">Rejouer</button>
+      <div class="effect-bar" id="bar-laser" hidden>
+        <div class="effect-bar-fill" id="bar-laser-fill"></div>
+        <span class="effect-bar-label">L</span>
       </div>
     </div>
   </div>
@@ -570,15 +582,6 @@ canvas {
       <button class="icon-btn" id="btn-pause" type="button" title="Pause" aria-label="Mettre en pause" aria-pressed="false">&#10074;&#10074;</button>
       <button class="icon-btn" id="btn-mute" type="button" title="Son" aria-label="Couper le son" aria-pressed="false">&#128266;</button>
     </div>
-  </div>
-
-  <div class="legend">
-    <span class="legend-item"><span class="swatch swatch-widen"></span><span data-i18n="legend.widen">Agrandit la raquette</span></span>
-    <span class="legend-item"><span class="swatch swatch-slow"></span><span data-i18n="legend.slow">Balle lente</span></span>
-    <span class="legend-item"><span class="swatch swatch-multi"></span><span data-i18n="legend.multi">Multi-balle</span></span>
-    <span class="legend-item"><span class="swatch swatch-sticky"></span><span data-i18n="legend.sticky">Raquette collante</span></span>
-    <span class="legend-item"><span class="swatch swatch-laser"></span><span data-i18n="legend.laser">Tir laser</span></span>
-    <span class="legend-item"><span class="swatch swatch-narrow"></span><span data-i18n="legend.narrow">Raquette rétrécie</span></span>
   </div>
 </div>
 
@@ -779,13 +782,7 @@ canvas {
       "btn.pause.resume": "Reprendre la partie",
       "btn.mute.title": "Son",
       "btn.mute.mute": "Couper le son",
-      "btn.mute.unmute": "Activer le son",
-      "legend.widen": "Agrandit la raquette",
-      "legend.slow": "Balle lente",
-      "legend.multi": "Multi-balle",
-      "legend.sticky": "Raquette collante",
-      "legend.laser": "Tir laser",
-      "legend.narrow": "Raquette rétrécie"
+      "btn.mute.unmute": "Activer le son"
     },
     en: {
       "doc.title": "Neon Break — Arcade Brick Breaker",
@@ -822,13 +819,7 @@ canvas {
       "btn.pause.resume": "Resume the game",
       "btn.mute.title": "Sound",
       "btn.mute.mute": "Mute sound",
-      "btn.mute.unmute": "Unmute sound",
-      "legend.widen": "Widens the paddle",
-      "legend.slow": "Slow ball",
-      "legend.multi": "Multi-ball",
-      "legend.sticky": "Sticky paddle",
-      "legend.laser": "Laser shot",
-      "legend.narrow": "Paddle shrunk"
+      "btn.mute.unmute": "Unmute sound"
     }
   };
   var SUPPORTED_LANGS = ["fr", "en"];
