@@ -9,7 +9,7 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 6 open findings.
+**Status:** 5 open findings.
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
 test → fix → move the finding's whole entry from this file to [done.md](done.md), prepending a
@@ -43,13 +43,6 @@ commitment.
 ---
 
 ## New brick types
-
-### 51. Regenerating and multi-hit-with-feedback bricks (S)
-
-A brick that returns after a delay unless the level is cleared first, forcing the player to
-prioritise. Related and smaller: silver bricks currently signal damage only by a colour swap
-(`Sc`) — a crack overlay would make hit points readable at a glance, which matters more as brick
-types multiply.
 
 ### 52. Mystery bricks (S)
 

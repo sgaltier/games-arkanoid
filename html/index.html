@@ -733,12 +733,13 @@ canvas {
   // Level data — 10 columns wide, each char is a brick type
   //   . empty   1 cyan   2 magenta   3 amber   4 lime   S silver(2hp)   # wall(indestructible)
   //   X explosive (1hp; destroying it damages the 8 surrounding cells — #49)
+  //   R regenerating (1hp; comes back after a delay, up to CONFIG.regen.max times — #51)
   // ---------------------------------------------------------------------
   var LEVELS = [
     { rows: ["1111111111", "2222222222", "3333333333", "4444444444"], speed: 1.0 },
     { rows: ["2121212121", "1212121212", "SSSSSSSSSS", "3434343434", "4343434343"], speed: 1.1 },
     { rows: ["1.2.X.4.1.", ".2.3.4.1.2", "SS..SS..SS", ".2.3.4.1.2", "1.2.3.4.1.", "3.4.1.2.3."], speed: 1.2 },
-    { rows: ["#1#2#3#4#1", "2222222222", "S1S2S3S4S1", "3333333333", "4S4S4S4S4S", "1111111111", "2.4.#.4.2."], speed: 1.32 },
+    { rows: ["#1#2#3#4#1", "22222R2222", "S1S2S3S4S1", "3333333333", "4S4S4S4S4S", "1111111111", "2.4.#.4.2."], speed: 1.32 },
     { rows: ["##1#2#3#4#", "S2S3S4S1S2", "34X4343X34", "S4S1S2S3S4", "2323232323", "S1S2S3S4S1", "4.3.#.2.1.", "1234123412"], speed: 1.48 },
     // #32: levels 6-10 lean progressively harder on walls (`#`, indestructible
     // — shape the ball's path rather than something to clear) and silvers
@@ -751,10 +752,10 @@ canvas {
     // catches the crossing directly instead, and level speed is no longer a
     // correctness constraint.
     { rows: ["1#2#3#4#1#", "S1S2S3S4S1", ".2.3.4.1.2", "3S4S1S2S3S", "#3#4#1#2#3", "4.1.X.3.4.", "1234123412"], speed: 1.60 },
-    { rows: ["##2#4#1#3#", "S3S1S4S2S1", "1.3.S.2.4.", "4242424242", "S1S2S3S4S2", "#4#1#3#2#4", ".1.3.S.4.2", "3142314231"], speed: 1.70 },
+    { rows: ["##2#4#1#3#", "S3S1S4S2S1", "1.3.S.2.4.", "424R4242R4", "S1S2S3S4S2", "#4#1#3#2#4", ".1.3.S.4.2", "3142314231"], speed: 1.70 },
     { rows: ["#1#2#S#3#4", "2S3SXS4S2S", ".4.2.S.1.3", "1#3#S#2#4#", "4S2S1S3S4S", "#2#4#1#S#3", ".3.1.4.2.S", "2413241324"], speed: 1.82 },
-    { rows: ["#S#1#S#2#S", "3S1S4S2S1S", ".2.S.4.S.1", "4#2#S#1#3#", "1S3S2S4S3S", ".4.1.S.2.S", "#1#S#3#4#S", "4231423142", "2341234123"], speed: 1.95 },
-    { rows: ["#S#S#S#S#S", "S#S#S#S#S#", "43X1432X43", "S1S2S3S4S1", ".1.2.3.4.1", "2S3S4S1S2S", "#2#3#4#1#2", "3.4.1.2.3.", "S4S1S2S3S4", "1234123412"], speed: 2.08 }
+    { rows: ["#S#1#S#2#S", "3S1S4S2S1S", ".2.S.4.S.1", "4#2#S#1#3#", "1S3S2S4S3S", ".4.1.R.2.S", "#1#S#3#4#S", "4231423142", "2341234123"], speed: 1.95 },
+    { rows: ["#S#S#S#S#S", "S#S#S#S#S#", "43X1432X43", "S1S2S3S4S1", ".1.2.3.4.1", "2R3S4S1S2R", "#2#3#4#1#2", "3.4.1.2.3.", "S4S1S2S3S4", "1234123412"], speed: 2.08 }
   ];
 
   var BRICK_COLOR = {
@@ -768,7 +769,9 @@ canvas {
     // #49: explosive. Deliberately the hottest colour on the board — it is the
     // one brick whose type changes what a hit does, so it has to read as
     // different at a glance, not just as another hue in the rotation.
-    "X": { fill: "#ff5c1a", glow: "rgba(255,92,26,.85)" }
+    "X": { fill: "#ff5c1a", glow: "rgba(255,92,26,.85)" },
+    // #51: regenerating.
+    "R": { fill: "#b06cff", glow: "rgba(176,108,255,.8)" }
   };
 
   var COLS = 10;
@@ -858,6 +861,19 @@ canvas {
     floatingText: {
       rise: 40,  // px/s the "+N" pop-up drifts upward
       life: 0.7  // seconds before it fully fades
+    },
+    // #51: regenerating bricks. `delay` is long enough that a player can
+    // reasonably clear the rest of the level first — which is the whole point
+    // of the type, since a level clears the moment nothing is standing.
+    //
+    // `max` is not a difficulty knob: an uncapped regenerating brick is an
+    // unlimited supply of points, and since #67 the leaderboard is global, so
+    // "farm one brick forever" would be the highest-scoring strategy in the
+    // game. Capping the number of returns bounds that without changing how the
+    // brick plays over a normal level.
+    regen: {
+      delay: 7,
+      max: 3
     },
     // #42: the persisted top-score board. `nameMax` must match the markup's
     // #nameentry-input maxlength attribute — JS re-truncates independently
@@ -1194,7 +1210,11 @@ canvas {
           x: FIELD_PAD + c * (BRICK_W + BRICK_MARGIN),
           y: BRICK_TOP + r * (BRICK_H + BRICK_MARGIN),
           w: BRICK_W, h: BRICK_H,
-          type: ch, hp: hp, alive: true
+          type: ch, hp: hp, alive: true,
+          // #51: only meaningful for "R". regenTimer counts down while the
+          // brick is down; regenLeft is how many returns it has left.
+          regenLeft: ch === "R" ? CONFIG.regen.max : 0,
+          regenTimer: 0
         });
         if (hp !== Infinity) remaining++;
       }
@@ -1710,6 +1730,29 @@ canvas {
     }
   }
 
+  // #51: bring regenerating bricks back. Called from the same `playing`-only
+  // block as updateEffects(), which is what keeps the timer from draining
+  // behind the pause screen — the bug #4 fixed for power-ups.
+  //
+  // Runs before checkLevelClear() in frame(), so a brick returning on the same
+  // frame the last other brick fell puts remainingBricks back above zero and
+  // the level correctly does not clear.
+  function updateBricks(dt) {
+    for (var i = 0; i < state.bricks.length; i++) {
+      var b = state.bricks[i];
+      if (b.alive || b.regenTimer <= 0) continue;
+      b.regenTimer -= dt;
+      if (b.regenTimer > 0) continue;
+      b.regenTimer = 0;
+      b.regenLeft -= 1;
+      b.alive = true;
+      b.hp = 1;
+      state.remainingBricks += 1;
+      burst(b.x + b.w / 2, b.y + b.h / 2, BRICK_COLOR["R"].fill, 8);
+      beep(300, 0.09, "triangle", 0.035);
+    }
+  }
+
   function applyPowerup(p) {
     if (p.type === "widen") {
       state.widthEffect = { mult: CONFIG.effects.widen.mult, remaining: CONFIG.effects.widen.duration };
@@ -1876,6 +1919,11 @@ canvas {
         state.drops.push({ x: brick.x + brick.w / 2, y: brick.y + brick.h / 2, def: def });
       }
       updateHud();
+      // #51: schedule the return. remainingBricks was decremented above and
+      // stays down while the brick is — that is deliberate, and is what lets a
+      // level still be cleared by finishing everything else before it comes
+      // back. updateBricks() adds it again on revival.
+      if (brick.type === "R" && brick.regenLeft > 0) brick.regenTimer = CONFIG.regen.delay;
       // Last, so everything above has already settled for this brick before the
       // cascade re-enters brickHit for its neighbours.
       if (brick.type === "X") explode(brick);
@@ -2251,7 +2299,23 @@ canvas {
   function drawBricks() {
     for (var i = 0; i < state.bricks.length; i++) {
       var b = state.bricks[i];
-      if (!b.alive) continue;
+      if (!b.alive) {
+        // #51: a regenerating brick on its way back is drawn as an outline that
+        // fills as the timer runs down. Without it the brick reappears out of
+        // nowhere and reads as a bug rather than a mechanic — and a player has
+        // no way to decide whether to rush the rest of the level.
+        if (b.regenTimer > 0) {
+          var progress = 1 - b.regenTimer / CONFIG.regen.delay;
+          ctx.save();
+          ctx.strokeStyle = "rgba(176,108,255," + (0.25 + progress * 0.45).toFixed(3) + ")";
+          ctx.lineWidth = 1;
+          ctx.strokeRect(b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1);
+          ctx.fillStyle = "rgba(176,108,255,0.13)";
+          ctx.fillRect(b.x, b.y + b.h * (1 - progress), b.w, b.h * progress);
+          ctx.restore();
+        }
+        continue;
+      }
       var c = BRICK_COLOR[b.type] || BRICK_COLOR["1"];
       ctx.save();
       ctx.shadowColor = c.glow;
@@ -2272,6 +2336,28 @@ canvas {
         ctx.beginPath();
         ctx.arc(b.x + b.w / 2, b.y + b.h / 2, 3.5, 0, Math.PI * 2);
         ctx.fill();
+      } else if (b.type === "Sc") {
+        // #51: damaged silver signalled only by a colour swap before this —
+        // two greys a player has to have seen side by side to tell apart. A
+        // crack reads as damage without needing the comparison, and does not
+        // depend on colour vision.
+        ctx.strokeStyle = "rgba(10,1,24,0.55)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(b.x + b.w * 0.28, b.y);
+        ctx.lineTo(b.x + b.w * 0.44, b.y + b.h * 0.55);
+        ctx.lineTo(b.x + b.w * 0.32, b.y + b.h);
+        ctx.moveTo(b.x + b.w * 0.66, b.y);
+        ctx.lineTo(b.x + b.w * 0.56, b.y + b.h * 0.45);
+        ctx.lineTo(b.x + b.w * 0.72, b.y + b.h);
+        ctx.stroke();
+      } else if (b.type === "R") {
+        // Ring marker, matching the reasoning for X's dot above.
+        ctx.strokeStyle = "rgba(255,255,255,0.8)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(b.x + b.w / 2, b.y + b.h / 2, 4, 0, Math.PI * 2);
+        ctx.stroke();
       }
     }
   }
@@ -2398,6 +2484,7 @@ canvas {
     }
     if (state.phase === "playing") {
       updateEffects(dt);
+      updateBricks(dt);
       updateBalls(dt);
       updateDrops(dt);
       updateLasers(dt);

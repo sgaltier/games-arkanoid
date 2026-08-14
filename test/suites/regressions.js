@@ -14,14 +14,14 @@
 
 const { boot, HTML, SCRIPT } = require("../dom-stub");
 
-// #49 fixture. Level 0 is four solid rows of ten 1hp bricks with no gaps, so
+// Shared #49/#51 fixture. Level 0 is four solid rows of ten 1hp bricks with no gaps, so
 // buildLevel()'s row-major order makes state.bricks[row * 10 + col] the cell at
 // that grid position — a real layout with real geometry, rather than a
 // hand-built one that could drift from what buildLevel actually produces.
 // Returns { g, at, blast } where blast(brick) drives a ball up into it, so the
 // explosion is reached through the game's own collision path and brickHit does
 // not have to join SEAM.
-function explosiveLevel(opts) {
+function gridLevel(opts) {
   const g = boot(opts).start();
   g.T.startLevel(0);
   g.T.setPhase("playing"); // startLevel leaves it "ready", where balls do not move
@@ -41,7 +41,15 @@ function explosiveLevel(opts) {
     for (let r = 0; r < 4; r++) for (let c = 0; c < 10; c++) if (!at(r, c).alive) out.push(r + "," + c);
     return out;
   };
-  return { g, at, blast, deadCells };
+  // Advance play time with the ball re-attached to the paddle, so it cannot hit
+  // anything. #51's timing assertions need this: a loose ball keeps demolishing
+  // the grid and will happily knock a regenerated brick straight back down
+  // between the tick that revives it and the assertion that looks for it.
+  const idle = (seconds) => {
+    g.T.state.balls.forEach((b) => { b.attached = true; });
+    g.runAlive(seconds);
+  };
+  return { g, at, blast, deadCells, idle };
 }
 
 module.exports = {
@@ -1341,7 +1349,7 @@ module.exports = {
     {
       name: "#49a — destroying an explosive takes the eight cells around it, and nothing further",
       fn(a) {
-        const { at, blast, deadCells } = explosiveLevel();
+        const { at, blast, deadCells } = gridLevel();
         at(1, 4).type = "X";
         blast(at(1, 4));
         a.eq(
@@ -1357,7 +1365,7 @@ module.exports = {
         // Guards the geometric neighbour test's tolerance: it is a cell pitch
         // plus 1px, and must not creep into the next ring if the layout
         // constants ever change.
-        const { at, blast } = explosiveLevel();
+        const { at, blast } = gridLevel();
         at(1, 4).type = "X";
         blast(at(1, 4));
         a.ok(at(1, 2).alive, "a brick two columns away must survive");
@@ -1368,7 +1376,7 @@ module.exports = {
     {
       name: "#49c — a blast leaves indestructible walls standing",
       fn(a) {
-        const { at, blast } = explosiveLevel();
+        const { at, blast } = gridLevel();
         at(1, 4).type = "X";
         at(1, 3).type = "#";
         at(1, 3).hp = Infinity;
@@ -1382,7 +1390,7 @@ module.exports = {
       fn(a) {
         // The blast deals damage rather than deleting, so brick durability keeps
         // meaning what it means everywhere else.
-        const { at, blast } = explosiveLevel();
+        const { at, blast } = gridLevel();
         at(1, 4).type = "X";
         at(0, 4).type = "S";
         at(0, 4).hp = 2;
@@ -1405,7 +1413,7 @@ module.exports = {
     {
       name: "#49e — explosives chain into each other and the cascade terminates",
       fn(a) {
-        const { at, blast, deadCells } = explosiveLevel();
+        const { at, blast, deadCells } = gridLevel();
         at(1, 4).type = "X";
         at(1, 5).type = "X"; // adjacent, so the first blast sets off the second
         blast(at(1, 4));
@@ -1421,13 +1429,129 @@ module.exports = {
       fn(a) {
         // The level-clear check reads remainingBricks, so a blast that skipped
         // the counter would either end the level early or make it unclearable.
-        const { g, at, blast, deadCells } = explosiveLevel();
+        const { g, at, blast, deadCells } = gridLevel();
         const before = g.T.state.remainingBricks;
         at(1, 4).type = "X";
         at(1, 5).type = "X";
         blast(at(1, 4));
         a.eq(g.T.state.remainingBricks, before - deadCells().length,
           "every brick the cascade cleared must be one off the counter");
+      },
+    },
+
+    // -----------------------------------------------------------------------
+    // #51 — regenerating bricks, and readable silver damage
+    // -----------------------------------------------------------------------
+    {
+      name: "#51a — a regenerating brick comes back after its delay",
+      fn(a) {
+        const { g, at, blast, idle } = gridLevel();
+        at(1, 4).type = "R";
+        at(1, 4).regenLeft = g.T.CONFIG.regen.max;
+        blast(at(1, 4));
+        a.ok(!at(1, 4).alive, "it should go down when hit like any other brick");
+        a.gt(at(1, 4).regenTimer, 0, "and should be counting back");
+
+        idle(g.T.CONFIG.regen.delay - 1);
+        a.ok(!at(1, 4).alive, "it must not return early");
+        idle(1.5);
+        a.ok(at(1, 4).alive, "it should be standing again once the delay elapsed");
+        a.eq(at(1, 4).hp, 1, "and be hittable again");
+      },
+    },
+    {
+      name: "#51b — the regen timer does not drain while paused",
+      fn(a) {
+        // Same class of bug as #4: a timer that runs behind the pause screen.
+        const { g, at, blast, idle } = gridLevel();
+        at(1, 4).type = "R";
+        at(1, 4).regenLeft = g.T.CONFIG.regen.max;
+        blast(at(1, 4));
+        const pending = at(1, 4).regenTimer;
+
+        g.key("KeyP");
+        g.run(30);
+        a.ok(!at(1, 4).alive, "the brick returned while the game was parked on the pause screen");
+        a.eq(at(1, 4).regenTimer, pending, "the timer advanced while paused");
+
+        g.key("KeyP");
+        idle(pending + 0.5);
+        a.ok(at(1, 4).alive, "and should still return after its full delay of actual play");
+      },
+    },
+    {
+      name: "#51c — remainingBricks goes back up when the brick returns",
+      fn(a) {
+        const { g, at, blast, idle } = gridLevel();
+        at(1, 4).type = "R";
+        at(1, 4).regenLeft = g.T.CONFIG.regen.max;
+        const before = g.T.state.remainingBricks;
+        blast(at(1, 4));
+        a.eq(g.T.state.remainingBricks, before - 1, "it counts as cleared while it is down");
+        idle(g.T.CONFIG.regen.delay + 0.5);
+        a.eq(g.T.state.remainingBricks, before, "and counts again once it is back");
+      },
+    },
+    {
+      name: "#51d — a level finished while the brick is down still clears",
+      fn(a) {
+        // The finding's actual requirement: the brick returns "unless the level
+        // is cleared first". Since remainingBricks stays down while it is down,
+        // clearing everything else must end the level rather than waiting.
+        const { g, at, blast, idle } = gridLevel();
+        at(1, 4).type = "R";
+        at(1, 4).regenLeft = g.T.CONFIG.regen.max;
+        blast(at(1, 4));
+        // Clear every other brick outright, leaving only the pending one.
+        for (let r = 0; r < 4; r++) {
+          for (let c = 0; c < 10; c++) {
+            if (at(r, c).alive) { at(r, c).alive = false; g.T.state.remainingBricks -= 1; }
+          }
+        }
+        g.frame();
+        a.eq(g.T.state.phase, "levelclear", "the level should clear rather than wait for the return");
+      },
+    },
+    {
+      name: "#51e — it stops returning after CONFIG.regen.max times",
+      fn(a) {
+        // Not a difficulty detail: uncapped, this brick is an unlimited supply
+        // of points, and since #67 the leaderboard is global.
+        const { g, at, blast, idle } = gridLevel();
+        const max = g.T.CONFIG.regen.max;
+        at(1, 4).type = "R";
+        at(1, 4).regenLeft = max;
+        for (let i = 0; i < max; i++) {
+          blast(at(1, 4));
+          idle(g.T.CONFIG.regen.delay + 0.5);
+          a.ok(at(1, 4).alive, `return ${i + 1} of ${max} should have happened`);
+        }
+        blast(at(1, 4));
+        a.eq(at(1, 4).regenLeft, 0, "all returns should be spent");
+        a.eq(at(1, 4).regenTimer, 0, "so no further return should be scheduled");
+        idle(g.T.CONFIG.regen.delay * 2);
+        a.ok(!at(1, 4).alive, "the brick must stay down once its returns are spent");
+      },
+    },
+    {
+      name: "#51f — damaged silver is drawn differently from intact silver",
+      fn(a) {
+        // The finding's second half: damage was signalled only by swapping one
+        // grey for another. The crack overlay means extra canvas work, which is
+        // the only handle the stub gives us on what was actually drawn.
+        const { g, at } = gridLevel();
+        for (let r = 0; r < 4; r++) for (let c = 0; c < 10; c++) at(r, c).alive = false;
+        at(1, 4).alive = true;
+        at(1, 4).type = "S";
+        g.counters.reset();
+        g.frame();
+        const intact = g.counters.canvasOps;
+
+        at(1, 4).type = "Sc";
+        g.counters.reset();
+        g.frame();
+        a.gt(g.counters.canvasOps, intact,
+          "cracked silver should draw more than intact silver, not just recolour it");
       },
     },
   ],

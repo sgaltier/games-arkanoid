@@ -26,10 +26,45 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #42, #43 | ✅ Fixed — 2026-08-14 |
 | #67 | ✅ Fixed — 2026-08-14 |
 | #49 | ✅ Fixed — 2026-08-14 |
-| #41, #51, #52, #58, #59, #60 | 🔲 Open |
+| #51 | ✅ Fixed — 2026-08-14 |
+| #41, #52, #58, #59, #60 | 🔲 Open |
 
-44 of 50 findings fixed. See [todo.md](todo.md) for what's still open, and
+45 of 50 findings fixed. See [todo.md](todo.md) for what's still open, and
 [feature-ideas.md](feature-ideas.md) for proposals not yet promoted to the backlog.
+
+---
+
+## 2026-08-14 — Regenerating bricks, and silver you can read (#51)
+
+### Added
+
+**A new `R` brick that comes back.** Destroy it and it returns seven seconds later, up to three
+times — so it is not a brick you clear, it is a brick you decide whether to deal with. A level ends
+the moment nothing is standing, so the counter-play is to finish everything else while it is down
+rather than to keep hitting it. Six are placed across levels 4, 7, 9 and 10.
+
+While it is down, its cell is drawn as an outline that fills as the timer runs out. That is
+deliberate: a brick that reappears from nowhere reads as a bug, and without the countdown a player
+has nothing to judge "can I clear the rest in time?" against.
+
+**Damaged silver now cracks.** It previously signalled damage only by swapping one grey for another
+— two shades you had to have seen side by side to distinguish, and near-identical to some
+colourblind players. The crack reads as damage on its own. `R` gets a ring marker for the same
+reason `X` got a dot in #49.
+
+### Notes
+
+Returns are capped at three, and the cap is doing real work: uncapped, a regenerating brick is an
+unlimited supply of points, and since #67 the leaderboard is global — farming one brick would
+otherwise be the highest-scoring strategy in the game.
+
+The regen timer ticks in the same `playing`-only block as the power-up timers, so it cannot drain
+behind the pause screen, and it runs before the level-clear check so a brick returning on the same
+frame the last other one fell correctly keeps the level open.
+
+Six regression cases, each verified against a mutation that should break it *and* confirmed not to
+fire on the other five — including the case where a downed brick keeps counting toward level clear,
+which is the plausible-looking implementation that would quietly contradict what the feature is for.
 
 ---
 
