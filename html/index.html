@@ -451,6 +451,15 @@ canvas {
 .hof-score { font-variant-numeric: tabular-nums; color: var(--neon-cyan); }
 .hof-entry.hof-new .hof-score { color: inherit; }
 .hof-empty { color: var(--text-dim); font-style: italic; text-align: center; }
+/* Says whether the list below is the world board or this device's fallback —
+   without it an offline player silently reads local scores as global ones. */
+.hof-scope {
+  margin: -6px 0 10px;
+  font-size: 12px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
 
 /* ---------- deck ---------- */
 .deck {
@@ -633,6 +642,7 @@ canvas {
         <div class="overlay" id="overlay-halloffame" role="status" aria-live="polite" aria-hidden="true">
           <p class="overlay-eyebrow" data-i18n="halloffame.eyebrow">Tableau des scores</p>
           <h2 class="overlay-title" data-i18n="halloffame.title">Hall of Fame</h2>
+          <p class="hof-scope" id="hof-scope"></p>
           <ol class="hof-list" id="hof-list"></ol>
           <button class="btn" id="btn-hof-continue" type="button" data-i18n="halloffame.btn">Continuer</button>
         </div>
@@ -910,7 +920,9 @@ canvas {
       "halloffame.eyebrow": "Tableau des scores",
       "halloffame.title": "Hall of Fame",
       "halloffame.btn": "Continuer",
-      "halloffame.empty": "Aucun score enregistré pour l'instant."
+      "halloffame.empty": "Aucun score enregistré pour l'instant.",
+      "halloffame.world": "Classement mondial",
+      "halloffame.device": "Scores de cet appareil — classement mondial indisponible"
     },
     en: {
       "doc.title": "Blokrush — Arcade Brick Breaker",
@@ -957,7 +969,9 @@ canvas {
       "halloffame.eyebrow": "High scores",
       "halloffame.title": "Hall of Fame",
       "halloffame.btn": "Continue",
-      "halloffame.empty": "No scores recorded yet."
+      "halloffame.empty": "No scores recorded yet.",
+      "halloffame.world": "World ranking",
+      "halloffame.device": "This device's scores — world ranking unavailable"
     }
   };
   var SUPPORTED_LANGS = ["fr", "en"];
@@ -1040,6 +1054,68 @@ canvas {
   }
   function saveHallOfFame(list) { storageSet(HOF_KEY, JSON.stringify(list)); }
 
+  // ---------------------------------------------------------------------
+  // Global hall of fame (#67)
+  //   The board shown is the world one when the API answers, and the local
+  //   localStorage board otherwise — offline, opened from file://, API down.
+  //   The local board is never retired: it is what keeps the game playable
+  //   with no network, which the whole test harness also relies on.
+  // ---------------------------------------------------------------------
+  var API_URL = "/api/scores";
+
+  // Resolves to parsed JSON, or null on any failure at all. Every network
+  // problem collapses to the same "no global board" signal on purpose — the
+  // caller's fallback is identical whether we are offline, blocked, rate
+  // limited or the endpoint is unconfigured.
+  function apiFetch(opts) {
+    if (typeof fetch !== "function") return Promise.resolve(null);
+    var request;
+    try { request = fetch(API_URL, opts); }
+    catch (e) { return Promise.resolve(null); }
+    return Promise.resolve(request)
+      .then(function (r) { return r && r.ok ? r.json() : null; })
+      .catch(function () { return null; });
+  }
+
+  // Also refreshes the session token, which is what dates a run server-side —
+  // so this is called again at newGame() rather than only at boot, otherwise a
+  // tab left open for an hour would submit against a stale, over-generous
+  // elapsed time.
+  function fetchGlobalBoard() {
+    return apiFetch().then(function (data) {
+      if (data && Array.isArray(data.scores)) {
+        state.globalScores = data.scores;
+        state.sessionToken = typeof data.token === "string" ? data.token : null;
+      }
+      renderHallOfFame();
+      return data;
+    });
+  }
+
+  function submitGlobalScore(name, score) {
+    var token = state.sessionToken;
+    if (!token) return Promise.resolve(null);
+    state.sessionToken = null; // one token buys one score; the server enforces it too
+    return apiFetch({
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token: token, name: name, score: score })
+    }).then(function (data) {
+      if (data && Array.isArray(data.scores)) {
+        state.globalScores = data.scores;
+        renderHallOfFame();
+      }
+      return data;
+    });
+  }
+
+  // The single place that decides which board the game is talking about.
+  // Everything downstream — ranking, qualification, rendering — reads this
+  // rather than picking a source itself.
+  function activeBoard() {
+    return state.globalScores || state.hallOfFame;
+  }
+
   var state = {
     phase: "start", // start | ready | playing | paused | levelclear | nameentry | halloffame | victory | gameover
     levelIndex: 0,
@@ -1068,6 +1144,11 @@ canvas {
     muted: loadMuted(),
     lang: loadLang(),
     hallOfFame: loadHallOfFame(), // [{name, score}, ...], sorted desc, capped — see #42
+    // #67: the world board, or null when the API has not answered. null is the
+    // signal to fall back to hallOfFame above, so it must stay null rather than
+    // becoming [] on failure — an empty array is a legitimately empty world board.
+    globalScores: null,
+    sessionToken: null, // opaque, server-signed; see submitGlobalScore
     // Which phase the halloffame "continue" button leads back to — "victory"/
     // "gameover" when endGame() inserted the nameentry/halloffame detour after
     // a qualifying run, or "start" when the board was opened on demand from
@@ -1150,6 +1231,9 @@ canvas {
   function newGame() {
     state.score = 0;
     state.lives = 3;
+    // Refreshes the session token as well as the board, so the run about to
+    // start is dated from now — see fetchGlobalBoard.
+    fetchGlobalBoard();
     startLevel(0);
   }
 
@@ -1949,20 +2033,30 @@ canvas {
   // still gets a correctly-sorted insertion point rather than always
   // appending at the end; a tie with the lowest listed score doesn't bump it,
   // matching the classic arcade-leaderboard convention of no free rides.
-  function hallOfFameRank(score) {
-    var list = state.hallOfFame;
+  function rankIn(list, score) {
     for (var i = 0; i < list.length; i++) {
       if (score > list[i].score) return i;
     }
     return list.length < CONFIG.hallOfFame.max ? list.length : -1;
   }
+  // Rank on the board the player is actually shown — the world one when it is
+  // reachable. Only ever used to decide whether to prompt for a name; the
+  // local board's own insertion point is computed separately, against itself.
+  function hallOfFameRank(score) {
+    return rankIn(activeBoard(), score);
+  }
   function qualifiesForHallOfFame(score) {
     return score > 0 && hallOfFameRank(score) !== -1;
   }
 
+  // Always against state.hallOfFame, never activeBoard(): splicing into the
+  // local array at a position derived from the world board would leave it
+  // mis-sorted. A score can also fail to make the world top 10 while still
+  // deserving a place on this device's board, so rank -1 here is not the same
+  // question endGame() asked.
   function insertHallOfFameEntry(name, score) {
-    var rank = hallOfFameRank(score);
-    if (rank === -1) return null; // shouldn't happen — endGame() only prompts when it qualifies
+    var rank = rankIn(state.hallOfFame, score);
+    if (rank === -1) return null;
     var entry = { name: name, score: score };
     state.hallOfFame.splice(rank, 0, entry);
     state.hallOfFame.length = Math.min(state.hallOfFame.length, CONFIG.hallOfFame.max);
@@ -1976,11 +2070,20 @@ canvas {
   function submitHallOfFameName() {
     var input = document.getElementById("nameentry-input");
     var raw = (input.value || "").trim().slice(0, CONFIG.hallOfFame.nameMax);
-    var entry = insertHallOfFameEntry(raw || t("nameentry.anonymous"), state.score);
-    state.hofHighlight = entry;
+    var name = raw || t("nameentry.anonymous");
+    // The local board is written whether or not the world board is reachable,
+    // so a run played offline still lands somewhere and is not lost.
+    var entry = insertHallOfFameEntry(name, state.score);
+    // insertHallOfFameEntry returns null when the score made the world board
+    // but not this device's fuller one. The run still needs highlighting on the
+    // list being shown, so fall back to a plain value to match against.
+    state.hofHighlight = entry || { name: name, score: state.score };
     input.value = "";
     renderHallOfFame();
     setPhase("halloffame");
+    // Deliberately not awaited: the player reaches the board immediately and
+    // the list re-renders underneath them if and when the server answers.
+    submitGlobalScore(name, state.score);
   }
 
   // Rebuilds #hof-list from state.hallOfFame. Goes through innerHTML with
@@ -1989,13 +2092,24 @@ canvas {
   // with — but a player-supplied name (the first free-text input this game
   // has ever rendered) must never be interpreted as markup either way.
   function renderHallOfFame() {
+    var board = activeBoard();
+    document.getElementById("hof-scope").textContent =
+      t(state.globalScores ? "halloffame.world" : "halloffame.device");
     var list = document.getElementById("hof-list");
-    if (!state.hallOfFame.length) {
+    if (!board.length) {
       list.innerHTML = '<li class="hof-empty">' + escapeHtml(t("halloffame.empty")) + "</li>";
       return;
     }
-    list.innerHTML = state.hallOfFame.map(function (entry, i) {
-      var cls = "hof-entry" + (entry === state.hofHighlight ? " hof-new" : "");
+    // Matched by value, not identity: when the world board is showing, the row
+    // for the run just submitted is an object the server sent back, not the one
+    // insertHallOfFameEntry() made. highlighted guards against a second player
+    // with the same name and score lighting up a second row.
+    var highlighted = false;
+    list.innerHTML = board.map(function (entry, i) {
+      var isNew = !highlighted && state.hofHighlight &&
+        entry.name === state.hofHighlight.name && entry.score === state.hofHighlight.score;
+      if (isNew) highlighted = true;
+      var cls = "hof-entry" + (isNew ? " hof-new" : "");
       return '<li class="' + cls + '">' +
         '<span class="hof-rank">' + (i + 1) + '.</span>' +
         '<span class="hof-name">' + escapeHtml(entry.name) + '</span>' +
@@ -2263,6 +2377,11 @@ canvas {
   // after a phase transition, while keeping setPhase() the single entry
   // point for every phase→overlay transition, boot included.
   setPhase("start");
+  // Populates the world board (and renders the local one meanwhile) so the
+  // start screen's "view scores" button has something real behind it before a
+  // run has been played. Never awaited — the game is fully playable if it
+  // never resolves.
+  fetchGlobalBoard();
   requestAnimationFrame(frame);
 })();
 </script>

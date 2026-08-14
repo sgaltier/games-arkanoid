@@ -300,6 +300,24 @@ function boot(opts) {
   };
   globalThis.requestAnimationFrame = () => 0; // frames are driven by hand
 
+  // #67: the global hall of fame API. Offline by default — every suite written
+  // before it existed must keep exercising the local-board fallback, and a test
+  // that wants the world board has to say so. opts.api is a handler taking
+  // (url, init) and returning the object to serve as JSON; returning null (or
+  // throwing) reproduces an unreachable endpoint.
+  const apiCalls = [];
+  globalThis.fetch = (url, init) => {
+    apiCalls.push({ url, init, body: init && init.body ? JSON.parse(init.body) : null });
+    if (!opts.api) return Promise.reject(new Error("offline"));
+    let payload;
+    try { payload = opts.api(url, init); }
+    catch (e) { return Promise.reject(e); }
+    if (payload === null || payload === undefined) {
+      return Promise.resolve({ ok: false, status: 503, json: () => Promise.resolve(null) });
+    }
+    return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(payload) });
+  };
+
   Math.random = makeRng(opts.seed === undefined ? 12345 : opts.seed);
 
   new Function(INSTRUMENTED)();
@@ -311,6 +329,13 @@ function boot(opts) {
     store,
     registry,
     counters,
+    // Every fetch the game made, in order: { url, init, body }. body is the
+    // parsed request JSON, so a test can assert what was submitted.
+    apiCalls,
+    // The API paths are promise-chained, so their effects land a few microtasks
+    // after the call that triggered them. Await this before asserting on
+    // anything the network was supposed to change.
+    settle: () => new Promise((resolve) => setImmediate(resolve)),
     // The clock deliberately starts non-zero. The game computes its delta as
     // `(now - (state.lastTime || now))`, so a lastTime of 0 reads as "unset" and
     // yields dt === 0. Priming below with a non-zero timestamp means the first

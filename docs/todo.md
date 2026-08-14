@@ -9,7 +9,7 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 8 open findings.
+**Status:** 7 open findings.
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
 test → fix → move the finding's whole entry from this file to [done.md](done.md), prepending a
@@ -90,80 +90,5 @@ toggle and its persisted state cover the opt-out.
 Each level currently draws the same background. Giving levels (or groups of levels) a distinct
 palette and a slow parallax starfield or grid would make progress visible in the environment rather
 than only in the HUD counter, which is how *Shatter* and *Wizorb* sell their act structure.
-
----
-
-## Backend / infrastructure
-
-### 67. One global hall of fame, shared by every player (L)
-
-**Requested directly by the user.** Today's board (#42, #43 in [done.md](done.md)) is private to each
-browser: it lives in `localStorage` under `neonbreak-hall-of-fame`
-([:996](../html/index.html#L996)), so two players never see each other's scores, and the same person
-sees a different board on their phone than on their laptop. It is also per-origin, which means
-`blokrush.pages.dev` and `blokrush.sebkiller.com` already keep separate boards.
-
-The ask is a single world-visible leaderboard. **It may be reset freely during implementation, but
-once shipped it must never be reset again** — that promise is a design constraint, not an
-operational note, and it shapes several choices below.
-
-#### Shape
-
-Cloudflare Pages Functions with KV or D1 behind them, since the site already deploys to Pages: a
-`GET /api/scores` returning the top N, and a `POST /api/scores` submitting one. D1 is the better fit
-despite KV being simpler — a leaderboard is a sorted query, KV has no ordering, and "never reset"
-argues for something with real backups and a migration story rather than a bag of keys.
-
-This introduces a server component to a project whose stated constraint is one self-contained file
-with no build step and no dependencies (see [CLAUDE.md](../CLAUDE.md)). That is a genuine
-architectural change and the main reason this is L, not M. The local board should stay as the
-offline fallback rather than being deleted — the game must still work opened from `file://`, which
-the whole test harness depends on.
-
-#### Anti-cheat — read this before designing the endpoint
-
-The game is entirely client-side, so **a determined attacker can always POST an arbitrary score**.
-Nothing below changes that; they reduce the number of people who bother. This should be stated
-plainly rather than designed around as if solvable:
-
-- *Deterrents, not defences:* Cloudflare rate limiting per IP, a Turnstile challenge on submit, and
-  an origin/referer check. Cheap, and they stop casual `curl` submissions.
-- *Server-side plausibility:* reject scores inconsistent with the run that supposedly produced them
-  — score above the theoretical maximum for the level reached, a run shorter than the minimum time
-  to clear that many bricks, impossible combo multipliers. Bounded by `CONFIG` values the server can
-  reuse. Stops naive inflation, not a careful forgery.
-- *The only real verification:* have the client submit the **input trace** (seed plus per-frame
-  paddle positions) and re-run the deterministic simulation server-side, accepting the score only if
-  the replay reproduces it. This actually verifies rather than deters. It requires the game to be
-  fully deterministic — a seeded PRNG replacing `Math.random()`, the same prerequisite as #47 — and
-  the physics to be extractable so a Worker can run it headless. It also shares its recording
-  machinery with #66 (ghost replay). Expensive, and worth costing out honestly before committing.
-
-Whatever is chosen, assume some bad entries land: an admin path to remove a single entry is
-required, and it must not mean wiping the board.
-
-#### Consequences of "never reset"
-
-- Entries need a schema version from day one, so a later format change migrates instead of forcing a
-  reset.
-- The D1 database and its bindings must survive project renames and redeploys — the Pages project
-  being recreated must not orphan the data. Worth a documented backup (scheduled export) precisely
-  because the promise is unconditional.
-- Deleting the Cloudflare Pages project would destroy it. That risk should be written down wherever
-  deployment is documented.
-
-#### Moderation and safety
-
-Names become world-visible, which they are not today. `renderHallOfFame()` already escapes
-interpolated values ([:2001–2002](../html/index.html#L2001-L2002)), so XSS is handled, but a public
-board needs length limits enforced server-side (not just `CONFIG.hallOfFame.nameMax`), some profanity
-handling, and a decision on whether to store any IP or identifier for abuse handling — which carries
-its own privacy obligations.
-
-#### Related
-
-#42/#43 (the local board this extends), #47 (a per-day leaderboard would reuse this backend), #66
-(shares the input-trace recording), #64 (resumable runs raise the same "is this score legitimate"
-question).
 
 ---

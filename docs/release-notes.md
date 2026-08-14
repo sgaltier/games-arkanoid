@@ -24,9 +24,53 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #32 | ✅ Fixed — 2026-08-13 |
 | #38, #39, #40 | ✅ Fixed — 2026-08-14 |
 | #42, #43 | ✅ Fixed — 2026-08-14 |
-| #41 | 🔲 Open |
+| #67 | ✅ Fixed — 2026-08-14 |
+| #41, #49, #51, #52, #58, #59, #60 | 🔲 Open |
 
-42 of 43 findings fixed. See [todo.md](todo.md) for what's still open.
+43 of 50 findings fixed. See [todo.md](todo.md) for what's still open, and
+[feature-ideas.md](feature-ideas.md) for proposals not yet promoted to the backlog.
+
+---
+
+## 2026-08-14 — One global hall of fame (#67)
+
+### Added
+
+**The hall of fame is now a single world board rather than one per browser.** Until now every
+visitor had a private list in their own `localStorage`, so two players never saw each other's
+scores and the same person saw different boards on their phone and their laptop. Scores now go to a
+Cloudflare Pages Function backed by D1 — `GET /api/scores` for the top 10, `POST /api/scores` to
+submit — and the overlay labels which board it is showing.
+
+**The local board is kept, demoted to an offline fallback.** If the API cannot be reached — offline,
+opened from `file://`, endpoint not yet provisioned — the game silently uses the device's own board
+and says so. A run played offline still lands somewhere rather than being lost.
+
+### Anti-cheat
+
+Deterrence, not verification, and worth stating plainly: the game is client-side, so a patched
+client can still forge a score within the plausible range. What ships is an HMAC-signed session
+token issued with the board and redeemable exactly once (a `UNIQUE` nonce in the database is what
+enforces that), a minimum run length and points-per-second ceiling measured against the server's own
+clock rather than anything the client claims, a per-IP rate limit, and server-side name limits now
+that names are world-visible. With no `HOF_SECRET` configured the endpoint fails closed.
+
+Real verification — replaying a submitted input trace server-side — is still unbuilt and still
+blocked on the game being deterministic; see #47.
+
+### Notes
+
+Seven regression cases cover the fallback, the world board taking precedence, the token being spent
+once, and the board re-rendering from the server's response. One of them (`#67e`) was rewritten
+after it passed against the very bug it was meant to catch: the original fixture gave the world
+board a single entry, which made the wrong rank coincidentally equal the right one.
+
+`test/run.js` was made async in the process. It called `test.fn(assert)` without awaiting, so any
+async test would have reported PASS while asserting nothing.
+
+**The Function has not been executed anywhere yet** — there is no wrangler or D1 in the development
+environment, so every test exercises a stub rather than the endpoint. It needs a D1 database bound
+as `DB`, `HOF_SECRET`, and `schema.sql` applied before it does anything but return 503.
 
 ---
 

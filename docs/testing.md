@@ -108,13 +108,16 @@ g.T.state.score;    // reach into the closure
 | `dpr` | `devicePixelRatio` |
 | `canvasWidth` | Overrides the `#game` canvas's `getBoundingClientRect().width` (default 480), for testing display-size-driven backing-store sizing |
 | `reducedMotion` | Seeds `matchMedia("(prefers-reduced-motion: reduce)").matches` |
+| `api` | Handler `(url, init)` for the #67 global hall-of-fame API. Its return value is served as JSON; returning `null` or throwing reproduces an unreachable endpoint. **Omitted means offline** — see below |
 
 Useful handle methods: `run(seconds)`, `runAlive(seconds)` (keeps the paddle under the ball so play
 continues), `frame()`, `key(code)`, `hold`/`release`, `mouseMove(x)`, `touch(type, x)`,
 `fireWin(type)`, `fireDoc(type)`, `fireMedia(query, matches)`, `el(id)`, `byKey(i18nKey)`, `langButton(lang)`,
-`shownOverlays()`, and `counters` for per-frame budgets.
+`shownOverlays()`, `apiCalls` (every fetch made, with the parsed request body), `settle()` (flushes
+the API promise chain — await it before asserting on anything the network was meant to change),
+and `counters` for per-frame budgets.
 
-### Two traps worth knowing about
+### Three traps worth knowing about
 
 Both of these cost real debugging time and are commented in the source so they are not
 "simplified" away:
@@ -128,6 +131,13 @@ Both of these cost real debugging time and are commented in the source so they a
   `now - (state.lastTime || now)`, so a `lastTime` of `0` reads as "unset" and the first frame
   yields `dt === 0` — nothing moves, and hand-placed collision tests silently do nothing. `boot()`
   primes with a non-zero timestamp.
+
+- **`fetch` is offline unless a test opts in, and async tests must be awaited.** `boot()` without
+  an `api` option rejects every request, which is what keeps every suite predating #67 exercising
+  the local-board fallback. Two related hazards: an async test that forgets `await g.settle()` will
+  assert before the network effects land, and — the reason `run.js` is now `async` — a runner that
+  calls `test.fn(assert)` without awaiting swallows every rejection, so a broken async test reports
+  PASS having checked nothing. That was the state of the runner before #67.
 
 ### The test seam
 

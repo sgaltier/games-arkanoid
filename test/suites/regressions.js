@@ -1159,5 +1159,150 @@ module.exports = {
         a.eq(g.T.state.phase, "gameover", "a loss should still end on gameover, not victory, after the detour");
       },
     },
+
+    // -----------------------------------------------------------------------
+    // #67 — global hall of fame
+    // -----------------------------------------------------------------------
+    {
+      name: "#67a — an unreachable API leaves the local board in charge",
+      async fn(a) {
+        // boot() with no `api` option rejects every fetch, which is the state
+        // every suite predating #67 runs in.
+        const g = boot({ storage: { "neonbreak-hall-of-fame": JSON.stringify([{ name: "Loc", score: 90 }]) } });
+        await g.settle();
+        a.eq(g.T.state.globalScores, null, "a failed fetch must leave globalScores null, not []");
+        g.el("btn-view-hof").click(1);
+        a.includes(g.el("hof-list").innerHTML, "Loc", "the local board should still render");
+        a.eq(g.el("hof-scope").textContent, "Scores de cet appareil — classement mondial indisponible");
+      },
+    },
+    {
+      name: "#67b — the world board replaces the local one once the API answers",
+      async fn(a) {
+        const g = boot({
+          storage: { "neonbreak-hall-of-fame": JSON.stringify([{ name: "Loc", score: 90 }]) },
+          api: () => ({ scores: [{ name: "Wld", score: 5000 }], token: "tok-1" }),
+        });
+        await g.settle();
+        a.eq(g.T.state.globalScores.length, 1);
+        g.el("btn-view-hof").click(1);
+        const html = g.el("hof-list").innerHTML;
+        a.includes(html, "Wld", "the world board should be the one shown");
+        a.ok(!html.includes("Loc"), "the local board must not be mixed into the world one");
+        a.eq(g.el("hof-scope").textContent, "Classement mondial");
+      },
+    },
+    {
+      name: "#67c — submitting posts the score with the token from the last board fetch",
+      async fn(a) {
+        const g = boot({ api: () => ({ scores: [], token: "tok-42" }) }).start();
+        await g.settle();
+        g.T.state.score = 700;
+        g.T.state.lives = 1;
+        g.T.state.balls.length = 0;
+        g.frame();
+        a.eq(g.T.state.phase, "nameentry");
+        g.el("nameentry-input").value = "Ada";
+        g.el("btn-nameentry-submit").click(1);
+        await g.settle();
+        const post = g.apiCalls.filter((c) => c.init && c.init.method === "POST").pop();
+        a.ok(post, "submitting should POST to the API");
+        a.eq(post.body.token, "tok-42");
+        a.eq(post.body.name, "Ada");
+        a.eq(post.body.score, 700);
+      },
+    },
+    {
+      name: "#67d — a session token is spent once, so a re-submit cannot replay it",
+      async fn(a) {
+        const g = boot({ api: () => ({ scores: [], token: "tok-9" }) }).start();
+        await g.settle();
+        g.T.state.score = 500;
+        g.T.state.lives = 1;
+        g.T.state.balls.length = 0;
+        g.frame();
+        g.el("btn-nameentry-submit").click(1);
+        await g.settle();
+        a.eq(g.T.state.sessionToken, null, "the token should be cleared once spent");
+        const before = g.apiCalls.filter((c) => c.init && c.init.method === "POST").length;
+        g.el("btn-nameentry-submit").click(1); // same handler, no fresh token behind it
+        await g.settle();
+        a.eq(
+          g.apiCalls.filter((c) => c.init && c.init.method === "POST").length, before,
+          "a second submit with no fresh token must not POST again"
+        );
+      },
+    },
+    {
+      name: "#67e — the local board keeps its own ordering while the world board is showing",
+      async fn(a) {
+        // The regression: insertHallOfFameEntry() once took its splice index from
+        // hallOfFameRank(), which now ranks against the world board. A score
+        // ranking low globally would then be spliced into the local array at that
+        // global index and leave it mis-sorted.
+        //
+        // The world board deliberately holds five entries that all beat the score
+        // while the local board holds two. The buggy path returns the world rank
+        // (5) and splices past the end of a two-entry array, appending instead of
+        // inserting. A shorter world board would return an index that happens to
+        // be correct locally too, and this test would prove nothing.
+        const g = boot({
+          storage: { "neonbreak-hall-of-fame": JSON.stringify([{ name: "A", score: 300 }, { name: "B", score: 100 }]) },
+          api: () => ({
+            scores: [9000, 8000, 7000, 6000, 5000].map((s, i) => ({ name: "W" + i, score: s })),
+            token: "tok-3",
+          }),
+        }).start();
+        await g.settle();
+        g.T.state.score = 200; // between the two local entries, far below the world entry
+        g.T.state.lives = 1;
+        g.T.state.balls.length = 0;
+        g.frame();
+        g.el("nameentry-input").value = "Mid";
+        g.el("btn-nameentry-submit").click(1);
+        const local = g.T.state.hallOfFame.map((e) => e.score);
+        a.eq(JSON.stringify(local), JSON.stringify([300, 200, 100]), "the local board must stay sorted descending");
+      },
+    },
+    {
+      name: "#67f — a run played offline still reaches the local board",
+      async fn(a) {
+        const g = boot().start(); // no api: every fetch rejects
+        await g.settle();
+        g.T.state.score = 250;
+        g.T.state.lives = 1;
+        g.T.state.balls.length = 0;
+        g.frame();
+        a.eq(g.T.state.phase, "nameentry", "qualification should fall back to the local board");
+        g.el("nameentry-input").value = "Solo";
+        g.el("btn-nameentry-submit").click(1);
+        await g.settle();
+        a.eq(g.T.state.hallOfFame[0].name, "Solo", "the score must not be lost just because the API was down");
+        a.eq(g.T.state.phase, "halloffame");
+      },
+    },
+    {
+      name: "#67g — the board re-renders with the server's list after a successful submit",
+      async fn(a) {
+        let posted = false;
+        const g = boot({
+          api: (url, init) => {
+            if (init && init.method === "POST") { posted = true; return { scores: [{ name: "Srv", score: 4242 }] }; }
+            return { scores: [], token: "tok-7" };
+          },
+        }).start();
+        await g.settle();
+        g.T.state.score = 300;
+        g.T.state.lives = 1;
+        g.T.state.balls.length = 0;
+        g.frame();
+        g.el("nameentry-input").value = "Zoe";
+        g.el("btn-nameentry-submit").click(1);
+        await g.settle();
+        a.ok(posted, "the submit should have reached the API");
+        a.includes(g.el("hof-list").innerHTML, "Srv", "the list should show what the server returned");
+        a.includes(g.el("hof-list").innerHTML, "4242");
+      },
+    },
   ],
 };

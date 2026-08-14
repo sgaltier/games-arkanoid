@@ -4,9 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Blokrush — a bilingual (French/English) neon-arcade Breakout clone. The entire game
+Blokrush — a bilingual (French/English) neon-arcade Breakout clone. The game itself
 (HTML + CSS + JS) is one self-contained file, [html/index.html](html/index.html): no build step,
 no dependencies, no `package.json`. Open it directly in a browser (`file://` works) to play it.
+
+Since #67 there is also a server side — [functions/api/scores.js](functions/api/scores.js), a
+Cloudflare Pages Function backing the global hall of fame. It is **not** required to play: with the
+API unreachable the game falls back to the per-browser `localStorage` board, which is exactly how
+`file://` and the whole test suite run. Keep it that way — the single-file game working with no
+network is a constraint, not an accident.
 
 ## Commands
 
@@ -35,6 +41,26 @@ The game must therefore stay at `html/index.html` — static hosting serves the 
 `index.html`, so renaming or moving it breaks the production URL as well as the test harness
 (`GAME_FILE` in [test/dom-stub.js](test/dom-stub.js) and the doc-anchor regexes in
 [test/suites/structure.js](test/suites/structure.js)).
+
+### Global hall of fame backend (#67)
+
+`functions/api/scores.js` needs three things provisioned in Cloudflare, none of which live in this
+repo. Without them the endpoint returns 503 and the game quietly uses the local board — so a missing
+binding looks like "the leaderboard is empty", not like an error:
+
+```
+wrangler d1 create blokrush-hof             # then bind it to the Pages project as DB
+wrangler d1 execute blokrush-hof --file=schema.sql --remote
+wrangler pages secret put HOF_SECRET        # >= 16 chars; the HMAC key for session tokens
+```
+
+`HOF_SECRET` is the signing key for the session tokens that date each run. Rotating it invalidates
+every token in flight (players mid-run lose that submission) but nothing already stored.
+
+**The board must never be reset** — that was the explicit requirement behind #67, and it constrains
+maintenance: migrations on `scores` must be additive and carry `schema_version`, and deleting the
+Pages project or the D1 database destroys it irrecoverably. Take an export before anything
+structural.
 
 Production is `blokrush.sebkiller.com`. The domain is registered at Gandi and its DNS stays there —
 a single `CNAME` from the `blokrush` subdomain to the project's `.pages.dev` hostname. The zone is
@@ -86,6 +112,16 @@ Four `localStorage` keys (`BEST_KEY`, `LANG_KEY`, `MUTED_KEY`, `HOF_KEY` — the
 #42), always accessed through `storageGet`/`storageSet`, which swallow throws (Safari
 private-browsing throws on any access). `HOF_KEY` additionally guards against valid-JSON-but-wrong-shape
 data in `loadHallOfFame()`, since it's parsed rather than just read as a raw string/number.
+
+The keys are still named `neonbreak-*` from before the rename to Blokrush. **Leave them.** Renaming
+them would orphan every existing player's best score and board; `persistence.js` asserts the
+`^neonbreak-` namespace precisely so this does not get "tidied up" later.
+
+Since #67 the hall of fame has a second, authoritative source: the global board from
+`/api/scores`. `activeBoard()` is the single place that decides which one the game means — the world
+board when `state.globalScores` is non-null, the local one otherwise. Note that `globalScores` stays
+`null` rather than `[]` when the API has not answered, because an empty array is a legitimately
+empty world board and conflating the two would hide the fallback.
 
 ## Testing
 

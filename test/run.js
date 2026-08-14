@@ -124,7 +124,10 @@ function loadSuites(filters) {
 // ---------------------------------------------------------------------------
 // Run
 // ---------------------------------------------------------------------------
-function main() {
+// async only so a test fn may return a promise — #67's API paths resolve over
+// microtasks. Awaiting is not optional: an unawaited rejection would be
+// swallowed and the test would report PASS having asserted nothing.
+async function main() {
   const filters = process.argv.slice(2).filter((a) => !a.startsWith("-"));
   const suites = loadSuites(filters);
 
@@ -144,7 +147,7 @@ function main() {
     for (const test of suite.tests) {
       let err = null;
       try {
-        test.fn(assert);
+        await test.fn(assert);
       } catch (e) {
         err = e;
       }
@@ -202,4 +205,9 @@ function main() {
   process.exit(failed ? 1 : 0);
 }
 
-main();
+// A throw out of main() must still fail the build — without this an async
+// rejection would only warn and exit 0.
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
