@@ -85,10 +85,10 @@ Currently pending: none.
 ## How the harness works
 
 The game is an IIFE inside a single HTML file, so nothing is reachable from outside.
-[`test/dom-stub.js`](../test/dom-stub.js) reads the real `blokrush.html`, extracts the `<script>`
+[`test/dom-stub.js`](../test/dom-stub.js) reads the real `index.html`, extracts the `<script>`
 block, and injects a handle just before the closing `})();` exposing the names listed in `SEAM`.
 
-`blokrush.html` itself is never modified — the injection happens on an in-memory copy.
+`index.html` itself is never modified — the injection happens on an in-memory copy.
 
 `boot(opts)` gives you a fresh game with a fake DOM:
 

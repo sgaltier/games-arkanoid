@@ -1,0 +1,12 @@
+{
+  // Assets-only Worker: no "main" entry point, so every request is served
+  // straight from the static files in ./html. This exists because the build
+  // command Cloudflare runs (`npx wrangler deploy`) otherwise tries to guess
+  // an assets directory from conventional names (public/, dist/, build/) and
+  // fails on this repo's layout.
+  "name": "blokrush",
+  "compatibility_date": "2026-08-14",
+  "assets": {
+    "directory": "./html"
+  }
+}

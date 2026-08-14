@@ -748,6 +748,6 @@ code changes.
 
 ## 2026-08-12 — Initial commit (`8b6c46d`)
 
-`blokrush.html` — a single self-contained French-language neon arcade breakout game. Vanilla JS in an
+`index.html` — a single self-contained French-language neon arcade breakout game. Vanilla JS in an
 IIFE, 2D canvas, WebAudio blips, five hand-authored levels, six power-ups, no dependencies and no
 build step.

@@ -1,6 +1,6 @@
 # Blokrush — Open Findings
 
-Target: [blokrush.html](../html/blokrush.html). This is the **open** half of the project's review backlog —
+Target: [index.html](../html/index.html). This is the **open** half of the project's review backlog —
 findings and enhancement ideas surfaced by a `/code-review` pass, found during play, or promoted
 from [feature-ideas.md](feature-ideas.md), that haven't shipped yet. Fixed findings live in
 [done.md](done.md); numbering is shared across all three files and never reused, so a number here
@@ -16,7 +16,7 @@ test → fix → move the finding's whole entry from this file to [done.md](done
 `> **Fixed <date>.**` note that describes what shipped and keeping the original write-up below it as
 the historical record → add an entry to [release-notes.md](release-notes.md).
 
-**Line references, once written, are only valid against the current `blokrush.html`** — the same
+**Line references, once written, are only valid against the current `index.html`** — the same
 re-anchoring discipline applies here as in `done.md`.
 
 ---

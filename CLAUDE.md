@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 Blokrush — a bilingual (French/English) neon-arcade Breakout clone. The entire game
-(HTML + CSS + JS) is one self-contained file, [html/blokrush.html](html/blokrush.html): no build step,
+(HTML + CSS + JS) is one self-contained file, [html/index.html](html/index.html): no build step,
 no dependencies, no `package.json`. Open it directly in a browser (`file://` works) to play it.
 
 ## Commands
@@ -28,7 +28,7 @@ it on the resulting push/PR regardless.
 
 ### Single-file structure
 
-`blokrush.html` is `<style>` + markup + a `<script>` containing one IIFE — the whole game is a
+`index.html` is `<style>` + markup + a `<script>` containing one IIFE — the whole game is a
 closure with nothing exposed globally. Inside the IIFE, roughly top to bottom:
 
 - `LEVELS` — 10 hand-authored levels as rows of characters (brick type per cell).
@@ -74,7 +74,7 @@ data in `loadHallOfFame()`, since it's parsed rather than just read as a raw str
 
 Full conventions live in [docs/testing.md](docs/testing.md); the essentials:
 
-- **The test harness never touches `blokrush.html`.** [test/dom-stub.js](test/dom-stub.js) reads
+- **The test harness never touches `index.html`.** [test/dom-stub.js](test/dom-stub.js) reads
   the real file, extracts the `<script>` block, and injects `globalThis.__seam = {...}` just
   before the closing `})();`, exposing exactly the names listed in its `SEAM` array (`state`,
   `frame`, `setPhase`, `applyPowerup`, etc.) against an in-memory copy. This is the only way to
