@@ -44,23 +44,37 @@ The game must therefore stay at `html/index.html` — static hosting serves the 
 
 ### Global hall of fame backend (#67)
 
-`functions/api/scores.js` needs three things provisioned in Cloudflare, none of which live in this
-repo. Without them the endpoint returns 503 and the game quietly uses the local board — so a missing
-binding looks like "the leaderboard is empty", not like an error:
+`functions/api/scores.js` is backed by D1. Both databases and both secrets are already provisioned;
+the bindings live in [wrangler.jsonc](wrangler.jsonc), the secrets only in Cloudflare.
 
-```
-wrangler d1 create blokrush-hof             # then bind it to the Pages project as DB
-wrangler d1 execute blokrush-hof --file=schema.sql --remote
-wrangler pages secret put HOF_SECRET        # >= 16 chars; the HMAC key for session tokens
-```
+| | Production | Preview |
+|---|---|---|
+| D1 database | `blokrush-hof` | `blokrush-hof-preview` |
+| `HOF_SECRET` | set | set (same value) |
 
-`HOF_SECRET` is the signing key for the session tokens that date each run. Rotating it invalidates
-every token in flight (players mid-run lose that submission) but nothing already stored.
+Two things about this setup are easy to get wrong:
+
+- **The Pages project is named `games-blokrush`, not `blokrush`** — it took the repo name. The `name`
+  in `wrangler.jsonc` must match it. A mismatch does not fail the build; it just means the file is
+  disregarded and the bindings vanish.
+- **Preview inherits production bindings unless overridden.** `env.preview` in `wrangler.jsonc`
+  exists solely to stop branch and PR previews writing test scores into the production board. Since
+  `d1_databases` is a non-inheritable key, any binding added at the top level must be restated under
+  `env.preview` or preview silently loses it.
+
+If a binding or the secret is missing the endpoint returns 503 and the game quietly falls back to
+the per-browser board — so a broken backend looks like "the leaderboard is empty", not like an
+error. Check `/api/scores` directly rather than trusting the UI.
+
+`HOF_SECRET` signs the session tokens that date each run. Rotating it invalidates every token in
+flight (players mid-run lose that submission) but nothing already stored. Re-set it with
+`npx wrangler pages secret put HOF_SECRET --project-name games-blokrush` (and again with
+`--env preview`).
 
 **The board must never be reset** — that was the explicit requirement behind #67, and it constrains
 maintenance: migrations on `scores` must be additive and carry `schema_version`, and deleting the
-Pages project or the D1 database destroys it irrecoverably. Take an export before anything
-structural.
+Pages project or the D1 database destroys it irrecoverably. Take an export
+(`npx wrangler d1 export blokrush-hof --remote --output backup.sql`) before anything structural.
 
 Production is `blokrush.sebkiller.com`. The domain is registered at Gandi and its DNS stays there —
 a single `CNAME` from the `blokrush` subdomain to the project's `.pages.dev` hostname. The zone is

@@ -1,11 +1,45 @@
 {
-  // Cloudflare Pages project config. The whole site is the single static file
-  // html/index.html, so there is no build step — Pages just publishes the
-  // directory named below.
+  // Cloudflare Pages project config. The site itself is the single static file
+  // html/index.html; functions/ adds the #67 global hall-of-fame API on top.
   //
-  // pages_build_output_dir is kept here rather than only in the dashboard so
-  // the setting is version-controlled and reviewable; a dashboard-only value
-  // is easy to set wrong and invisible from the repo.
-  "name": "blokrush",
-  "pages_build_output_dir": "./html"
+  // Everything here is version-controlled rather than left to the dashboard so
+  // it is reviewable; a dashboard-only value is easy to set wrong and invisible
+  // from the repo.
+  // Must match the Cloudflare Pages project name exactly (it took the repo
+  // name at creation, not the game's). A mismatch does not fail the static
+  // build — it just means this file is disregarded, silently dropping the
+  // bindings below.
+  "name": "games-blokrush",
+  "pages_build_output_dir": "./html",
+
+  // Production board. #67's standing requirement is that this database is never
+  // reset, so migrations against it must be additive and carry schema_version.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "blokrush-hof",
+      "database_id": "8b5de20e-6a97-45de-b7f9-bf55a3454edd"
+    }
+  ],
+
+  // Preview gets its own database, and this override is not optional: for Pages
+  // the top-level bindings are INHERITED by preview deployments, so without
+  // this every branch and PR preview would write test scores straight into the
+  // production board that must never be reset.
+  //
+  // d1_databases is a non-inheritable key, which means any environment that
+  // overrides one non-inheritable key must restate them all. DB is currently
+  // the only one — if a binding is ever added above, add it here too or preview
+  // will silently lose it.
+  "env": {
+    "preview": {
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "blokrush-hof-preview",
+          "database_id": "856aed49-7d0e-464a-b673-aaec1cc78280"
+        }
+      ]
+    }
+  }
 }
