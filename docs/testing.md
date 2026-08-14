@@ -23,8 +23,8 @@ CI runs the same command on every push to `main` and on every pull request —
 2. **Run it against the unfixed code and watch it fail.** A regression test that has never been
    observed failing proves nothing — it may be asserting something that was always true.
 3. Fix the bug. Watch it pass.
-4. Mark the finding fixed in [code-review.md](code-review.md) and add an entry to
-   [release-notes.md](release-notes.md).
+4. Move the finding's entry from [todo.md](todo.md) to [done.md](done.md), prepending a
+   `✅ FIXED` note, and add an entry to [release-notes.md](release-notes.md).
 
 **When you add a feature**
 

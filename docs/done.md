@@ -1,15 +1,15 @@
-# Neon Break — Code Review Findings
+# Neon Break — Fixed Findings
 
-Reviewed: 2026-08-12 · Target: [arkanoid.html](../arkanoid.html)
+Target: [arkanoid.html](../arkanoid.html). This is the **done** half of the project's review backlog —
+every finding here has shipped. Open items live in [todo.md](todo.md); what shipped in which commit is
+tracked in [release-notes.md](release-notes.md). A finding keeps its original number when it moves
+from `todo.md` to here, so numbering is shared across both files and never reused — every number from
+1 up belongs to exactly one of the two.
 
-The project is a single self-contained file, `arkanoid.html`: a bilingual (French/English) neon arcade
-breakout game. Vanilla ES5-style JS in an IIFE, 2D canvas, no build step, no dependencies, no tests.
+Each entry keeps its original write-up (category, effort estimate, the bug as found) with a
+`> **Fixed <date>.**` note prepended describing what shipped — a historical record, not a live TODO.
 
-This document is a **menu, not a commitment** — items are implemented only when selected. Items are
-ordered by severity within each group. Each carries an effort estimate (S / M / L).
-
-**Status:** all 40 findings fixed. What shipped and when is tracked in
-[release-notes.md](release-notes.md); individual items below carry a `✅ FIXED` note with the details.
+**Status:** 40 findings fixed. See [todo.md](todo.md) for what's still open.
 
 **Line references below are re-anchored after each round of fixes** — they are only valid against the
 current `arkanoid.html`.
@@ -463,8 +463,8 @@ lasted, and speed effects had no visual at all.
 > [:513](../arkanoid.html#L513) and [:520](../arkanoid.html#L520).
 
 Endless mode past level 5 (a procedural generator) was the other option on the table; not pursued here
-— see the fix note above for why hand-authoring won out for this pass. It's still open as a follow-up
-if endless play is wanted later, just no longer under #32.
+— see the fix note above for why hand-authoring won out for this pass. Tracked as its own follow-up in
+[todo.md](todo.md) (#41) if endless play is wanted later, no longer under #32.
 
 ### 37. ✅ FIXED — The power-up timer bars (#31) reflow the whole cabinet when they appear (M)
 > **Fixed 2026-08-13.** `.effect-bars` and `.screen-wrap` are now independent flex siblings inside
@@ -612,7 +612,7 @@ var v = ball.speed * mult * state.difficultyMult * dt;
 
 The #32 fix note above (this file) and release-notes both call out that the level-10 speed was
 tuned to stay under the tunneling test's ceiling — but that ceiling itself is wrong, and
-the release-notes entry ([release-notes.md:104–107](../release-notes.md#L104-L107)) already flags the
+the release-notes entry ([release-notes.md:125–128](../release-notes.md#L125-L128)) already flags the
 gap as "worth its own finding later" without one being opened. This finding is that follow-up.
 
 Reproduced directly against the seam: level 10, `fast` power-up applied, `difficultyMult` pinned to
@@ -704,7 +704,7 @@ levels 1–5 — level 10's rows 1–2 are 100% wall/silver with no empty cells
 smallest-penetration collision resolver (#10) was written to handle, and the new density is untested
 territory for it.
 
-The release-notes entry for #32 ([release-notes.md:113–116](../release-notes.md#L113-L116)) states "the
+The release-notes entry for #32 ([release-notes.md:134–137](../release-notes.md#L134-L137)) states "the
 existing suite already asserts level-count-agnostic invariants... in a loop over `LEVELS.length`, so
 it exercises all 10 levels automatically" — true for `rules.js`'s loops, not true for these two
 sweeps in `physics.js`.

@@ -9,7 +9,7 @@
   is { name, fn, pending? }. `fn` receives the assertion helper and signals
   failure by throwing.
 
-  Pending tests encode findings from docs/code-review.md that are known to be
+  Pending tests encode findings from docs/todo.md that are known to be
   unfixed. They run, report as PEND and do not fail the build — but if one starts
   passing the runner reports FIXED? and exits non-zero, so a resolved finding
   cannot go unnoticed.
@@ -160,7 +160,7 @@ function main() {
             name: test.name,
             message:
               `pending test for ${test.pending} now passes — the finding looks fixed. ` +
-              `Remove the \`pending\` marker and update docs/code-review.md.`,
+              `Remove the \`pending\` marker and move it from docs/todo.md to docs/done.md.`,
           });
           console.log(`  FIXED? ${test.name}  (${test.pending})`);
         }

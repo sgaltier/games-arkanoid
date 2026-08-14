@@ -1,6 +1,6 @@
 "use strict";
 /*
-  One test per fixed finding from docs/code-review.md.
+  One test per fixed finding from docs/done.md.
 
   This is the file that grows every time a bug is fixed. The convention is in
   docs/testing.md: write the test, watch it fail against the unfixed code, then

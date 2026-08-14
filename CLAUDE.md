@@ -46,7 +46,7 @@ closure with nothing exposed globally. Inside the IIFE, roughly top to bottom:
 Transitions should always go through `setPhase(p)`, which also swaps the visible overlay via
 `showOverlay(id)` — each phase has exactly one corresponding `.overlay` element in the DOM.
 (A few transitions currently bypass `setPhase()` directly — see finding #18 in
-[docs/code-review.md](docs/code-review.md) before adding a new one.)
+[docs/done.md](docs/done.md) before adding a new one.)
 
 ### i18n
 
@@ -84,17 +84,20 @@ Full conventions live in [docs/testing.md](docs/testing.md); the essentials:
   passes.
 - A test can carry `pending: "#N"` to document a known-open finding; it runs and reports `PEND`
   without failing the build, but if it starts passing the runner reports `FIXED?` and exits
-  non-zero — a forcing function to update `code-review.md`/`release-notes.md` rather than leaving
-  a stale marker. Currently pending: #14, #15.
+  non-zero — a forcing function to update `todo.md`/`done.md`/`release-notes.md` rather than leaving
+  a stale marker. Currently pending: none.
 
 ## Docs that track project state
 
-- [docs/code-review.md](docs/code-review.md) — the backlog of known findings/enhancements, grouped
+- [docs/todo.md](docs/todo.md) — the backlog of known findings/enhancements not yet shipped, grouped
   by category (correctness, performance, structure, accessibility, gameplay), each with a severity
-  estimate and a `✅ FIXED` marker once shipped. Treat it as a menu, not a commitment.
+  estimate. Treat it as a menu, not a commitment.
+- [docs/done.md](docs/done.md) — the same findings once shipped, each entry carrying a `✅ FIXED`
+  note with the details. Numbering is shared across both files (never reused), so a finding keeps
+  its number when it moves from `todo.md` to `done.md`.
 - [docs/release-notes.md](docs/release-notes.md) — newest-first changelog, entries grouped by the
-  commit that shipped them, cross-referencing finding numbers from code-review.md.
+  commit that shipped them, cross-referencing finding numbers from `todo.md`/`done.md`.
 - [docs/testing.md](docs/testing.md) — full test-harness documentation (see Testing above).
 
-When fixing a numbered finding, the established loop is: regression test → fix → mark it
-`✅ FIXED` in code-review.md → add an entry to release-notes.md.
+When fixing a numbered finding, the established loop is: regression test → fix → move the finding
+from `todo.md` to `done.md` with a `✅ FIXED` note → add an entry to release-notes.md.

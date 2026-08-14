@@ -1,7 +1,7 @@
 # Release notes
 
 Changes to **Neon Break**, newest first. `#N` references point at the numbered findings in
-[code-review.md](code-review.md).
+[done.md](done.md) (shipped) or [todo.md](todo.md) (still open).
 
 The project is not versioned or tagged, so entries are grouped by the commit that delivered them.
 
@@ -23,8 +23,29 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #37 | ✅ Fixed — 2026-08-13 |
 | #32 | ✅ Fixed — 2026-08-13 |
 | #38, #39, #40 | ✅ Fixed — 2026-08-14 |
+| #41 | 🔲 Open |
 
-All 40 findings fixed — nothing open.
+40 of 41 findings fixed. See [todo.md](todo.md) for what's still open.
+
+---
+
+## 2026-08-14 — Review backlog split into `done.md` and `todo.md`
+
+### Changed
+
+**`docs/code-review.md` is now two files** — `docs/done.md` (every shipped finding, unchanged
+content, each still carrying its `✅ FIXED` note) and `docs/todo.md` (the open backlog — currently
+just #41, a procedural-endless-mode idea pulled out of #32's fix note in `done.md` into a proper
+numbered entry). Numbering is shared across both files and never reused: a finding keeps its number
+when it moves from `todo.md` to `done.md` on the day it ships.
+
+The two-file split makes "what's still open" a single short file to scan instead of the last item in
+a 700-line document that's otherwise all done. `CLAUDE.md`, `docs/testing.md`, `test/run.js`, and
+`test/suites/regressions.js` all had their `code-review.md` references updated to point at whichever
+of the two files is now accurate; historical entries elsewhere in this changelog that describe past
+commits keep the name the file actually had at the time.
+
+No code changes. Full suite: 177 passed, 0 failed, 0 pending.
 
 ---
 
@@ -146,7 +167,7 @@ canvas-shift comes back on small phones, an accepted trade-off (the bug was spec
 ### Notes
 
 This one came directly from the user playing the game and noticing the canvas hop, rather than from
-a `/code-review` pass — filed as #37 in `code-review.md` and fixed the same session. Pure CSS/markup
+a `/code-review` pass — filed and fixed as #37 (`done.md`) the same session. Pure CSS/markup
 change with no JS logic touched, so there's nothing for the existing regression-test harness (which
 drives game logic against a DOM stub with hardcoded element geometry, not real flexbox layout) to
 usefully assert; verified by re-reading the resulting box model by hand instead.
@@ -178,7 +199,7 @@ and `setPhase()` derive what they need from the single map.
 ### Notes
 
 Both were found by the same `/code-review` pass over `bb8ebf1` that surfaced #33/#34, tracked as open
-findings in `code-review.md` until this round. Regression tests per finding (`#35`, `#36` in
+findings until this round (now `done.md`). Regression tests per finding (`#35`, `#36` in
 `test/suites/regressions.js`), confirmed failing against the unfixed code first. `#35`'s test needed
 `test/dom-stub.js`'s `touch()` helper to actually empty `e.touches` on `touchend` (matching a real
 touch event) and to accept an explicit remaining-finger count, since the stub previously always
@@ -212,8 +233,8 @@ entry point single and closing the gap #18 left for a future phase to reopen.
 
 ### Notes
 
-Both were found by an `/code-review` pass over `bb8ebf1` and tracked as open findings in
-`code-review.md` before this round fixed them. Same procedure as prior rounds: a regression test per
+Both were found by an `/code-review` pass over `bb8ebf1` and tracked as open findings before this
+round fixed them (now `done.md`). Same procedure as prior rounds: a regression test per
 finding (`#33`, `#34` in `test/suites/regressions.js`), confirmed failing against the unfixed code,
 then fixed.
 
@@ -649,9 +670,10 @@ now cleared on blur.
 
 ## 2026-08-12 — Code review (`d20ab63`)
 
-Added [docs/code-review.md](code-review.md): 32 numbered findings across correctness, performance,
-code structure, accessibility, and gameplay, each anchored to the relevant source lines with an
-effort estimate. No code changes.
+Added `docs/code-review.md` (since split into [done.md](done.md) and [todo.md](todo.md) — see the
+2026-08-14 entry below): 32 numbered findings across correctness, performance, code structure,
+accessibility, and gameplay, each anchored to the relevant source lines with an effort estimate. No
+code changes.
 
 ---
 
