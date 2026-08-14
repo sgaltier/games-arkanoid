@@ -23,9 +23,9 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #37 | ✅ Fixed — 2026-08-13 |
 | #32 | ✅ Fixed — 2026-08-13 |
 | #38, #39, #40 | ✅ Fixed — 2026-08-14 |
-| #41 | 🔲 Open |
+| #41, #42 | 🔲 Open |
 
-40 of 41 findings fixed. See [todo.md](todo.md) for what's still open.
+40 of 42 findings fixed. See [todo.md](todo.md) for what's still open.
 
 ---
 

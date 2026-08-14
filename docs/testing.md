@@ -36,6 +36,10 @@ if markup references a key that does not exist.
 
 `node test/run.js`. CI will enforce it anyway, but the loop is faster locally.
 
+**Documentation-only changes** (anything confined to `docs/`, or `.md` files generally) don't need a
+local run first — there's no code change for the suite to catch. CI still runs it on the resulting
+push/PR regardless.
+
 ---
 
 ## Suites

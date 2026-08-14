@@ -20,7 +20,9 @@ Requires Node 22+. No install step — the suite is zero-dependency by design, a
 under a second. CI ([.github/workflows/test.yml](.github/workflows/test.yml)) runs the same
 command on every push to `main` and every PR. There is no separate lint/build command.
 
-Run the suite before committing.
+Run the suite before committing — except when the change touches only files under `docs/` (or `.md`
+files generally): no code changed, so there's nothing for the suite to catch locally. CI still runs
+it on the resulting push/PR regardless.
 
 ## Architecture
 
