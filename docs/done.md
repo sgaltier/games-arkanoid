@@ -22,23 +22,23 @@ current `arkanoid.html`.
 > **Fixed 2026-08-12.** The file now opens with `<!doctype html>` / `<html lang="fr">` and a real
 > `<head>` carrying `<meta charset="utf-8">`, a viewport meta, and a `<title>`, with the markup
 > wrapped in `<body>` — see [arkanoid.html:1–7](../arkanoid.html#L1-L7),
-> [:528–529](../arkanoid.html#L528-L529), [:2248–2249](../arkanoid.html#L2248-L2249).
+> [:534–535](../arkanoid.html#L534-L535), [:2270–2271](../arkanoid.html#L2270-L2271).
 
 The file previously began directly with `<style>`, with no doctype, `<html>`, `<head>`, `<title>`,
 charset, viewport, or `lang` attribute. Two real consequences:
 
 - **Quirks mode.** Without a doctype the browser rendered in quirks mode, changing box-model and
   inline-layout behaviour.
-- **Encoding.** The file contains raw UTF-8 accented text (`Détruisez` [:573](../arkanoid.html#L573),
-  `Prêt ?` [:579](../arkanoid.html#L579), `Bougez` [:580](../arkanoid.html#L580)). With no charset
+- **Encoding.** The file contains raw UTF-8 accented text (`Détruisez` [:579](../arkanoid.html#L579),
+  `Prêt ?` [:587](../arkanoid.html#L587), `Bougez` [:588](../arkanoid.html#L588)). With no charset
   declared, a browser opening this over `file://` or a server that didn't send `charset` would fall
   back to windows-1252 and render `DÃ©truisez`.
 
 ### 2. ✅ FIXED — `localStorage` access was unguarded, one throw killed the entire game (S)
 > **Fixed 2026-08-12.** Reads and writes now go through `loadBest()` / `saveBest()`
-> ([:988–1002](../arkanoid.html#L988-L1002)), both wrapped in `try/catch`, with the best score
-> degrading to in-memory only. Call sites: [:1037](../arkanoid.html#L1037),
-> [:1893](../arkanoid.html#L1893).
+> ([:998–1012](../arkanoid.html#L998-L1012)), both wrapped in `try/catch`, with the best score
+> degrading to in-memory only. Call sites: [:1047](../arkanoid.html#L1047),
+> [:1915](../arkanoid.html#L1915).
 
 `localStorage.getItem(BEST_KEY)` was read at IIFE top level while constructing `state`. In Safari
 private browsing, with cookies/site-data disabled, or in some sandboxed `file://` contexts,
@@ -47,20 +47,20 @@ error visible to the player.
 
 ### 3. ✅ FIXED — Held keys stuck when the window lost focus (S)
 > **Fixed 2026-08-12.** A `blur` handler now clears every held key —
-> [:1213–1219](../arkanoid.html#L1213-L1219).
+> [:1228–1234](../arkanoid.html#L1228-L1234).
 
-`keydown` sets `state.keys[e.code] = true` [:1191](../arkanoid.html#L1191) and only `keyup` cleared it
-[:1212](../arkanoid.html#L1212). Alt-tabbing (or hitting a browser shortcut) while holding <kbd>→</kbd>
+`keydown` sets `state.keys[e.code] = true` [:1206](../arkanoid.html#L1206) and only `keyup` cleared it
+[:1227](../arkanoid.html#L1227). Alt-tabbing (or hitting a browser shortcut) while holding <kbd>→</kbd>
 meant the `keyup` was never delivered — on return the paddle slid into the wall and stayed pinned
 until the key was pressed and released again.
 
 ### 4. ✅ FIXED — Power-up timers kept running while the game was paused (S)
 > **Fixed 2026-08-12.** Effects now carry a `remaining` duration in seconds instead of an absolute
 > `until` deadline, and `updateEffects(dt)` decrements it from the frame delta — which the loop only
-> feeds while the phase is `playing`. See [:1580–1591](../arkanoid.html#L1580-L1591), the effect
+> feeds while the phase is `playing`. See [:1602–1613](../arkanoid.html#L1602-L1613), the effect
 > durations each `remaining` starts from in `CONFIG.effects`
-> ([:800–807](../arkanoid.html#L800-L807), added by #21, since extended by #30), and the call site at
-> [:2218](../arkanoid.html#L2218).
+> ([:808–815](../arkanoid.html#L808-L815), added by #21, since extended by #30), and the call site at
+> [:2240](../arkanoid.html#L2240).
 > Verified: a `widen` survives a 30-second pause intact, then expires after its full 10 seconds of
 > actual play.
 
@@ -69,25 +69,25 @@ compared against the rAF `now`. Pausing for 20 seconds silently burned a 10-seco
 in accumulated play time also makes the timers immune to tab-throttling and clock adjustments.
 
 ### 5. ✅ FIXED — Game did not auto-pause when the tab was hidden or the window blurred (S)
-> **Fixed 2026-08-12.** `autoPause()` ([:1221–1229](../arkanoid.html#L1221-L1229)) pauses whenever the
+> **Fixed 2026-08-12.** `autoPause()` ([:1236–1244](../arkanoid.html#L1236-L1244)) pauses whenever the
 > phase is `playing`, wired to both `visibilitychange` and the existing `blur` handler from #3
-> ([:1216–1219](../arkanoid.html#L1216-L1219)). It deliberately only fires *on* hide/blur, never on
+> ([:1231–1234](../arkanoid.html#L1231-L1234)). It deliberately only fires *on* hide/blur, never on
 > return, so the player resumes explicitly.
 
 There was no `visibilitychange` handler. `requestAnimationFrame` throttles in a background tab, and
-`dt` is clamped to 33 ms [:2211](../arkanoid.html#L2211), so the game didn't *jump* — but it stayed in
+`dt` is clamped to 33 ms [:2233](../arkanoid.html#L2233), so the game didn't *jump* — but it stayed in
 the `playing` phase, so power-up timers kept expiring (see #4) and returning to the tab dropped you
 straight back into live play with no warm-up.
 
 ### 6. ✅ FIXED — `e.preventDefault()` on Space blocked button activation (S)
 > **Fixed 2026-08-12.** The Space branch is now guarded by `isButtonFocused()` (renamed to
-> `isTypingTarget()` and widened to cover text inputs too by #42, [:1184–1188](../arkanoid.html#L1184-L1188),
-> used at [:1202](../arkanoid.html#L1202)): when a `<button>` holds focus the key is handed back to the
+> `isTypingTarget()` and widened to cover text inputs too by #42, [:1199–1203](../arkanoid.html#L1199-L1203),
+> used at [:1217](../arkanoid.html#L1217)): when a `<button>` holds focus the key is handed back to the
 > browser, so it activates the button instead of launching the ball.
 >
 > This needed a companion fix. The deck's pause/mute buttons stay on screen and keep focus after a
 > mouse click, so the guard alone would have made Space toggle pause instead of launching. A
-> `blurIfPointerClick` helper ([:1497–1502](../arkanoid.html#L1497-L1502)) drops focus after pointer
+> `blurIfPointerClick` helper ([:1519–1524](../arkanoid.html#L1519-L1524)) drops focus after pointer
 > clicks only — keyboard activation (`detail === 0`) keeps it, so tab-order navigation is unharmed.
 >
 > A related gap closed under #26: `showOverlay()` also blurs a stale button focus left over from
@@ -100,7 +100,7 @@ not press it with Space (Enter still worked).
 
 ### 7. ✅ FIXED — Arrow keys scroll the page (S)
 > **Fixed 2026-08-13.** The movement branch in the `keydown` handler now calls `e.preventDefault()`
-> alongside the existing pointer-release logic — [:1194–1201](../arkanoid.html#L1194-L1201). Applied to
+> alongside the existing pointer-release logic — [:1209–1216](../arkanoid.html#L1209-L1216). Applied to
 > all four movement codes (`ArrowLeft`/`ArrowRight`/`KeyA`/`KeyD`) rather than singling out the arrow
 > keys, since suppressing the letter keys too is harmless and keeps them behaving identically.
 
@@ -109,18 +109,18 @@ overflows, steering the paddle also scrolls the document under it.
 
 ### 8. ✅ FIXED — `mousedown` launches the ball on any button, including right-click (S)
 > **Fixed 2026-08-13.** The handler now takes the event and returns early unless
-> `e.button === 0` — [:1236–1239](../arkanoid.html#L1236-L1239).
+> `e.button === 0` — [:1251–1254](../arkanoid.html#L1251-L1254).
 
 `canvas.addEventListener("mousedown", handleLaunchOrResume)` had no `e.button` check. Right-clicking
 or middle-clicking to open a context menu launched the ball.
 
 ### 9. ✅ FIXED — Ball–paddle collision teleported the ball on side hits (M)
 > **Fixed 2026-08-13.** The ball's `y` from before the frame's own movement is captured as `prevY`
-> [:1782](../arkanoid.html#L1782). A paddle collision is only resolved as a top-face bounce — steering
+> [:1804](../arkanoid.html#L1804). A paddle collision is only resolved as a top-face bounce — steering
 > by offset and snapping onto the top — when `prevY` was already above the paddle top
-> [:1825–1833](../arkanoid.html#L1825-L1833); otherwise it resolves as a side hit that reflects only
+> [:1847–1855](../arkanoid.html#L1847-L1855); otherwise it resolves as a side hit that reflects only
 > the horizontal component and repositions the ball beside the paddle, the same treatment a brick's
-> side face gets [:1834–1842](../arkanoid.html#L1834-L1842). Paddle-velocity spin was left for a
+> side face gets [:1856–1864](../arkanoid.html#L1856-L1864). Paddle-velocity spin was left for a
 > separate pass — out of scope for the teleport itself.
 
 Any `circleRectCollide` with `dy > 0` snapped `ball.y = pr.y - ball.r - 0.5`, i.e. onto the top of the
@@ -130,9 +130,9 @@ which read as a phantom save.
 ### 10. ✅ FIXED — Only one brick collision was resolved per ball per frame, chosen by array order (M)
 > **Fixed 2026-08-13.** The bricks loop no longer resolves against the first overlap it finds. It now
 > scans every alive brick the ball overlaps, scores each with `brickPenetration()`
-> [:1750–1759](../arkanoid.html#L1750-L1759) — the smaller of the two axis overlaps, i.e. how shallow
+> [:1772–1781](../arkanoid.html#L1772-L1781) — the smaller of the two axis overlaps, i.e. how shallow
 > the intrusion is — and resolves against whichever brick has the smallest penetration
-> [:1845–1863](../arkanoid.html#L1845-L1863). Array order no longer has any say in which face gets hit.
+> [:1867–1885](../arkanoid.html#L1867-L1885). Array order no longer has any say in which face gets hit.
 
 The loop broke after the first overlapping brick. Bricks are stored top-row-first, so when a ball
 overlapped two adjacent bricks in a corner, it always bounced off the *upper* one regardless of which
@@ -140,15 +140,15 @@ face it actually struck. Visible as occasional wrong-direction ricochets in the 
 
 ### 11. ✅ FIXED — Drop hitbox (8 px) didn't match the drawn capsule (10 px) (S)
 > **Fixed 2026-08-13.** `updateDrops`'s hit test now uses the same 10px radius `drawDrops` renders the
-> capsule with — [:1656–1657](../arkanoid.html#L1656-L1657) vs. the `arc(0, 0, 10, …)` at
-> [:2141](../arkanoid.html#L2141).
+> capsule with — [:1678–1679](../arkanoid.html#L1678-L1679) vs. the `arc(0, 0, 10, …)` at
+> [:2163](../arkanoid.html#L2163).
 
 `updateDrops` tested `± 8` while `drawDrops` rendered `arc(0,0,10,…)`. Power-ups visually clipped the
 paddle without being collected.
 
 ### 12. ✅ FIXED — Multi-ball could spawn balls aimed straight down (S)
 > **Fixed 2026-08-13.** The clone angle is derived from the source ball's angle mirrored upward when
-> it's descending, then spread symmetrically to either side — [:1632–1636](../arkanoid.html#L1632-L1636).
+> it's descending, then spread symmetrically to either side — [:1654–1658](../arkanoid.html#L1654-L1658).
 > A source ball travelling straight down used to produce two clones that were also both descending and
 > usually lost within a second; now every clone starts with a negative `dy`.
 
@@ -157,9 +157,9 @@ were also descending, making "M" feel like a dud.
 
 ### 13. ✅ FIXED — Best score was only persisted at game over (S)
 > **Fixed 2026-08-13.** The `state.score > state.best` check and `saveBest()` call are now behind a
-> shared `maybeSaveBest()` helper [:1887–1895](../arkanoid.html#L1887-L1895), called from
-> `checkLevelClear()` [:1899](../arkanoid.html#L1899) as well as `endGame()`
-> [:1909](../arkanoid.html#L1909). Progress is now checkpointed at every level clear, not just at the
+> shared `maybeSaveBest()` helper [:1909–1917](../arkanoid.html#L1909-L1917), called from
+> `checkLevelClear()` [:1921](../arkanoid.html#L1921) as well as `endGame()`
+> [:1931](../arkanoid.html#L1931). Progress is now checkpointed at every level clear, not just at the
 > end of the run.
 
 `endGame` was the only caller of `saveBest()`. Closing the tab mid-run — including after clearing four
@@ -171,7 +171,7 @@ levels — lost the score entirely.
 
 ### 14. ✅ FIXED — `getComputedStyle(document.body)` called per drop, per frame (S)
 > **Fixed 2026-08-13.** The font string is now built once into a module-level `DROP_FONT` constant
-> [:776](../arkanoid.html#L776); `drawDrops` just assigns it — [:2144](../arkanoid.html#L2144). The
+> [:784](../arkanoid.html#L784); `drawDrops` just assigns it — [:2166](../arkanoid.html#L2166). The
 > body's font never changes at runtime, so there was nothing to gain from recomputing it 60 times a
 > second.
 
@@ -180,10 +180,10 @@ per frame. This forced a synchronous style recalculation every frame for every f
 single most expensive line in the render path.
 
 ### 15. ✅ FIXED — `updateHud()` writes four DOM nodes every frame (S)
-> **Fixed 2026-08-13.** A `hudLast` cache [:1998](../arkanoid.html#L1998) records what's currently
-> displayed for each of the four HUD fields; `updateHud()` [:1999–2010](../arkanoid.html#L1999-L2010)
+> **Fixed 2026-08-13.** A `hudLast` cache [:2020](../arkanoid.html#L2020) records what's currently
+> displayed for each of the four HUD fields; `updateHud()` [:2021–2032](../arkanoid.html#L2021-L2032)
 > only touches `textContent` for a field whose value actually changed since the last call. The
-> unconditional per-frame call [:2225](../arkanoid.html#L2225) stays — it's still what catches
+> unconditional per-frame call [:2247](../arkanoid.html#L2247) stays — it's still what catches
 > `state.best` needing a live update against `state.score` — but an idle frame now writes nothing.
 
 `updateHud()` was called unconditionally every frame, in addition to the event-driven calls in
@@ -191,17 +191,17 @@ single most expensive line in the render path.
 while nothing displayed was changing.
 
 ### 16. ✅ FIXED — `checkLevelClear()` scans the full brick array every frame (S)
-> **Fixed 2026-08-13.** `state.remainingBricks` [:1054](../arkanoid.html#L1054) counts destructible
+> **Fixed 2026-08-13.** `state.remainingBricks` [:1064](../arkanoid.html#L1064) counts destructible
 > bricks still alive; `buildLevel()` seeds it when a level starts
-> [:1085](../arkanoid.html#L1085)/[:1102](../arkanoid.html#L1102), and `brickHit()` decrements it at the
-> single point a brick actually dies [:1718](../arkanoid.html#L1718). `checkLevelClear()`
-> [:1897–1906](../arkanoid.html#L1897-L1906) is now an `O(1)` counter check instead of an `O(n)` scan.
+> [:1100](../arkanoid.html#L1100)/[:1117](../arkanoid.html#L1117), and `brickHit()` decrements it at the
+> single point a brick actually dies [:1740](../arkanoid.html#L1740). `checkLevelClear()`
+> [:1919–1928](../arkanoid.html#L1919-L1928) is now an `O(1)` counter check instead of an `O(n)` scan.
 
 `checkLevelClear()` ran `.some()` over up to 80 bricks every single frame. Cheap in absolute terms, but
 trivially replaceable with a counter decremented in `brickHit`.
 
 ### 17. ✅ FIXED — Canvas backing store is sized from DPR only, ignoring displayed size (S)
-> **Fixed 2026-08-13.** `fitCanvas()` [:677–691](../arkanoid.html#L677-L691) now reads the canvas's
+> **Fixed 2026-08-13.** `fitCanvas()` [:685–699](../arkanoid.html#L685-L699) now reads the canvas's
 > actual displayed width via `getBoundingClientRect()` and scales the backing store by
 > `dpr * min(1, displayWidth / GAME_W)` — never upsizing past `dpr` (unchanged from before whenever the
 > canvas is shown at or above its logical size), but shrinking the allocation when the canvas — styled
@@ -215,15 +215,15 @@ with `dpr = 3`, that was a 1440×2040 buffer for a 300 px element.
 ## C. Code quality / structure
 
 ### 18. ✅ FIXED — Phase transitions bypassed `setPhase()` in three places (S)
-> **Fixed 2026-08-13.** `setPhase()` [:1400](../arkanoid.html#L1400) now owns every phase→overlay
-> mapping via a `PHASE_OVERLAY` lookup [:1342–1356](../arkanoid.html#L1342-L1356), extended to cover
+> **Fixed 2026-08-13.** `setPhase()` [:1415](../arkanoid.html#L1415) now owns every phase→overlay
+> mapping via a `PHASE_OVERLAY` lookup [:1357–1371](../arkanoid.html#L1357-L1371), extended to cover
 > `levelclear`/`victory`/`gameover` as well as the phases it already handled. `togglePause`
-> [:1320](../arkanoid.html#L1320), `checkLevelClear` [:1903](../arkanoid.html#L1903), and `endGame`
-> [:1911](../arkanoid.html#L1911) now all just call `setPhase(...)` instead of duplicating the
+> [:1335](../arkanoid.html#L1335), `checkLevelClear` [:1925](../arkanoid.html#L1925), and `endGame`
+> [:1933](../arkanoid.html#L1933) now all just call `setPhase(...)` instead of duplicating the
 > `state.phase` assignment and `showOverlay` call. (#34 below was a follow-up gap — the boot-time
 > start screen still bypassed this — since fixed.)
 
-`setPhase` [:1400](../arkanoid.html#L1400) was the intended single entry point, but `togglePause`,
+`setPhase` [:1415](../arkanoid.html#L1415) was the intended single entry point, but `togglePause`,
 `checkLevelClear`, and `endGame` each assigned `state.phase` *and* called `showOverlay` directly.
 That's the kind of duplication that causes an overlay/phase desync the first time someone adds a
 state.
@@ -234,10 +234,10 @@ state.
 >   nothing ever read; `paddleWidth()` remains the one source of truth.
 > - The redundant `updateHud(); drawBackground(); drawBricks(); drawPaddle();` block right before the
 >   first `requestAnimationFrame(frame)` call is removed; that first frame already paints the same
->   thing ~16 ms later via `draw()` [:2196–2205](../arkanoid.html#L2196-L2205), and the HUD's own
->   one-time init call [:2011](../arkanoid.html#L2011) already covers the pre-play text.
-> - `updateBalls` [:1774](../arkanoid.html#L1774) now declares only the `dt` parameter it uses; the
->   call site [:2219](../arkanoid.html#L2219) no longer passes the unused `now`.
+>   thing ~16 ms later via `draw()` [:2218–2227](../arkanoid.html#L2218-L2227), and the HUD's own
+>   one-time init call [:2033](../arkanoid.html#L2033) already covers the pre-play text.
+> - `updateBalls` [:1796](../arkanoid.html#L1796) now declares only the `dt` parameter it uses; the
+>   call site [:2241](../arkanoid.html#L2241) no longer passes the unused `now`.
 
 - `state.paddle.w` was assigned in `updatePaddle` but never read — every draw/collision path called
   `paddleWidth()` instead.
@@ -246,28 +246,28 @@ state.
 - `updateBalls(dt, now)` never used `now`.
 
 ### 20. ✅ FIXED — No `AudioContext` resume, and the mute state wasn't persisted (S)
-> **Fixed 2026-08-13.** `beep()` [:1539](../arkanoid.html#L1539) now calls `actx.resume()`
-> [:1548](../arkanoid.html#L1548) whenever the context is `"suspended"` — cheap and a no-op once
+> **Fixed 2026-08-13.** `beep()` [:1561](../arkanoid.html#L1561) now calls `actx.resume()`
+> [:1570](../arkanoid.html#L1570) whenever the context is `"suspended"` — cheap and a no-op once
 > already running, but it rescues audio for the rest of the session if the very first beep didn't
 > happen to fire from inside a user-gesture handler. Separately, `state.muted` now round-trips through
-> `loadMuted()`/`saveMuted()` [:1010–1011](../arkanoid.html#L1010-L1011), the same `storageGet`/
-> `storageSet` pair [:988–1002](../arkanoid.html#L988-L1002) already used for the best score and the
-> language preference, written on every toggle [:1522](../arkanoid.html#L1522) and read back into
-> `state.muted` at boot [:1058](../arkanoid.html#L1058).
+> `loadMuted()`/`saveMuted()` [:1020–1021](../arkanoid.html#L1020-L1021), the same `storageGet`/
+> `storageSet` pair [:998–1012](../arkanoid.html#L998-L1012) already used for the best score and the
+> language preference, written on every toggle [:1544](../arkanoid.html#L1544) and read back into
+> `state.muted` at boot [:1068](../arkanoid.html#L1068).
 
 `beep` lazily constructed the context but never called `actx.resume()`. If the context was ever
 created outside a user gesture it started `suspended` and the game was silently mute for the rest of
 the session. Separately, `state.muted` wasn't saved, so the setting reset on every reload.
 
 ### 21. ✅ FIXED — Scattered magic numbers collected into a `CONFIG` block (M)
-> **Fixed 2026-08-13.** A single `CONFIG` object [:795–848](../arkanoid.html#L795-L848) now holds drop
+> **Fixed 2026-08-13.** A single `CONFIG` object [:803–856](../arkanoid.html#L803-L856) now holds drop
 > fall speed, particle gravity, the ball cap, the paddle bounce spread, each power-up's mult/duration
 > pair, and — since added by #28/#29/#30 — the difficulty ramp, combo/floating-text, and laser tuning
 > too. Every call site reads from it instead of a local literal: drop fall speed
-> [:1652](../arkanoid.html#L1652), particle gravity [:1696](../arkanoid.html#L1696), the ball cap in
-> both of `applyPowerup`'s multi-ball checks [:1627](../arkanoid.html#L1627)/
-> [:1634](../arkanoid.html#L1634), the paddle bounce spread [:1829](../arkanoid.html#L1829), and the
-> four original effect branches [:1603–1614](../arkanoid.html#L1603-L1614).
+> [:1674](../arkanoid.html#L1674), particle gravity [:1718](../arkanoid.html#L1718), the ball cap in
+> both of `applyPowerup`'s multi-ball checks [:1649](../arkanoid.html#L1649)/
+> [:1656](../arkanoid.html#L1656), the paddle bounce spread [:1851](../arkanoid.html#L1851), and the
+> four original effect branches [:1625–1636](../arkanoid.html#L1625-L1636).
 
 Magic numbers were scattered through the file: drop fall speed `130`, particle gravity `260`, effect
 durations `10`/`8` seconds, multipliers `1.6`/`0.6`/`0.7`/`1.4`, ball-cap `5`, paddle bounce spread
@@ -279,9 +279,9 @@ logic.
 ## D. Accessibility
 
 ### 22. ✅ FIXED — Overlay state changes are now announced (S)
-> **Fixed 2026-08-13.** All six `.overlay` divs [:570–604](../arkanoid.html#L570-L604) now carry
+> **Fixed 2026-08-13.** All six `.overlay` divs [:576–612](../arkanoid.html#L576-L612) now carry
 > `role="status" aria-live="polite"`, with a static `aria-hidden` default matching whether they're the
-> one shown at boot. `showOverlay()` [:1367–1399](../arkanoid.html#L1367-L1399) keeps `aria-hidden` in
+> one shown at boot. `showOverlay()` [:1382–1414](../arkanoid.html#L1382-L1414) keeps `aria-hidden` in
 > sync with the `.show` class on every transition — the overlay actually on screen is the only one
 > ever inside the accessibility tree, which is what lets a screen reader announce it as it appears
 > rather than the swap happening silently.
@@ -291,38 +291,38 @@ notification.
 
 ### 23. ✅ FIXED — Toggle buttons now reflect their state (S)
 > **Fixed 2026-08-13** (half fixed 2026-08-12 by the bilingual work — see below). Both deck buttons
-> default to `aria-pressed="false"` in markup [:660–661](../arkanoid.html#L660-L661) and are kept in
-> sync by their render functions. `renderMuteButton()` [:1434–1439](../arkanoid.html#L1434-L1439) now
+> default to `aria-pressed="false"` in markup [:668–669](../arkanoid.html#L668-L669) and are kept in
+> sync by their render functions. `renderMuteButton()` [:1449–1454](../arkanoid.html#L1449-L1454) now
 > also sets `aria-pressed`; a new `renderPauseButton()`
-> [:1445–1451](../arkanoid.html#L1445-L1451) mirrors it for pause, and — since the pause button used to
+> [:1460–1466](../arkanoid.html#L1460-L1466) mirrors it for pause, and — since the pause button used to
 > show the same "II" icon regardless of whether the game was actually paused — swaps the icon
 > (`⏸`/`▶`) and `aria-label` between "pause" and "resume" too, not just `aria-pressed`. It's called
-> from both `setPhase()` [:1403](../arkanoid.html#L1403) and `applyLanguage()`
-> [:1488](../arkanoid.html#L1488), so it stays correct across phase changes and language switches
-> alike. A `.icon-btn[aria-pressed="true"]` rule [:499–503](../arkanoid.html#L499-L503) gives both
+> from both `setPhase()` [:1418](../arkanoid.html#L1418) and `applyLanguage()`
+> [:1503](../arkanoid.html#L1503), so it stays correct across phase changes and language switches
+> alike. A `.icon-btn[aria-pressed="true"]` rule [:505–509](../arkanoid.html#L505-L509) gives both
 > buttons the same visual "pressed" cue the language toggle already had.
 
 > **Half fixed 2026-08-12** by the bilingual work. `renderMuteButton()`
-> ([:1434–1439](../arkanoid.html#L1434-L1439)) sets the mute button's `aria-label` from both the
+> ([:1449–1454](../arkanoid.html#L1449-L1454)) sets the mute button's `aria-label` from both the
 > language and the on/off state, so it no longer claims "Couper le son" while already muted.
 
 Neither toggle exposed `aria-pressed`, and the pause button never changed its label or state when the
 game was paused.
 
 ### 24. ✅ FIXED — Canvas now points assistive tech at the HUD (S)
-> **Fixed 2026-08-13.** The HUD [:541–558](../arkanoid.html#L541-L558) was already reachable — plain,
+> **Fixed 2026-08-13.** The HUD [:547–564](../arkanoid.html#L547-L564) was already reachable — plain,
 > unhidden DOM text ahead of the canvas in reading order — so no canvas fallback content was needed;
 > what was missing was the connection between the two. The canvas now carries
-> `aria-describedby="hud"` [:566](../arkanoid.html#L566), pointing at the HUD container's new
-> `id="hud"` [:541](../arkanoid.html#L541), so a screen-reader user who lands directly on the canvas
+> `aria-describedby="hud"` [:572](../arkanoid.html#L572), pointing at the HUD container's new
+> `id="hud"` [:547](../arkanoid.html#L547), so a screen-reader user who lands directly on the canvas
 > (rather than reading the page linearly) is told where the live score/lives text actually lives.
 
 `<canvas>` had an `aria-label` but empty inner content and no live text alternative for score/lives.
 
 ### 25. ✅ FIXED — `prefers-reduced-motion` is now read in JS too (S)
-> **Fixed 2026-08-13.** `burst()` [:1156](../arkanoid.html#L1156) now scales its particle count down to
+> **Fixed 2026-08-13.** `burst()` [:1171](../arkanoid.html#L1171) now scales its particle count down to
 > roughly a third (never below 1) whenever `reduceMotion` is true, read from
-> `matchMedia("(prefers-reduced-motion: reduce)")` [:1149–1153](../arkanoid.html#L1149-L1153) — live,
+> `matchMedia("(prefers-reduced-motion: reduce)")` [:1164–1168](../arkanoid.html#L1164-L1168) — live,
 > via a `change` listener, rather than once at load, so toggling the OS setting mid-session takes
 > effect on the very next burst rather than requiring a reload.
 
@@ -334,7 +334,7 @@ unaffected — the CSS media query can't reach into canvas drawing.
 ## E. Gameplay / UX enhancements
 
 ### 26. ✅ FIXED — Keyboard path out of the game-over / victory screens (S)
-> **Fixed 2026-08-13.** `showOverlay()` [:1367–1399](../arkanoid.html#L1367-L1399) now focuses the
+> **Fixed 2026-08-13.** `showOverlay()` [:1382–1414](../arkanoid.html#L1382-L1414) now focuses the
 > overlay's own call-to-action button whenever one appears, looked up from a small
 > `OVERLAY_PRIMARY_BTN` map (a separate map at the time; #36 below folded it into `PHASE_OVERLAY`,
 > the range linked above) ("ready" has no button and is a no-op). Once that button holds focus,
@@ -346,14 +346,14 @@ unaffected — the CSS media query can't reach into canvas drawing.
 > after a later transition. (At the time, this call bypassed `setPhase()`; #34 below folded it back
 > in. Three follow-up gaps found in this fix are tracked separately: #33, #34, #36 — all since fixed.)
 
-`handleLaunchOrResume` [:1273](../arkanoid.html#L1273) only handled `ready` and `paused`. From
+`handleLaunchOrResume` [:1288](../arkanoid.html#L1288) only handled `ready` and `paused`. From
 `gameover`, `victory`, `levelclear`, or the initial `start` screen, Space did nothing — the player had
 to reach for the mouse.
 
 ### 27. ✅ FIXED — Touch: the first tap both aimed and launched (S)
 > **Fixed 2026-08-13.** Launching moved from `touchstart` to a new `touchend` handler
-> [:1256–1271](../arkanoid.html#L1256-L1271); `touchstart`/`touchmove`
-> [:1244–1255](../arkanoid.html#L1244-L1255) now only update `pointerX`, aiming the paddle. That gives
+> [:1271–1286](../arkanoid.html#L1271-L1286); `touchstart`/`touchmove`
+> [:1259–1270](../arkanoid.html#L1259-L1270) now only update `pointerX`, aiming the paddle. That gives
 > the player a chance to drag into position before committing to serve, instead of the ball launching
 > from wherever the finger first landed. The "vertical offset" half of the original fix — tracking the
 > paddle's own Y position above the finger — was deliberately dropped: the paddle only ever steers
@@ -362,37 +362,37 @@ to reach for the mouse.
 > implied, and isn't needed to fix the actual bug (the ball launching prematurely). (#35 below is a
 > follow-up gap in the `touchend` handler itself.)
 
-`touchstart` [:1244](../arkanoid.html#L1244) (previously) set `pointerX` and immediately called
+`touchstart` [:1259](../arkanoid.html#L1259) (previously) set `pointerX` and immediately called
 `handleLaunchOrResume`. On mobile you could not position the paddle before serving — the ball launched
 from wherever your finger first landed.
 
 ### 28. ✅ FIXED — Difficulty ramp within a level (M)
-> **Fixed 2026-08-13.** `state.difficultyMult` [:1056](../arkanoid.html#L1056) multiplies directly into
-> ball velocity [:1783](../arkanoid.html#L1783), alongside the existing power-up speed multiplier. It
-> ramps via `bumpDifficulty()` [:1075–1077](../arkanoid.html#L1075-L1077) — cumulative, multiplicative,
+> **Fixed 2026-08-13.** `state.difficultyMult` [:1066](../arkanoid.html#L1066) multiplies directly into
+> ball velocity [:1805](../arkanoid.html#L1805), alongside the existing power-up speed multiplier. It
+> ramps via `bumpDifficulty()` [:1090–1092](../arkanoid.html#L1090-L1092) — cumulative, multiplicative,
 > capped at `CONFIG.difficulty.max` — from two classic-Breakout triggers: every top-wall bounce
-> [:1789–1795](../arkanoid.html#L1789-L1795), and every `CONFIG.difficulty.brickMilestone` bricks
-> destroyed in the current level [:1719–1722](../arkanoid.html#L1719-L1722). `CONFIG.difficulty`
-> [:821–826](../arkanoid.html#L821-L826) holds the tuning; `buildLevel()`
-> [:1103–1104](../arkanoid.html#L1103-L1104) resets both the multiplier and the milestone counter at the
+> [:1811–1817](../arkanoid.html#L1811-L1817), and every `CONFIG.difficulty.brickMilestone` bricks
+> destroyed in the current level [:1741–1744](../arkanoid.html#L1741-L1744). `CONFIG.difficulty`
+> [:829–834](../arkanoid.html#L829-L834) holds the tuning; `buildLevel()`
+> [:1118–1119](../arkanoid.html#L1118-L1119) resets both the multiplier and the milestone counter at the
 > start of every level, so the ramp never carries over from one level — or one difficulty — to the
 > next.
 
-Ball speed was fixed per level ([:1114](../arkanoid.html#L1114), `LEVELS[i].speed`). Classic breakout
+Ball speed was fixed per level ([:1129](../arkanoid.html#L1129), `LEVELS[i].speed`). Classic breakout
 speeds the ball up after N bricks or on reaching the top wall, which prevents long stalemates on the
 last brick.
 
 ### 29. ✅ FIXED — Score feedback on the canvas (M)
 > **Fixed 2026-08-13.** Destroying a brick now spawns a floating `"+N"` pop-up at its position
-> ([:1171–1176](../arkanoid.html#L1171-L1176), rising and fading over `CONFIG.floatingText.life`
+> ([:1186–1191](../arkanoid.html#L1186-L1191), rising and fading over `CONFIG.floatingText.life`
 > seconds via `updateFloatingTexts()`/`drawFloatingTexts()`
-> [:1700–1707](../arkanoid.html#L1700-L1707)/[:2179–2194](../arkanoid.html#L2179-L2194)), wired into
-> the frame loop alongside particles [:2223](../arkanoid.html#L2223)/[:2228](../arkanoid.html#L2228)
-> and `draw()` [:2204](../arkanoid.html#L2204). Consecutive bricks destroyed without the ball touching
-> the paddle also build a combo [:1726–1731](../arkanoid.html#L1726-L1731) that scales the points
+> [:1722–1729](../arkanoid.html#L1722-L1729)/[:2201–2216](../arkanoid.html#L2201-L2216)), wired into
+> the frame loop alongside particles [:2245](../arkanoid.html#L2245)/[:2250](../arkanoid.html#L2250)
+> and `draw()` [:2226](../arkanoid.html#L2226). Consecutive bricks destroyed without the ball touching
+> the paddle also build a combo [:1748–1753](../arkanoid.html#L1748-L1753) that scales the points
 > awarded, capped at `CONFIG.combo.max`; any paddle contact — top face or side clip — resets it
-> [:1813](../arkanoid.html#L1813). `CONFIG.combo`/`CONFIG.floatingText`
-> [:827–847](../arkanoid.html#L827-L847) hold the tuning. This changes the scoring curve going forward
+> [:1835](../arkanoid.html#L1835). `CONFIG.combo`/`CONFIG.floatingText`
+> [:835–855](../arkanoid.html#L835-L855) hold the tuning. This changes the scoring curve going forward
 > — an unbroken combo now scores noticeably more than the same bricks hit in isolation — so existing
 > saved best scores are no longer directly comparable to newly-earned ones.
 
@@ -401,25 +401,25 @@ paddle touch.
 
 ### 30. ✅ FIXED — Sticky paddle and laser power-ups (M)
 > **Fixed 2026-08-13.** Both suggested additions are in, slotting into the existing timed-effect
-> architecture: `POWERUPS` [:766–767](../arkanoid.html#L766-L767), `CONFIG.effects.sticky`/
-> `CONFIG.effects.laser` [:805–806](../arkanoid.html#L805-L806), and two new branches in
-> `applyPowerup` [:1618–1623](../arkanoid.html#L1618-L1623).
+> architecture: `POWERUPS` [:774–775](../arkanoid.html#L774-L775), `CONFIG.effects.sticky`/
+> `CONFIG.effects.laser` [:813–814](../arkanoid.html#L813-L814), and two new branches in
+> `applyPowerup` [:1640–1645](../arkanoid.html#L1640-L1645).
 >
 > **Sticky** re-attaches a ball on a genuine top-face paddle hit while `stickyEffect` is active
-> [:1815–1824](../arkanoid.html#L1815-L1824), capped to one attached ball at a time so multi-ball
+> [:1837–1846](../arkanoid.html#L1837-L1846), capped to one attached ball at a time so multi-ball
 > can't stack several on the paddle at once. `updatePaddle()`'s attached-ball tracking, previously
-> hardcoded to `balls[0]`, now loops over every ball [:1573–1577](../arkanoid.html#L1573-L1577) since
+> hardcoded to `balls[0]`, now loops over every ball [:1595–1599](../arkanoid.html#L1595-L1599) since
 > sticky can catch any of them, not just the one served at the start of a life.
 >
 > **Laser** gives the action button a second job during `"playing"`: alongside releasing a stuck ball,
-> `handleLaunchOrResume()` [:1273–1283](../arkanoid.html#L1273-L1283) now calls `fireLaser()`
-> [:1306–1318](../arkanoid.html#L1306-L1318), which fires classic twin bolts from the paddle on a
-> cooldown (`CONFIG.laser` [:811–816](../arkanoid.html#L811-L816)). `updateLasers()`
-> [:1667–1688](../arkanoid.html#L1667-L1688) moves them and reuses `brickHit()` on impact — the same
+> `handleLaunchOrResume()` [:1288–1298](../arkanoid.html#L1288-L1298) now calls `fireLaser()`
+> [:1321–1333](../arkanoid.html#L1321-L1333), which fires classic twin bolts from the paddle on a
+> cooldown (`CONFIG.laser` [:819–824](../arkanoid.html#L819-L824)). `updateLasers()`
+> [:1689–1710](../arkanoid.html#L1689-L1710) moves them and reuses `brickHit()` on impact — the same
 > scoring/combo/difficulty path a ball hit goes through — and `drawLasers()`
-> [:2152–2165](../arkanoid.html#L2152-L2165) renders them. Releasing a sticky ball and firing both
+> [:2174–2187](../arkanoid.html#L2174-L2187) renders them. Releasing a sticky ball and firing both
 > route through the same action-button entry point used everywhere else (mouse, touch, Space), via a
-> new `launchAttachedBalls()` helper [:1285–1298](../arkanoid.html#L1285-L1298) `launchBall()`
+> new `launchAttachedBalls()` helper [:1300–1313](../arkanoid.html#L1300-L1313) `launchBall()`
 > (the "ready" → "playing" serve) now also calls.
 
 The current six were solid, but nothing rewarded skillful play with new tools. **Sticky paddle** (ball
@@ -428,24 +428,24 @@ additions.
 
 ### 31. ✅ FIXED — Active power-up timers are now visible (S)
 > **Fixed 2026-08-13.** A depleting bar per effect, under the HUD
-> ([:634–654](../arkanoid.html#L634-L654) markup, [:204–249](../arkanoid.html#L204-L249) CSS). Slots
+> ([:642–662](../arkanoid.html#L642-L662) markup, [:204–249](../arkanoid.html#L204-L249) CSS). Slots
 > are toggled with the `hidden` attribute and resized via the fill's inline width rather than
 > created/destroyed — see `updateEffectBar()`/`renderEffectBars()`
-> [:2032–2060](../arkanoid.html#L2032-L2060), called after every `applyPowerup()`
-> [:1646](../arkanoid.html#L1646) and once per frame [:2230](../arkanoid.html#L2230). `state.widthEffect`/
+> [:2054–2082](../arkanoid.html#L2054-L2082), called after every `applyPowerup()`
+> [:1668](../arkanoid.html#L1668) and once per frame [:2252](../arkanoid.html#L2252). `state.widthEffect`/
 > `state.speedEffect` don't record which specific powerup produced them, only the resulting `mult`, so
 > the bar recovers it from the sign of `mult` — the same trick `drawPaddle()`
-> [:2100](../arkanoid.html#L2100) already used for its colour swap.
+> [:2122](../arkanoid.html#L2122) already used for its colour swap.
 
 The paddle changed colour for width effects, but there was no indication of *how long* an effect
 lasted, and speed effects had no visual at all.
 
 ### 32. ✅ FIXED — Add more levels (M)
 > **Fixed 2026-08-13.** Five hand-authored levels added to `LEVELS`
-> [:724–738](../arkanoid.html#L724-L738), taking the game from 5 levels to 10. Went with hand-authored
+> [:732–746](../arkanoid.html#L732-L746), taking the game from 5 levels to 10. Went with hand-authored
 > over the procedural-generator option: it keeps the existing finite-levels-then-`victory` structure
-> intact (`checkLevelClear()`'s `LEVELS.length - 1` win check [:1900](../arkanoid.html#L1900), the HUD's
-> `n/LEVELS.length` readout [:2004](../arkanoid.html#L2004), and `level.of`'s `{n}/{total}` string all
+> intact (`checkLevelClear()`'s `LEVELS.length - 1` win check [:1922](../arkanoid.html#L1922), the HUD's
+> `n/LEVELS.length` readout [:2026](../arkanoid.html#L2026), and `level.of`'s `{n}/{total}` string all
 > already read `LEVELS.length` generically, so nothing there needed to change) rather than redesigning
 > what "winning" means for an endless mode. The new levels lean progressively harder on `#` (walls —
 > indestructible, shape the ball's path rather than something to clear) and `S` (silver, 2hp) instead of
@@ -461,7 +461,7 @@ lasted, and speed effects had no visual at all.
 >
 > The static "Niveau 1 / 5" markup fallback (shown for the one frame before `renderDynamicText()` paints
 > the real `n/total` from `LEVELS.length`) is updated to "Niveau 1 / 10" to match, at
-> [:571](../arkanoid.html#L571) and [:578](../arkanoid.html#L578).
+> [:577](../arkanoid.html#L577) and [:586](../arkanoid.html#L586).
 
 Endless mode past level 5 (a procedural generator) was the other option on the table; not pursued here
 — see the fix note above for why hand-authoring won out for this pass. Tracked as its own follow-up in
@@ -471,13 +471,13 @@ Endless mode past level 5 (a procedural generator) was the other option on the t
 > **Fixed 2026-08-13.** `.effect-bars` and `.screen-wrap` are now independent flex siblings inside
 > a new `.play-row` [:257–261](../arkanoid.html#L257-L261) — the effect-bars markup moved from
 > before `.screen-wrap` to after it, as a sibling rather than a fellow child of `.cabinet`'s own
-> flex column [:57–65](../arkanoid.html#L57-L65) *(markup: [:563](../arkanoid.html#L563)
-> wraps both; the bars themselves are now at [:637–654](../arkanoid.html#L637-L654))*.
+> flex column [:57–65](../arkanoid.html#L57-L65) *(markup: [:569](../arkanoid.html#L569)
+> wraps both; the bars themselves are now at [:645–662](../arkanoid.html#L645-L662))*.
 > `.effect-bars` [:214–219](../arkanoid.html#L214-L219) takes a fixed `flex: 0 0 84px` column
 > instead of wrapping horizontally, so a slot's `hidden` toggle (still the same mechanism from
-> #31 — see `updateEffectBar()` [:2032–2041](../arkanoid.html#L2032-L2041)) resizes only that
+> #31 — see `updateEffectBar()` [:2054–2063](../arkanoid.html#L2054-L2063)) resizes only that
 > column's own height, never `.screen-wrap`'s; the canvas inside it doesn't move. Below a
-> 560px-viewport breakpoint [:516–526](../arkanoid.html#L516-L526) there isn't width to spare for
+> 560px-viewport breakpoint [:522–532](../arkanoid.html#L522-L532) there isn't width to spare for
 > a side column without squeezing the canvas uncomfortably small, so `.play-row` falls back to the
 > pre-#37 stacked layout there — the shift comes back on small phones, an accepted trade-off noted
 > in the fix itself rather than a full fix. `fitCanvas()` (#17) already re-derives the canvas's
@@ -506,9 +506,9 @@ aim, difficulty ramp, combo score"). #33–#36 all fixed.
 
 ### 33. ✅ FIXED — `showOverlay()` blurs any focused button, not just its own (S)
 > **Fixed 2026-08-13.** The blur is now scoped to buttons that actually belong to an overlay. A new
-> `OVERLAY_BUTTON_IDS` lookup [:1357–1366](../arkanoid.html#L1357-L1366) is built from
+> `OVERLAY_BUTTON_IDS` lookup [:1372–1381](../arkanoid.html#L1372-L1381) is built from
 > `PHASE_OVERLAY`'s button entries (from `OVERLAY_PRIMARY_BTN`'s values at the time; #36 below folded
-> that map into `PHASE_OVERLAY`), and `showOverlay()` [:1385–1388](../arkanoid.html#L1385-L1388)
+> that map into `PHASE_OVERLAY`), and `showOverlay()` [:1400–1403](../arkanoid.html#L1400-L1403)
 > only blurs `document.activeElement` when it's a `BUTTON` whose id is in that set — the deck's
 > mute/pause buttons never qualify, so a level clearing or a life being lost no longer yanks focus
 > away from one a keyboard user just activated.
@@ -527,9 +527,9 @@ it, yanking focus back to `document.body` with no user action.
 
 ### 34. ✅ FIXED — Boot-time overlay focus bypassed `setPhase()` again (S)
 > **Fixed 2026-08-13.** `PHASE_OVERLAY` now carries a `start: "overlay-start"` entry
-> [:1343](../arkanoid.html#L1343) — `OVERLAY_PRIMARY_BTN` already had the matching
-> `"overlay-start": "btn-start"` since #26 [:1343](../arkanoid.html#L1343) — so boot
-> [:2243](../arkanoid.html#L2243) now calls `setPhase("start")` instead of `showOverlay(...)`
+> [:1358](../arkanoid.html#L1358) — `OVERLAY_PRIMARY_BTN` already had the matching
+> `"overlay-start": "btn-start"` since #26 [:1358](../arkanoid.html#L1358) — so boot
+> [:2265](../arkanoid.html#L2265) now calls `setPhase("start")` instead of `showOverlay(...)`
 > directly. `state.phase` already starts as `"start"`, so the call is a no-op on `state.phase`
 > itself; what it buys is routing the very first overlay through the same single entry point
 > (`setPhase()` → `PHASE_OVERLAY` → `showOverlay()`) every other transition uses, which is what
@@ -545,7 +545,7 @@ because `"start"` wasn't a key in `PHASE_OVERLAY` (only
 through `setPhase` in the first place).
 
 ### 35. ✅ FIXED — Touch launch fires while a second finger is still down (S)
-> **Fixed 2026-08-13.** `touchend`'s handler [:1256–1272](../arkanoid.html#L1256-L1272) now only
+> **Fixed 2026-08-13.** `touchend`'s handler [:1271–1287](../arkanoid.html#L1271-L1287) now only
 > calls `handleLaunchOrResume()` when `e.touches.length === 0` — i.e. no finger is left on the
 > canvas. `changedTouches` (the lifted finger) still updates `pointerX` unconditionally, so aiming
 > keeps working right up to the moment a second finger is resting; only the launch itself waits for
@@ -559,12 +559,12 @@ dragging the primary finger to aim during `"ready"` would launch the ball the mo
 finger lifted, even though a finger was still down and they hadn't committed to the serve.
 
 ### 36. ✅ FIXED — `OVERLAY_PRIMARY_BTN` and `PHASE_OVERLAY` are no longer two hand-synced maps (S/M)
-> **Fixed 2026-08-13.** `PHASE_OVERLAY` [:1342–1356](../arkanoid.html#L1342-L1356) is now the only
+> **Fixed 2026-08-13.** `PHASE_OVERLAY` [:1357–1371](../arkanoid.html#L1357-L1371) is now the only
 > map: each phase's entry carries both its overlay id and its button id together (e.g.
 > `paused: { overlay: "overlay-pause", button: "btn-resume" }`), or is `null`/has no `button` key
 > for `"playing"`/`"ready"`. `OVERLAY_PRIMARY_BTN` is gone; `OVERLAY_BUTTON_IDS`
-> [:1357–1366](../arkanoid.html#L1357-L1366) (see #33) and `setPhase()`
-> [:1400–1408](../arkanoid.html#L1400-L1408) both derive what they need from `PHASE_OVERLAY` alone,
+> [:1372–1381](../arkanoid.html#L1372-L1381) (see #33) and `setPhase()`
+> [:1415–1423](../arkanoid.html#L1415-L1423) both derive what they need from `PHASE_OVERLAY` alone,
 > so a new phase's overlay+button pair is one entry to add rather than two maps to keep in step.
 
 `PHASE_OVERLAY` mapped phase → overlay id; `OVERLAY_PRIMARY_BTN` separately mapped overlay id →
@@ -584,14 +584,14 @@ three fixed.
 
 ### 38. ✅ FIXED — Ball can tunnel through the paddle once the difficulty ramp stacks with the fast power-up (M)
 > **Fixed 2026-08-14.** A swept paddle-only check now runs in `updateBalls()` right before the
-> existing overlap test — [:1799–1811](../arkanoid.html#L1799-L1811). When the ball's start-of-frame
+> existing overlap test — [:1821–1833](../arkanoid.html#L1821-L1833). When the ball's start-of-frame
 > position was above the paddle top but its end-of-frame position has already cleared the paddle
 > bottom (the exact tunneling case: no overlap left for `circleRectCollide` to catch), it's rewound
 > to the point where it crossed the paddle's top plane, so the existing `isTopHit` branch just below
 > sees a normal top hit and steers it exactly as it always has. Bricks are deliberately exempt — a
 > missed brick costs nothing, the ball just continues past it — so this only guards the one collision
 > that actually costs the player something. The stale comment in `LEVELS`
-> ([:727–733](../arkanoid.html#L727-L733)) claiming level 10's speed was "kept under the ceiling" is
+> ([:735–741](../arkanoid.html#L735-L741)) claiming level 10's speed was "kept under the ceiling" is
 > corrected too: that ceiling never held once the difficulty ramp was accounted for, and the sweep
 > makes level speed a non-issue for this class of bug going forward. The paper-math test in
 > `test/suites/physics.js` ("the ball cannot tunnel through the paddle...") is now a behavioural test
@@ -602,10 +602,10 @@ three fixed.
 The "cannot tunnel through the paddle at maximum speed" test
 ([test/suites/physics.js:202–218](../test/suites/physics.js#L202-L218)) only budgets for
 `baseBallSpeed * LEVELS[i].speed * fast-powerup's 1.4x`, capped by the 33ms clamped max `dt`
-([:2211](../arkanoid.html#L2211)). It never factors in `state.difficultyMult`
-([:1056](../arkanoid.html#L1056)), the mid-level ramp (up to `CONFIG.difficulty.max` = `1.6`,
-[:825](../arkanoid.html#L825)) that's multiplied into the same per-frame displacement at
-[:1783](../arkanoid.html#L1783):
+([:2233](../arkanoid.html#L2233)). It never factors in `state.difficultyMult`
+([:1066](../arkanoid.html#L1066)), the mid-level ramp (up to `CONFIG.difficulty.max` = `1.6`,
+[:833](../arkanoid.html#L833)) that's multiplied into the same per-frame displacement at
+[:1805](../arkanoid.html#L1805):
 
 ```js
 var v = ball.speed * mult * state.difficultyMult * dt;
@@ -613,7 +613,7 @@ var v = ball.speed * mult * state.difficultyMult * dt;
 
 The #32 fix note above (this file) and release-notes both call out that the level-10 speed was
 tuned to stay under the tunneling test's ceiling — but that ceiling itself is wrong, and
-the release-notes entry ([release-notes.md:165–168](../release-notes.md#L165-L168)) already flags the
+the release-notes entry ([release-notes.md:194–197](../release-notes.md#L194-L197)) already flags the
 gap as "worth its own finding later" without one being opened. This finding is that follow-up.
 
 Reproduced directly against the seam: level 10, `fast` power-up applied, `difficultyMult` pinned to
@@ -633,7 +633,7 @@ in a stalled tab. It also predates #32: level 5 at its original speed (`1.48`) a
 
 **Recommended fix:** a swept check for the paddle only (bricks are exempt — a missed brick costs
 nothing, the ball just continues), inserted before the existing overlap test at
-[:1798](../arkanoid.html#L1798):
+[:1820](../arkanoid.html#L1820):
 
 ```js
 // #38: on a slow frame a fast ball (level speed x fast power-up x the
@@ -660,21 +660,21 @@ should be replaced with a behavioural test that drives this exact worst case (le
 `difficultyMult` at its cap, one 33ms frame) and asserts the ball still bounces, plus a `#38`
 regression test in `regressions.js` per the project's fix loop. The level-speed ceiling that
 constrained #32's tuning (~2.25) stops being a correctness constraint once the sweep exists; the
-comment at [:727–735](../arkanoid.html#L727-L735) claiming level 10 is "kept under the ceiling" should
+comment at [:735–743](../arkanoid.html#L735-L743) claiming level 10 is "kept under the ceiling" should
 be corrected either way, since it's not accurate today.
 
 ### 39. ✅ FIXED — Stale "1/5" HUD markup fallback (S)
 > **Fixed 2026-08-14.** The markup now reads `<div class="hud-value" id="hud-level">1/10</div>`
-> ([:552](../arkanoid.html#L552)), matching the two overlay-eyebrow fallbacks #32 already updated. A
+> ([:558](../arkanoid.html#L558)), matching the two overlay-eyebrow fallbacks #32 already updated. A
 > `#39` regression test in `test/suites/regressions.js` checks the raw source text directly (not the
 > post-boot DOM, since `updateHud()` overwrites this on the very first frame regardless of what the
 > static markup said) so a future level-count change can't let this one quietly go stale again.
 
-The static HUD counter at [:552](../arkanoid.html#L552) —
+The static HUD counter at [:558](../arkanoid.html#L558) —
 `<div class="hud-value" id="hud-level">1/5</div>` — was not updated when #32 took the game to 10
 levels, even though the #32 fix explicitly updated the two parallel overlay-eyebrow fallbacks at
-[:571](../arkanoid.html#L571) and [:578](../arkanoid.html#L578) for the identical reason (both read
-"Niveau 1 / 10" now). `updateHud()` ([:2004](../arkanoid.html#L2004)) overwrites it with the real
+[:577](../arkanoid.html#L577) and [:586](../arkanoid.html#L586) for the identical reason (both read
+"Niveau 1 / 10" now). `updateHud()` ([:2026](../arkanoid.html#L2026)) overwrites it with the real
 `n/LEVELS.length` on the first frame, so this is only visible for the one frame before JS runs — but
 that's exactly the case the #32 fix already reasoned about and fixed for the other two instances.
 
@@ -701,11 +701,11 @@ Neither was extended when #32 added levels 6–10, so those levels' collision/ph
 (no ball resting inside a live brick, no sub-floor `|dy|`, etc.) are never exercised by this suite.
 That matters here specifically because levels 6–10 introduce much denser `#`/`S` checkerboards than
 levels 1–5 — level 10's rows 1–2 are 100% wall/silver with no empty cells
-([:738](../arkanoid.html#L738)) — which is exactly the kind of brick-adjacency layout the
+([:746](../arkanoid.html#L746)) — which is exactly the kind of brick-adjacency layout the
 smallest-penetration collision resolver (#10) was written to handle, and the new density is untested
 territory for it.
 
-The release-notes entry for #32 ([release-notes.md:174–177](../release-notes.md#L174-L177)) states "the
+The release-notes entry for #32 ([release-notes.md:203–206](../release-notes.md#L203-L206)) states "the
 existing suite already asserts level-count-agnostic invariants... in a loop over `LEVELS.length`, so
 it exercises all 10 levels automatically" — true for `rules.js`'s loops, not true for these two
 sweeps in `physics.js`.
@@ -721,33 +721,34 @@ levels, not depth on any one of them.
 
 ### 42. ✅ FIXED — Hall of fame: prompt for a name at game over, show the top 10 (L)
 > **Fixed 2026-08-14.** Both phases sketched in the "open design questions" below are in: `nameentry`
-> (a text input + submit button, markup at [:615–623](../arkanoid.html#L615-L623)) and `halloffame`
-> (the top-10 board + a continue button, [:625–630](../arkanoid.html#L625-L630)), each with its own
-> `PHASE_OVERLAY` entry ([:1352–1353](../arkanoid.html#L1352-L1353)) rather than bolting an input onto
-> `overlay-victory`/`overlay-gameover` directly. `endGame()` ([:1908–1917](../arkanoid.html#L1908-L1917))
+> (a text input + submit button, markup at [:623–631](../arkanoid.html#L623-L631)) and `halloffame`
+> (the top-10 board + a continue button, [:633–638](../arkanoid.html#L633-L638)), each with its own
+> `PHASE_OVERLAY` entry ([:1367–1368](../arkanoid.html#L1367-L1368)) rather than bolting an input onto
+> `overlay-victory`/`overlay-gameover` directly. `endGame()` ([:1930–1939](../arkanoid.html#L1930-L1939))
 > detours through `nameentry` — remembering which final screen to return to afterward in
-> `state.pendingWon` — whenever `qualifiesForHallOfFame(state.score)`
-> ([:1937–1939](../arkanoid.html#L1937-L1939)) is true: strictly greater than 0, and either the board
+> `state.returnPhase` (generalized from a `pendingWon` boolean by #43) — whenever
+> `qualifiesForHallOfFame(state.score)`
+> ([:1959–1961](../arkanoid.html#L1959-L1961)) is true: strictly greater than 0, and either the board
 > has room or the score beats its current lowest entry via `hallOfFameRank()`
-> ([:1930–1936](../arkanoid.html#L1930-L1936)) — a tie with the lowest entry does not bump it. The
+> ([:1952–1958](../arkanoid.html#L1952-L1958)) — a tie with the lowest entry does not bump it. The
 > board is a capped, sorted `{name, score}` list under a new `neonbreak-hall-of-fame` key
-> ([:986](../arkanoid.html#L986)), round-tripped through `loadHallOfFame()`/`saveHallOfFame()`
-> ([:1018–1031](../arkanoid.html#L1018-L1031)) via the same guarded `storageGet`/`storageSet` pair #2
+> ([:996](../arkanoid.html#L996)), round-tripped through `loadHallOfFame()`/`saveHallOfFame()`
+> ([:1028–1041](../arkanoid.html#L1028-L1041)) via the same guarded `storageGet`/`storageSet` pair #2
 > already uses — a throw, or corrupted/foreign JSON under that key, degrades to an empty board rather
 > than taking the game down.
 >
 > A submitted name is trimmed, capped to `CONFIG.hallOfFame.nameMax` (12 characters,
-> [:844–847](../arkanoid.html#L844-L847)), and falls back to a translated `"???"` placeholder when
-> empty (`submitHallOfFameName()`, [:1954–1962](../arkanoid.html#L1954-L1962)). `renderHallOfFame()`
-> ([:1969–1983](../arkanoid.html#L1969-L1983)) rebuilds the board through `innerHTML` rather than
+> [:852–855](../arkanoid.html#L852-L855)), and falls back to a translated `"???"` placeholder when
+> empty (`submitHallOfFameName()`, [:1976–1984](../arkanoid.html#L1976-L1984)). `renderHallOfFame()`
+> ([:1991–2005](../arkanoid.html#L1991-L2005)) rebuilds the board through `innerHTML` rather than
 > `textContent` as sketched below — the test harness's DOM stub has no `createElement`/`appendChild`
 > to build real nodes with — but every interpolated value (the name; the score too, for uniformity)
-> goes through a small `escapeHtml()` helper first ([:710–712](../arkanoid.html#L710-L712)), so a name
+> goes through a small `escapeHtml()` helper first ([:718–720](../arkanoid.html#L718-L720)), so a name
 > like `<img src=x onerror=...>` still can't be interpreted as markup. `isButtonFocused()` is renamed
 > to `isTypingTarget()` and widened to also cover a focused `<input>`
-> ([:1185–1188](../arkanoid.html#L1185-L1188)), so Space still reaches the name field instead of being
+> ([:1200–1203](../arkanoid.html#L1200-L1203)), so Space still reaches the name field instead of being
 > hijacked for launch/laser; Enter submits directly from the field
-> ([:1207–1209](../arkanoid.html#L1207-L1209)) since nothing else in this file uses a `<form>`.
+> ([:1222–1224](../arkanoid.html#L1222-L1224)) since nothing else in this file uses a `<form>`.
 >
 > Covered by ten `#42a`–`#42j` cases in `regressions.js` — qualification gating including the score-0
 > and tie edge cases, sorted insertion, the empty-name fallback, HTML-escaping, the win/loss branch
@@ -756,23 +757,23 @@ levels, not depth on any one of them.
 > qualifying score (`state.js`, `rules.js`, `i18n.js`, `persistence.js`) now seed a full board via the
 > `storage` boot option so they keep exercising what they were actually about, not the hall of fame.
 
-Feature request: when a run ends (`endGame()`, [:1908](../arkanoid.html#L1908)) with a score that
+Feature request: when a run ends (`endGame()`, [:1930](../arkanoid.html#L1930)) with a score that
 qualifies, prompt the player for their name, then show a top-10 leaderboard of name+score pairs.
 
 Today only a single number persists across sessions — `state.best`, round-tripped through
-`loadBest()`/`saveBest()` ([:1001–1002](../arkanoid.html#L1001-L1002)) under `BEST_KEY`
-([:983](../arkanoid.html#L983)), both guarded by `storageGet`/`storageSet`
-([:992–1000](../arkanoid.html#L992-L1000)) per #2. This replaces "a number" with "a list":
+`loadBest()`/`saveBest()` ([:1011–1012](../arkanoid.html#L1011-L1012)) under `BEST_KEY`
+([:993](../arkanoid.html#L993)), both guarded by `storageGet`/`storageSet`
+([:1002–1010](../arkanoid.html#L1002-L1010)) per #2. This replaces "a number" with "a list":
 a new `localStorage` key (e.g. `neonbreak-hall-of-fame`) holding a JSON array of `{ name, score }`,
 capped at 10, sorted descending, read/written through the same guarded helpers so a throwing
 `localStorage` degrades the same way #2 already handles for the best score.
 
-**Where it hooks in:** both `endGame(true)` and `endGame(false)` ([:1908](../arkanoid.html#L1908)) —
+**Where it hooks in:** both `endGame(true)` and `endGame(false)` ([:1930](../arkanoid.html#L1930)) —
 a run can end either by winning or by running out of lives, and both should qualify. The natural gate
 is "does this score beat the lowest of the current top 10 (or is the list not yet full)?" — most runs
 won't qualify, and skipping the prompt entirely for those keeps the existing victory/gameover flow
-(`PHASE_OVERLAY` [:1342–1356](../arkanoid.html#L1342-L1356), `overlay-victory`/`overlay-gameover`
-markup [:596–610](../arkanoid.html#L596-L610)) untouched for the common case.
+(`PHASE_OVERLAY` [:1357–1371](../arkanoid.html#L1357-L1371), `overlay-victory`/`overlay-gameover`
+markup [:604–618](../arkanoid.html#L604-L618)) untouched for the common case.
 
 **Open design questions, not pre-decided:**
 - *New phase(s) vs. extending the existing overlays.* The cleanest fit with the existing
@@ -786,11 +787,11 @@ markup [:596–610](../arkanoid.html#L596-L610)) untouched for the common case.
   for every other piece of user-facing text, but this is the first *player-supplied* string in the
   game.
 - *i18n.* Every new string (the name-entry prompt, its input placeholder, the hall-of-fame title, an
-  empty-list message) needs a key in both `STRINGS.fr` and `STRINGS.en` ([:859](../arkanoid.html#L859))
+  empty-list message) needs a key in both `STRINGS.fr` and `STRINGS.en` ([:867](../arkanoid.html#L867))
   — the `i18n` suite already fails the build if one language's table is missing a key the other has,
   so this is enforced automatically once the keys exist.
 - *Keyboard/focus.* The name-entry overlay's input should get focus the way every other overlay's
-  primary button does today (`showOverlay()` [:1367](../arkanoid.html#L1367), #26), and
+  primary button does today (`showOverlay()` [:1382](../arkanoid.html#L1382), #26), and
   submitting needs both an Enter-in-the-input path and a click path — mirroring how
   `handleLaunchOrResume()` already serves keyboard, mouse, and touch from one entry point.
 
@@ -798,6 +799,63 @@ markup [:596–610](../arkanoid.html#L596-L610)) untouched for the common case.
 (including the `storageThrows` guard, per #2's test), a `state`/`rules` case for the qualifying-score
 gate, and — since this is the first free-text player input — an explicit case asserting a name
 containing HTML-special characters renders as literal text, not markup.
+
+### 43. ✅ FIXED — View the hall of fame from the start screen, before playing (S)
+> **Fixed 2026-08-14.** A second, lower-emphasis button on `overlay-start`
+> ([:581–582](../arkanoid.html#L581-L582), styled with a new `.btn-ghost` modifier
+> [:392–397](../arkanoid.html#L392-L397)) opens the board on demand — its handler
+> ([:1511–1517](../arkanoid.html#L1511-L1517)) sets `state.returnPhase = "start"` and calls
+> `setPhase("halloffame")` directly, never `newGame()`, so score/lives/level are untouched. The
+> board itself needed no changes — `renderHallOfFame()` already renders `halloffame.empty` for a
+> fresh install with nothing on it yet, exactly as sketched below.
+>
+> `state.pendingWon` (a `true`/`false`/`null` flag) is generalized into `state.returnPhase`
+> (`"start"` / `"victory"` / `"gameover"`, [:1071–1076](../arkanoid.html#L1071-L1076)): `endGame()`
+> ([:1934](../arkanoid.html#L1934)) sets it to `won ? "victory" : "gameover"` before the post-game
+> detour exactly as `pendingWon` did, and the continue button
+> ([:1536–1538](../arkanoid.html#L1536-L1538)) just does `setPhase(state.returnPhase)` — one field
+> now serves both entry points into `halloffame` instead of the continue button special-casing
+> "opened from the start screen" as a third, unnamed case. `PHASE_OVERLAY`'s `start`/`halloffame`
+> entries needed no changes, exactly as anticipated below.
+>
+> Five `#43a`–`#43e` cases in `regressions.js` cover: the board reachable from `start` without
+> playing; the empty-board message actually rendering when viewed that way (the one path no
+> existing `#42*` test exercised, since all of them produce or seed an entry first); continue
+> returning to `start` rather than `gameover`; opening the board never resetting score/level; and —
+> closing a gap #42 itself left, since only the win path had a continue-routing test — a fresh case
+> confirming a loss still routes to `gameover` after the `returnPhase` rename. The "view the board
+> from `gameover`/`victory` too" question raised below is left open; not attempted here.
+
+Feature request: right now the `halloffame` overlay (#42) is only reachable as a detour `endGame()`
+inserts after a qualifying run ends — there's no way to open the board on demand, so a returning
+player can't check it (or just admire it) before starting a game. `overlay-start` only has the
+"Lancer la partie"/"Start game" button today.
+
+**Where it hooks in:** a second button on `overlay-start`, wired the way `btn-start` already is,
+calling `setPhase("halloffame")` directly rather than `newGame()` — no score/lives reset, purely a
+view. The board itself needs no changes: `renderHallOfFame()`/`submitHallOfFameName()` already
+render from `state.hallOfFame` unconditionally, including the `halloffame.empty` message for a
+fresh install with no entries yet — opening the board before ever having played should just show
+that message rather than being disabled or hidden.
+
+**The one real wrinkle:** `halloffame`'s continue button currently hard-codes its destination as
+`state.pendingWon ? "victory" : "gameover"`, set by `endGame()` right before the detour. Opened from
+the start screen, neither `victory` nor `gameover` is correct — continue should go back to `start`.
+The `PHASE_OVERLAY` entries for both `start` and `halloffame` already exist and don't need touching;
+what needs generalizing is `pendingWon` itself — from a `true`/`false`/`null` flag into something
+like a `returnPhase` field (`"start"` / `"victory"` / `"gameover"`) that both entry points (the
+post-game detour and this new button) set before calling `setPhase("halloffame")`, with the
+continue handler just doing `setPhase(state.returnPhase)`.
+
+**Also worth deciding:** whether a "view the board" link belongs on `overlay-gameover`/
+`overlay-victory` too (the ones a non-qualifying run already lands on) as well as `overlay-start` —
+same mechanism either way once `returnPhase` exists, just another button wired to the same handler.
+
+**Test coverage this would need:** a case opening the board from `start` with an empty
+`state.hallOfFame` and confirming the empty-board message renders (not currently exercised — every
+existing `#42*` test seeds or produces at least one entry first); a case confirming continue routes
+back to `start`, not `gameover`; and a case confirming the existing post-game routing (`#42g`,
+`regressions.js`) still passes unchanged now that `pendingWon` no longer exists under that name.
 
 ---
 

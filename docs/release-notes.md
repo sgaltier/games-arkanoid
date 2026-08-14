@@ -23,10 +23,39 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #37 | ✅ Fixed — 2026-08-13 |
 | #32 | ✅ Fixed — 2026-08-13 |
 | #38, #39, #40 | ✅ Fixed — 2026-08-14 |
-| #42 | ✅ Fixed — 2026-08-14 |
+| #42, #43 | ✅ Fixed — 2026-08-14 |
 | #41 | 🔲 Open |
 
-41 of 42 findings fixed. See [todo.md](todo.md) for what's still open.
+42 of 43 findings fixed. See [todo.md](todo.md) for what's still open.
+
+---
+
+## 2026-08-14 — View the hall of fame before playing (#43)
+
+### Added
+
+**A second button on the start screen opens the board on demand** — until now the hall of fame (#42)
+was only reachable as a detour after a qualifying run ended, so a returning player had no way to
+check it first. The new button sets the board's "continue" destination and shows `halloffame`
+directly, without resetting score, lives, or level the way starting a game does. Viewing a fresh
+install's empty board shows the same "no scores yet" message the post-game path already had.
+
+`state.pendingWon` (a `true`/`false`/`null` flag, only ever set right before the post-game detour)
+is generalized into `state.returnPhase` (`"start"` / `"victory"` / `"gameover"`), so the one field
+now serves both entry points into `halloffame` instead of the continue button needing a third,
+unnamed case for "opened from the start screen."
+
+### Notes
+
+Five new regression cases cover the board being reachable from the start screen, the empty-board
+message actually rendering when opened that way (the one path #42's own tests never exercised, since
+all of them produce or seed an entry first), continue routing back to `start`, opening the board
+never touching score/level, and — closing a coverage gap #42 itself left, since only the win path
+had a continue-routing test — a fresh case confirming a loss still routes to `gameover` after the
+`returnPhase` rename. Whether `gameover`/`victory` should also get a "view the board" link is left
+open, not attempted here.
+
+Full suite: 194 passed, 0 failed, 0 pending.
 
 ---
 

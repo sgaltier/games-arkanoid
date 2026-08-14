@@ -389,6 +389,12 @@ canvas {
 .btn:active { transform: scale(.96); }
 .btn:focus-visible { outline: 2px solid var(--neon-amber); outline-offset: 2px; }
 
+/* Lower-emphasis variant for a secondary action alongside a primary .btn
+   (e.g. "view high scores" next to "start game", #43) — same shape and
+   hover/focus behaviour, just visually quieter so it doesn't compete. */
+.btn-ghost { border-color: var(--line); background: transparent; color: var(--text-dim); }
+.btn-ghost:hover { background: rgba(255, 255, 255, .06); color: var(--text-primary); }
+
 /* ---------- hall of fame (#42) ---------- */
 .name-input {
   margin-top: 4px;
@@ -572,6 +578,8 @@ canvas {
           <h2 class="overlay-title">Neon Break</h2>
           <p class="overlay-sub" data-i18n="start.sub">Détruisez toutes les briques pour passer au niveau suivant. Rattrapez les bonus qui tombent &mdash; évitez les malus.</p>
           <button class="btn" id="btn-start" type="button" data-i18n="start.btn">Lancer la partie</button>
+          <!-- #43: opens the hall of fame (#42) on demand, before playing. -->
+          <button class="btn btn-ghost" id="btn-view-hof" type="button" data-i18n="start.viewHof">Tableau des scores</button>
         </div>
 
         <div class="overlay" id="overlay-ready" role="status" aria-live="polite" aria-hidden="true">
@@ -868,6 +876,7 @@ canvas {
       "canvas.label": "Zone de jeu Neon Break",
       "start.sub": "Détruisez toutes les briques pour passer au niveau suivant. Rattrapez les bonus qui tombent — évitez les malus.",
       "start.btn": "Lancer la partie",
+      "start.viewHof": "Tableau des scores",
       "ready.title": "Prêt ?",
       "ready.sub": "Bougez la raquette puis appuyez sur Espace, cliquez ou touchez l'écran pour lancer la balle.",
       "pause.eyebrow": "Pause",
@@ -914,6 +923,7 @@ canvas {
       "canvas.label": "Neon Break play area",
       "start.sub": "Destroy every brick to reach the next level. Catch the power-ups as they fall — dodge the bad ones.",
       "start.btn": "Start game",
+      "start.viewHof": "High scores",
       "ready.title": "Ready?",
       "ready.sub": "Move the paddle, then press Space, click or tap the screen to launch the ball.",
       "pause.eyebrow": "Paused",
@@ -1058,7 +1068,12 @@ canvas {
     muted: loadMuted(),
     lang: loadLang(),
     hallOfFame: loadHallOfFame(), // [{name, score}, ...], sorted desc, capped — see #42
-    pendingWon: null,   // which final screen "nameentry"/"halloffame" leads to — set by endGame()
+    // Which phase the halloffame "continue" button leads back to — "victory"/
+    // "gameover" when endGame() inserted the nameentry/halloffame detour after
+    // a qualifying run, or "start" when the board was opened on demand from
+    // the start screen instead (#43). Set by whichever entry point shows
+    // "halloffame", read by the continue button alone.
+    returnPhase: null,
     hofHighlight: null, // the entry submitHallOfFameName() just added, for renderHallOfFame()'s highlight
     lastTime: 0,
     baseBallSpeed: 250
@@ -1493,6 +1508,13 @@ canvas {
   }
 
   document.getElementById("btn-start").addEventListener("click", function () { newGame(); });
+  // #43: opens the board on demand — a pure view, unlike every other route
+  // into "halloffame", so no score/lives reset and no newGame() call.
+  document.getElementById("btn-view-hof").addEventListener("click", function () {
+    state.returnPhase = "start";
+    renderHallOfFame();
+    setPhase("halloffame");
+  });
   document.getElementById("btn-resume").addEventListener("click", resume);
   // The deck buttons stay on screen, so a mouse click would leave one focused and
   // it would then swallow the Space the player expects to launch with. Drop focus
@@ -1512,7 +1534,7 @@ canvas {
   document.getElementById("btn-restart-win").addEventListener("click", newGame);
   document.getElementById("btn-nameentry-submit").addEventListener("click", submitHallOfFameName);
   document.getElementById("btn-hof-continue").addEventListener("click", function () {
-    setPhase(state.pendingWon ? "victory" : "gameover");
+    setPhase(state.returnPhase);
   });
 
   var muteBtn = document.getElementById("btn-mute");
@@ -1909,7 +1931,7 @@ canvas {
     maybeSaveBest();
     updateHud();
     if (qualifiesForHallOfFame(state.score)) {
-      state.pendingWon = won; // read back by the halloffame "continue" button below
+      state.returnPhase = won ? "victory" : "gameover"; // read back by the continue button below
       setPhase("nameentry");
     } else {
       setPhase(won ? "victory" : "gameover");

@@ -1104,5 +1104,60 @@ module.exports = {
           "the lowest previous entry should have been pushed off the board");
       },
     },
+    {
+      name: "#43a — the hall of fame is reachable from the start screen without playing",
+      fn(a) {
+        const g = boot(); // fresh boot: still on "start", never played
+        a.eq(g.T.state.phase, "start");
+        g.el("btn-view-hof").click(1);
+        a.eq(g.T.state.phase, "halloffame", "viewing the board should not require a run first");
+        a.eq(g.shownOverlays()[0], "overlay-halloffame");
+      },
+    },
+    {
+      name: "#43b — viewing an empty board from the start screen shows the empty-board message",
+      fn(a) {
+        const g = boot();
+        g.el("btn-view-hof").click(1);
+        a.includes(g.el("hof-list").innerHTML, "hof-empty",
+          "a fresh install with no entries yet should show the empty-board message, not a blank list");
+      },
+    },
+    {
+      name: "#43c — continuing from a board opened before playing returns to the start screen",
+      fn(a) {
+        const g = boot();
+        g.el("btn-view-hof").click(1);
+        g.el("btn-hof-continue").click(1);
+        a.eq(g.T.state.phase, "start",
+          "continue should return to where the board was opened from, not gameover");
+      },
+    },
+    {
+      name: "#43d — opening the board on demand never resets score or level",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.score = 40;
+        g.T.state.levelIndex = 2;
+        g.el("btn-view-hof").click(1);
+        a.eq(g.T.state.score, 40, "viewing the board must not reset the score");
+        a.eq(g.T.state.levelIndex, 2, "viewing the board must not reset the level");
+      },
+    },
+    {
+      name: "#43e — the continue button still routes a loss to gameover after the returnPhase refactor",
+      fn(a) {
+        const g = boot().start(); // fresh boot: empty hall-of-fame board
+        g.T.state.score = 10;
+        g.T.state.lives = 1;
+        g.T.state.balls.length = 0;
+        g.frame();
+        a.eq(g.T.state.phase, "nameentry");
+        g.el("btn-nameentry-submit").click(1);
+        a.eq(g.T.state.phase, "halloffame");
+        g.el("btn-hof-continue").click(1);
+        a.eq(g.T.state.phase, "gameover", "a loss should still end on gameover, not victory, after the detour");
+      },
+    },
   ],
 };
