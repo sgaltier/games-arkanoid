@@ -880,6 +880,19 @@ canvas {
       rise: 40,  // px/s the "+N" pop-up drifts upward
       life: 0.7  // seconds before it fully fades
     },
+    // #58: the sub-100ms feedback layer — a camera shake on a blast, a few
+    // frames of frozen time with it, and a paddle squash on contact. All of it
+    // is presentation: nothing here is read by collision, scoring or timing, so
+    // the game plays identically with the whole layer off — which is what
+    // happens under prefers-reduced-motion.
+    impact: {
+      shakeMax: 8,           // px; also how far drawBackground() bleeds past the play area
+      explosionShake: { mag: 7, duration: 0.28 },
+      lifeLostShake: { mag: 5, duration: 0.4 },
+      hitStop: 0.055,        // seconds of frozen simulation on a blast
+      squashDuration: 0.13,  // seconds the paddle takes to spring back
+      squashAmount: 0.4      // peak fraction of paddle height lost; half of it comes back as width
+    },
     // #51: regenerating bricks. `delay` is long enough that a player can
     // reasonably clear the rest of the level first — which is the whole point
     // of the type, since a level clears the moment nothing is standing.
@@ -1195,6 +1208,12 @@ canvas {
     // "halloffame", read by the continue button alone.
     returnPhase: null,
     hofHighlight: null, // the entry submitHallOfFameName() just added, for renderHallOfFame()'s highlight
+    // #58: impact feedback, all of it presentation-only. `shake` is a camera
+    // offset draw() applies, `hitStop` is how much longer the simulation stays
+    // frozen, `paddleSquash` how much longer the paddle stays flattened.
+    shake: { mag: 0, remaining: 0, duration: 0 },
+    hitStop: 0,
+    paddleSquash: 0,
     lastTime: 0,
     baseBallSpeed: 250
   };
@@ -1261,6 +1280,9 @@ canvas {
     state.lasers = [];
     state.laserCooldown = 0;
     state.combo = 0;
+    // #58: a blast that took the last ball must not leave the next one frozen
+    // in place for its first few frames.
+    state.hitStop = 0;
   }
 
   function startLevel(idx) {
@@ -1315,6 +1337,60 @@ canvas {
       x: x, y: y, age: 0, life: CONFIG.floatingText.life,
       text: "+" + points + (combo > 1 ? " ×" + combo : "")
     });
+  }
+
+  // ---------------------------------------------------------------------
+  // Impact feedback (#58)
+  //   Screen shake, hit-stop and the paddle squash — the layer of feedback
+  //   that lands inside the first hundred milliseconds of a hit. Physics never
+  //   reads any of it, so the game plays exactly the same with it switched
+  //   off, which is what the reduceMotion flag above does: the bursts reduce,
+  //   this stops entirely.
+  // ---------------------------------------------------------------------
+  function shakeScreen(kick) {
+    if (reduceMotion) return;
+    var mag = Math.min(kick.mag, CONFIG.impact.shakeMax);
+    // A weaker kick arriving on top of a stronger one still running would cut
+    // it short; let the bigger one finish instead.
+    if (state.shake.remaining > 0 && mag < state.shake.mag) return;
+    state.shake.mag = mag;
+    state.shake.duration = kick.duration;
+    state.shake.remaining = kick.duration;
+  }
+
+  // Set, never accumulated: a five-brick chain of explosives freezes the game
+  // for the same few frames as a single one. Summing would make a big cascade
+  // read as a hang rather than as impact.
+  function freezeFrames() {
+    if (reduceMotion) return;
+    state.hitStop = Math.max(state.hitStop, CONFIG.impact.hitStop);
+  }
+
+  function squashPaddle() {
+    if (reduceMotion) return;
+    state.paddleSquash = CONFIG.impact.squashDuration;
+  }
+
+  // Runs every frame regardless of phase — deliberately unlike the power-up
+  // timers of #4. These do not gate anything a player can lose: a shake that
+  // outlives the frame that started it has to keep settling through the
+  // "ready" phase after a lost ball, and through the hit-stop freeze itself.
+  function updateImpact(dt) {
+    if (state.shake.remaining > 0) state.shake.remaining = Math.max(0, state.shake.remaining - dt);
+    if (state.paddleSquash > 0) state.paddleSquash = Math.max(0, state.paddleSquash - dt);
+  }
+
+  // The camera offset for this frame, or null when nothing is shaking.
+  // Deterministic on purpose: a rand() call here would consume the RNG stream
+  // from inside draw(), which would make what the game rolls depend on how it
+  // paints. Two fast, incommensurable sines read as a rattle without that.
+  function shakeOffset() {
+    var s = state.shake;
+    if (s.remaining <= 0) return null;
+    var k = s.remaining / s.duration; // 1 at the kick, 0 once it settles
+    var mag = s.mag * k * k;          // squared, so it dies away instead of stopping
+    var t = s.duration - s.remaining;
+    return { x: Math.sin(t * 97) * mag, y: Math.cos(t * 61) * mag };
   }
 
   // ---------------------------------------------------------------------
@@ -1894,6 +1970,8 @@ canvas {
     var cy = brick.y + brick.h / 2;
     burst(cx, cy, BRICK_COLOR["X"].fill, 26);
     beep(90, 0.22, "sawtooth", 0.05);
+    shakeScreen(CONFIG.impact.explosionShake);
+    freezeFrames();
     var reachX = BRICK_W + BRICK_MARGIN + 1;
     var reachY = BRICK_H + BRICK_MARGIN + 1;
     var neighbours = state.bricks.filter(function (o) {
@@ -2067,6 +2145,7 @@ canvas {
           ball.dy = Math.sin(angle);
           ball.y = pr.y - ball.r - 0.5;
           beep(440, 0.06, "triangle");
+          squashPaddle();
         } else {
           // Already level with the paddle before it moved this frame: a side
           // clip, not a top bounce. Reflect horizontally only, like a brick's
@@ -2111,6 +2190,7 @@ canvas {
 
   function loseLife() {
     state.lives -= 1;
+    shakeScreen(CONFIG.impact.lifeLostShake);
     updateHud();
     if (state.lives <= 0) {
       endGame(false);
@@ -2330,9 +2410,14 @@ canvas {
   // Draw
   // ---------------------------------------------------------------------
   function drawBackground() {
-    ctx.clearRect(0, 0, GAME_W, GAME_H);
+    // Bleeds past the play area by the largest shake the game can produce
+    // (#58): the whole scene is drawn translated while the screen shakes, and
+    // an exactly sized fill would leave a strip of the previous frame standing
+    // along whichever edge the offset moved away from.
+    var b = CONFIG.impact.shakeMax;
+    ctx.clearRect(-b, -b, GAME_W + b * 2, GAME_H + b * 2);
     ctx.fillStyle = "#05010e";
-    ctx.fillRect(0, 0, GAME_W, GAME_H);
+    ctx.fillRect(-b, -b, GAME_W + b * 2, GAME_H + b * 2);
     ctx.strokeStyle = "rgba(45,226,230,0.05)";
     ctx.lineWidth = 1;
     for (var x = 0; x < GAME_W; x += 24) {
@@ -2422,8 +2507,17 @@ canvas {
     ctx.shadowColor = color;
     ctx.shadowBlur = 12;
     ctx.fillStyle = color;
-    var r = 6;
-    var x = state.paddle.x, y = state.paddle.y, w = pw, h = state.paddle.h;
+    // #58: the squash. Flattens on contact and springs back over
+    // squashDuration, widening as it loses height so it reads as compression
+    // rather than shrinkage, and staying anchored to its own bottom edge so
+    // the paddle absorbs the ball instead of appearing to drop away from it.
+    // The collision box is untouched — state.paddle.h still governs play.
+    var squash = state.paddleSquash > 0 ? state.paddleSquash / CONFIG.impact.squashDuration : 0;
+    var h = state.paddle.h * (1 - squash * CONFIG.impact.squashAmount);
+    var w = pw * (1 + squash * CONFIG.impact.squashAmount / 2);
+    var x = state.paddle.x - (w - pw) / 2;
+    var y = state.paddle.y + (state.paddle.h - h);
+    var r = Math.min(6, h / 2); // arcTo needs a radius the flattened paddle can hold
     ctx.beginPath();
     ctx.moveTo(x + r, y);
     ctx.arcTo(x + w, y, x + w, y + h, r);
@@ -2514,6 +2608,12 @@ canvas {
   }
 
   function draw() {
+    // #58: the shake is a camera move, so it wraps the whole scene rather than
+    // being applied per object — and it lives here, in the paint, so nothing
+    // the game simulates ever moves because of it.
+    var offset = shakeOffset();
+    ctx.save();
+    if (offset) ctx.translate(offset.x, offset.y);
     drawBackground();
     drawBricks();
     drawDrops();
@@ -2522,6 +2622,7 @@ canvas {
     drawPaddle();
     drawBalls();
     drawFloatingTexts();
+    ctx.restore();
   }
 
   // ---------------------------------------------------------------------
@@ -2531,22 +2632,31 @@ canvas {
     var dt = Math.min((now - (state.lastTime || now)) / 1000, 0.033);
     state.lastTime = now;
 
-    if (state.phase === "playing" || state.phase === "ready") {
-      updatePaddle(dt);
-    }
-    if (state.phase === "playing") {
-      updateEffects(dt);
-      updateBricks(dt);
-      updateBalls(dt);
-      updateDrops(dt);
-      updateLasers(dt);
-      updateParticles(dt);
-      updateFloatingTexts(dt);
-      if (state.phase === "playing") checkLevelClear();
-      updateHud();
-    } else if (state.particles.length || state.floatingTexts.length) {
-      updateParticles(dt);
-      updateFloatingTexts(dt);
+    // #58: hit-stop. While it lasts nothing simulates — but it is spent from
+    // real elapsed time, so it always ends, and updateImpact() keeps the shake
+    // running through it: a frozen frame that rattles is the point.
+    var frozen = state.hitStop > 0;
+    if (frozen) state.hitStop = Math.max(0, state.hitStop - dt);
+    updateImpact(dt);
+
+    if (!frozen) {
+      if (state.phase === "playing" || state.phase === "ready") {
+        updatePaddle(dt);
+      }
+      if (state.phase === "playing") {
+        updateEffects(dt);
+        updateBricks(dt);
+        updateBalls(dt);
+        updateDrops(dt);
+        updateLasers(dt);
+        updateParticles(dt);
+        updateFloatingTexts(dt);
+        if (state.phase === "playing") checkLevelClear();
+        updateHud();
+      } else if (state.particles.length || state.floatingTexts.length) {
+        updateParticles(dt);
+        updateFloatingTexts(dt);
+      }
     }
     renderEffectBars();
 

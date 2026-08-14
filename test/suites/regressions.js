@@ -27,6 +27,11 @@ function gridLevel(opts) {
   g.T.setPhase("playing"); // startLevel leaves it "ready", where balls do not move
   const at = (r, c) => g.T.state.bricks[r * 10 + c];
   const blast = (target) => {
+    // #58 freezes the frame after an explosion. This fixture drives exactly one
+    // frame per blast, on purpose — running more would let the ball carry on
+    // through the rubble and destroy bricks the test never asked it to — so the
+    // freeze has to be cleared or a second blast in the same test never lands.
+    g.T.state.hitStop = 0;
     const ball = g.T.state.balls[0];
     ball.attached = false;
     ball.x = target.x + target.w / 2;
@@ -1657,6 +1662,116 @@ module.exports = {
         a.eq(g.T.state.remainingBricks, 0, "clearing everything destroyable must reach zero");
         g.frame();
         a.eq(g.T.state.phase, "levelclear", "and the level should then clear");
+      },
+    },
+
+    // -----------------------------------------------------------------------
+    // #58 — impact feedback: screen shake, hit-stop, paddle squash
+    // -----------------------------------------------------------------------
+    {
+      name: "#58a — an explosion shakes the screen, and the shake settles",
+      fn(a) {
+        const { g, at, blast, idle } = gridLevel();
+        at(1, 4).type = "X";
+        a.eq(g.T.state.shake.remaining, 0, "nothing should be shaking before the blast");
+        blast(at(1, 4));
+        a.gt(g.T.state.shake.remaining, 0, "an explosion should kick the camera");
+        a.gt(g.T.state.shake.mag, 0);
+        idle(g.T.CONFIG.impact.explosionShake.duration + 0.2);
+        a.eq(g.T.state.shake.remaining, 0, "and it must settle rather than rattle forever");
+      },
+    },
+    {
+      name: "#58b — hit-stop freezes the simulation for a few frames, then releases it",
+      fn(a) {
+        const { g, at, blast } = gridLevel();
+        at(1, 4).type = "X";
+        blast(at(1, 4));
+        a.gt(g.T.state.hitStop, 0, "a blast should freeze time briefly");
+        const ball = g.T.state.balls[0];
+        const held = ball.y;
+        g.frame();
+        a.eq(ball.y, held, "nothing may move while the freeze lasts");
+
+        // The freeze is spent from real elapsed time, so it ends on its own —
+        // a freeze that only a game event could clear would be a hang.
+        let frames = 0;
+        while (g.T.state.hitStop > 0 && frames < 30) { g.frame(); frames++; }
+        a.lt(frames, 30, "the freeze must run out by itself, within a handful of frames");
+        const resumed = ball.y;
+        g.frame();
+        a.ne(ball.y, resumed, "and play must carry on afterwards");
+      },
+    },
+    {
+      name: "#58c — a paddle bounce squashes the paddle, and it springs back",
+      fn(a) {
+        const g = boot().start();
+        const paddle = g.T.state.paddle;
+        const ball = g.T.state.balls[0];
+        // Drop the ball onto the paddle's top face from just above it, which is
+        // the branch of updateBalls that steers a bounce.
+        ball.attached = false;
+        ball.x = paddle.x + 20;
+        ball.y = paddle.y - ball.r - 1;
+        ball.dx = 0;
+        ball.dy = 1;
+        ball.speed = 200;
+        g.frame();
+        a.gt(g.T.state.paddleSquash, 0, "landing on the paddle should squash it");
+
+        g.runAlive(g.T.CONFIG.impact.squashDuration + 0.1);
+        a.eq(g.T.state.paddleSquash, 0, "and the squash should spring all the way back");
+      },
+    },
+    {
+      name: "#58d — prefers-reduced-motion turns the whole impact layer off",
+      fn(a) {
+        // The finding made this a condition of shipping: the shake is exactly
+        // the kind of motion the setting exists to suppress.
+        const { g, at, blast } = gridLevel({ reducedMotion: true });
+        at(1, 4).type = "X";
+        blast(at(1, 4));
+        a.ok(!at(1, 4).alive, "the explosion itself must still happen");
+        a.eq(g.T.state.shake.remaining, 0, "but it must not shake the screen");
+        a.eq(g.T.state.hitStop, 0, "nor freeze any frames");
+        a.eq(g.T.state.paddleSquash, 0, "nor squash the paddle");
+      },
+    },
+    {
+      name: "#58e — a cascade of explosions cannot stall the game",
+      fn(a) {
+        // Hit-stop is set, not accumulated. Summed across a chain it would put
+        // the game to sleep for a third of a second and read as a hang.
+        const { g, at, blast, deadCells } = gridLevel();
+        [2, 3, 4, 5, 6].forEach((c) => { at(1, c).type = "X"; });
+        blast(at(1, 4));
+        a.gt(deadCells().length, 9, "this must actually be a chain, not a single blast");
+        a.lte(g.T.state.hitStop, g.T.CONFIG.impact.hitStop,
+          "five chained explosives must freeze the game no longer than one does");
+      },
+    },
+    {
+      name: "#58f — drawing the shake consumes no randomness",
+      fn(a) {
+        // The offset is derived from the shake's own timer rather than rand()
+        // on purpose. Rolling for it inside draw() would make what the game
+        // rolls — power-up drops, mystery resolutions — depend on how many
+        // frames it happened to paint.
+        const { g, at, blast } = gridLevel();
+        at(1, 4).type = "X";
+        blast(at(1, 4));
+        a.gt(g.T.state.shake.remaining, 0, "the frame under test must be a shaking one");
+
+        const real = Math.random;
+        let rolls = 0;
+        Math.random = () => { rolls++; return real(); };
+        try {
+          g.frame(); // frozen by the blast, so this frame is draw() and nothing else
+        } finally {
+          Math.random = real;
+        }
+        a.eq(rolls, 0, "painting a shaking frame must not touch the RNG stream");
       },
     },
   ],

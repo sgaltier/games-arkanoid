@@ -28,12 +28,43 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #49 | ✅ Fixed — 2026-08-14 |
 | #51 | ✅ Fixed — 2026-08-14 |
 | #52 | ✅ Fixed — 2026-08-14 |
-| #41, #58, #59, #60 | 🔲 Open |
+| #58 | ✅ Fixed — 2026-08-14 |
+| #41, #59, #60 | 🔲 Open |
 
-46 of 50 findings fixed. See [todo.md](todo.md) for what's still open, and
+47 of 50 findings fixed. See [todo.md](todo.md) for what's still open, and
 [feature-ideas.md](feature-ideas.md) for proposals not yet promoted to the backlog.
 
 ---
+
+## 2026-08-14 — Impact feedback (#58)
+
+### Added
+
+**The screen shakes, time stops, and the paddle flinches.** An explosion kicks the camera and
+freezes the game for about three frames; losing a ball shakes it harder and longer; every bounce off
+the paddle flattens the paddle for a tenth of a second before it springs back. None of it changes
+how the game plays — it is the layer of feedback that lands in the first hundred milliseconds of a
+hit, which the particles and the floating score were never fast enough to cover.
+
+All of it is off under `prefers-reduced-motion`, where explosions still explode and the game plays
+identically — which is the point: the feedback layer is decoration over an unchanged simulation.
+
+### Notes
+
+The boundary between presentation and physics is enforced rather than described. The shake is a
+single canvas translate wrapped around the whole scene, so nothing the game simulates moves because
+of it, and the paddle's squash is applied to the drawn rectangle only — its collision box never
+flexes, so it cannot become easier or harder to hit.
+
+The shake offset is computed from its own timer rather than rolled. A `Math.random()` call inside
+the paint would have made what the game rolls — drop chances, mystery resolutions — depend on how
+many frames it happened to draw, and that would have surfaced much later as seeded tests that no
+longer reproduce.
+
+Hit-stop is set, not summed: a chain of five explosives freezes the game for exactly as long as one
+does. Summed, a big cascade would read as a hang rather than as impact.
+
+Six regression cases, each verified against the mutation that should break it.
 
 ## 2026-08-14 — Mystery bricks (#52)
 

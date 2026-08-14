@@ -9,7 +9,7 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 4 open findings.
+**Status:** 3 open findings.
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
 test → fix → move the finding's whole entry from this file to [done.md](done.md), prepending a
@@ -43,14 +43,6 @@ commitment.
 ---
 
 ## Feel, presentation, and audio
-
-### 58. Screen shake, hit-stop, and impact scaling (S)
-
-The game already has particles and floating score text; what it lacks is the sub-100ms feedback
-layer — a few frames of frozen time on a big hit, a brief camera shake on an explosion, a paddle
-squash on ball contact. This is the cheapest possible investment in perceived quality per line of
-code, and it must be gated behind the existing `prefers-reduced-motion` handling (see finding #25
-in [done.md](done.md)), which is already wired up.
 
 ### 59. Music and a richer sound bed (M)
 
