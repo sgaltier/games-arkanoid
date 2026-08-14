@@ -1,1 +1,4 @@
 .claude/settings.json
+
+# Wrangler's local cache, written by any `wrangler` invocation.
+.wrangler/
