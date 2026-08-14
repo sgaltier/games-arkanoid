@@ -1318,9 +1318,9 @@ canvas {
     setPhase("playing");
   }
 
-  // Twin bolts from the paddle — classic Arkanoid laser power-up. A no-op
-  // without an active laserEffect or while its cooldown hasn't elapsed, so
-  // this is safe to call unconditionally from the action button.
+  // Twin bolts from the paddle — classic brick-breaking game laser power-up.
+  // A no-op without an active laserEffect or while its cooldown hasn't elapsed,
+  // so this is safe to call unconditionally from the action button.
   function fireLaser() {
     if (!state.laserEffect || state.laserCooldown > 0) return;
     state.laserCooldown = CONFIG.laser.cooldown;
