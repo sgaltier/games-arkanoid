@@ -1,12 +1,11 @@
 {
-  // Assets-only Worker: no "main" entry point, so every request is served
-  // straight from the static files in ./html. This exists because the build
-  // command Cloudflare runs (`npx wrangler deploy`) otherwise tries to guess
-  // an assets directory from conventional names (public/, dist/, build/) and
-  // fails on this repo's layout.
+  // Cloudflare Pages project config. The whole site is the single static file
+  // html/index.html, so there is no build step — Pages just publishes the
+  // directory named below.
+  //
+  // pages_build_output_dir is kept here rather than only in the dashboard so
+  // the setting is version-controlled and reviewable; a dashboard-only value
+  // is easy to set wrong and invisible from the repo.
   "name": "blokrush",
-  "compatibility_date": "2026-08-14",
-  "assets": {
-    "directory": "./html"
-  }
+  "pages_build_output_dir": "./html"
 }

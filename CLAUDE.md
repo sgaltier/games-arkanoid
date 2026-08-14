@@ -24,6 +24,23 @@ Run the suite before committing — except when the change touches only files un
 files generally): no code changed, so there's nothing for the suite to catch locally. CI still runs
 it on the resulting push/PR regardless.
 
+## Deployment
+
+Cloudflare Pages, connected to this repo's `main` branch — every push deploys. There is no build
+command; Pages publishes the `html/` directory as-is, named by `pages_build_output_dir` in
+[wrangler.jsonc](wrangler.jsonc). That key is version-controlled rather than left to the dashboard
+alone so the setting is reviewable here.
+
+The game must therefore stay at `html/index.html` — static hosting serves the site root from
+`index.html`, so renaming or moving it breaks the production URL as well as the test harness
+(`GAME_FILE` in [test/dom-stub.js](test/dom-stub.js) and the doc-anchor regexes in
+[test/suites/structure.js](test/suites/structure.js)).
+
+Production is `blokrush.sebkiller.com`. The domain is registered at Gandi and its DNS stays there —
+a single `CNAME` from the `blokrush` subdomain to the project's `.pages.dev` hostname. The zone is
+deliberately *not* on Cloudflare: `sebkiller.com` carries live Gandi Mail (`MX` + SPF), and moving
+nameservers to gain one static subdomain would put that at risk for no benefit.
+
 ## Architecture
 
 ### Single-file structure
