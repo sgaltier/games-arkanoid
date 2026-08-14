@@ -16,7 +16,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const GAME_FILE = path.join(__dirname, "..", "blokrush.html");
+const GAME_FILE = path.join(__dirname, "..", "html", "blokrush.html");
 const HTML = fs.readFileSync(GAME_FILE, "utf8");
 
 const SCRIPT = (HTML.match(/<script>([\s\S]*?)<\/script>/) || [])[1];

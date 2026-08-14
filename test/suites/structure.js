@@ -142,7 +142,7 @@ module.exports = {
       name: "docs link labels agree with the anchors they point at",
       fn(a) {
         const problems = [];
-        const linkRe = /\[(?:blokrush\.html)?:?([\d–-]+)\]\(\.\.\/blokrush\.html#L(\d+)(?:-L(\d+))?\)/g;
+        const linkRe = /\[(?:blokrush\.html)?:?([\d–-]+)\]\(\.\.\/html\/blokrush\.html#L(\d+)(?:-L(\d+))?\)/g;
         for (const { file, text } of docFiles()) {
           for (const m of text.matchAll(linkRe)) {
             const label = m[1].replace(/–/g, "-");

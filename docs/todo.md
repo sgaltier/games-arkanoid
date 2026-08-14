@@ -1,6 +1,6 @@
 # Blokrush — Open Findings
 
-Target: [blokrush.html](../blokrush.html). This is the **open** half of the project's review backlog —
+Target: [blokrush.html](../html/blokrush.html). This is the **open** half of the project's review backlog —
 findings and enhancement ideas surfaced by a `/code-review` pass, found during play, or promoted
 from [feature-ideas.md](feature-ideas.md), that haven't shipped yet. Fixed findings live in
 [done.md](done.md); numbering is shared across all three files and never reused, so a number here

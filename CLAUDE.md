@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 Blokrush — a bilingual (French/English) neon-arcade Breakout clone. The entire game
-(HTML + CSS + JS) is one self-contained file, [blokrush.html](blokrush.html): no build step,
+(HTML + CSS + JS) is one self-contained file, [html/blokrush.html](html/blokrush.html): no build step,
 no dependencies, no `package.json`. Open it directly in a browser (`file://` works) to play it.
 
 ## Commands
