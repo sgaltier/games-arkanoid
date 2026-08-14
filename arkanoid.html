@@ -333,6 +333,7 @@ canvas {
 
 .overlay.show { opacity: 1; visibility: visible; }
 .overlay .btn { pointer-events: auto; }
+.overlay input { pointer-events: auto; } /* #42: the hall-of-fame name field */
 
 .overlay-eyebrow {
   font-family: var(--font-mono);
@@ -387,6 +388,63 @@ canvas {
 .btn:hover { background: rgba(45, 226, 230, .22); }
 .btn:active { transform: scale(.96); }
 .btn:focus-visible { outline: 2px solid var(--neon-amber); outline-offset: 2px; }
+
+/* ---------- hall of fame (#42) ---------- */
+.name-input {
+  margin-top: 4px;
+  padding: 10px 14px;
+  width: min(220px, 80%);
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: .06em;
+  text-align: center;
+}
+.name-input::placeholder { color: var(--text-dim); }
+.name-input:focus-visible { outline: 2px solid var(--neon-amber); outline-offset: 2px; border-color: var(--neon-cyan); }
+
+.hof-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  width: min(280px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.hof-entry {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  color: var(--text-dim);
+}
+/* The just-submitted entry (see submitHallOfFameName()) is picked out from
+   the rest of the board so the player can find their own result in the list
+   at a glance. */
+.hof-entry.hof-new {
+  color: var(--text-primary);
+  background: rgba(45, 226, 230, .14);
+  border: 1px solid var(--neon-cyan);
+}
+.hof-rank { width: 2ch; text-align: right; color: var(--neon-amber); }
+.hof-name {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hof-score { font-variant-numeric: tabular-nums; color: var(--neon-cyan); }
+.hof-entry.hof-new .hof-score { color: inherit; }
+.hof-empty { color: var(--text-dim); font-style: italic; text-align: center; }
 
 /* ---------- deck ---------- */
 .deck {
@@ -550,6 +608,26 @@ canvas {
           <p class="overlay-sub" id="gameover-best">Meilleur score : 0</p>
           <button class="btn" id="btn-restart" type="button" data-i18n="gameover.btn">Rejouer</button>
         </div>
+
+        <!-- #42: a run that ends with a hall-of-fame-qualifying score detours
+             through these two overlays before landing on overlay-victory/
+             overlay-gameover above — see endGame(). -->
+        <div class="overlay" id="overlay-nameentry" role="status" aria-live="polite" aria-hidden="true">
+          <p class="overlay-eyebrow" data-i18n="nameentry.eyebrow">Nouveau record !</p>
+          <h2 class="overlay-title" data-i18n="nameentry.title">Entrez votre nom</h2>
+          <p class="overlay-score" id="nameentry-score">Score : 0</p>
+          <input class="name-input" id="nameentry-input" type="text" maxlength="12" autocomplete="off"
+                 data-i18n-attr="placeholder:nameentry.placeholder|aria-label:nameentry.placeholder"
+                 placeholder="Votre nom" aria-label="Votre nom">
+          <button class="btn" id="btn-nameentry-submit" type="button" data-i18n="nameentry.btn">Valider</button>
+        </div>
+
+        <div class="overlay" id="overlay-halloffame" role="status" aria-live="polite" aria-hidden="true">
+          <p class="overlay-eyebrow" data-i18n="halloffame.eyebrow">Tableau des scores</p>
+          <h2 class="overlay-title" data-i18n="halloffame.title">Hall of Fame</h2>
+          <ol class="hof-list" id="hof-list"></ol>
+          <button class="btn" id="btn-hof-continue" type="button" data-i18n="halloffame.btn">Continuer</button>
+        </div>
       </div>
     </div>
 
@@ -624,6 +702,14 @@ canvas {
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
   function rand(a, b) { return a + Math.random() * (b - a); }
   function pick(arr) { return arr[(Math.random() * arr.length) | 0]; }
+  // #42: the hall-of-fame name is the first free-text player input this game
+  // has ever rendered. renderHallOfFame() builds the list via innerHTML, so
+  // every interpolated value — the name, and the score for uniformity even
+  // though it's always numeric — goes through this first.
+  var ESCAPE_HTML_MAP = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) { return ESCAPE_HTML_MAP[c]; });
+  }
 
   // ---------------------------------------------------------------------
   // Level data — 10 columns wide, each char is a brick type
@@ -749,6 +835,15 @@ canvas {
     floatingText: {
       rise: 40,  // px/s the "+N" pop-up drifts upward
       life: 0.7  // seconds before it fully fades
+    },
+    // #42: the persisted top-score board. `nameMax` must match the markup's
+    // #nameentry-input maxlength attribute — JS re-truncates independently
+    // (see submitHallOfFameName()) rather than trusting the HTML attribute
+    // alone, but the two should still agree so the input doesn't visually
+    // allow more than actually gets saved.
+    hallOfFame: {
+      max: 10,
+      nameMax: 12
     }
   };
 
@@ -797,7 +892,16 @@ canvas {
       "btn.pause.resume": "Reprendre la partie",
       "btn.mute.title": "Son",
       "btn.mute.mute": "Couper le son",
-      "btn.mute.unmute": "Activer le son"
+      "btn.mute.unmute": "Activer le son",
+      "nameentry.eyebrow": "Nouveau record !",
+      "nameentry.title": "Entrez votre nom",
+      "nameentry.placeholder": "Votre nom",
+      "nameentry.btn": "Valider",
+      "nameentry.anonymous": "???",
+      "halloffame.eyebrow": "Tableau des scores",
+      "halloffame.title": "Hall of Fame",
+      "halloffame.btn": "Continuer",
+      "halloffame.empty": "Aucun score enregistré pour l'instant."
     },
     en: {
       "doc.title": "Neon Break — Arcade Brick Breaker",
@@ -834,7 +938,16 @@ canvas {
       "btn.pause.resume": "Resume the game",
       "btn.mute.title": "Sound",
       "btn.mute.mute": "Mute sound",
-      "btn.mute.unmute": "Unmute sound"
+      "btn.mute.unmute": "Unmute sound",
+      "nameentry.eyebrow": "New high score!",
+      "nameentry.title": "Enter your name",
+      "nameentry.placeholder": "Your name",
+      "nameentry.btn": "Submit",
+      "nameentry.anonymous": "???",
+      "halloffame.eyebrow": "High scores",
+      "halloffame.title": "Hall of Fame",
+      "halloffame.btn": "Continue",
+      "halloffame.empty": "No scores recorded yet."
     }
   };
   var SUPPORTED_LANGS = ["fr", "en"];
@@ -870,6 +983,7 @@ canvas {
   var BEST_KEY = "neonbreak-best-score";
   var LANG_KEY = "neonbreak-lang";
   var MUTED_KEY = "neonbreak-muted";
+  var HOF_KEY = "neonbreak-hall-of-fame";
 
   // Touching localStorage can throw outright — Safari private browsing, blocked
   // site data, some sandboxed file:// contexts. Since these are read while
@@ -896,8 +1010,28 @@ canvas {
   function loadMuted() { return storageGet(MUTED_KEY) === "1"; }
   function saveMuted(value) { storageSet(MUTED_KEY, value ? "1" : "0"); }
 
+  // #42: the top-score board. What's stored is already sorted/capped by
+  // insertHallOfFameEntry() — nothing downstream needs to re-sort it. Guards
+  // against more than a throwing localStorage: corrupted or foreign JSON
+  // under this key (a manual edit, another app sharing the origin) degrades
+  // to an empty board rather than throwing.
+  function loadHallOfFame() {
+    var raw = storageGet(HOF_KEY);
+    if (!raw) return [];
+    try {
+      var list = JSON.parse(raw);
+      if (!Array.isArray(list)) return [];
+      return list
+        .filter(function (e) { return e && typeof e.name === "string" && isFinite(e.score); })
+        .slice(0, CONFIG.hallOfFame.max);
+    } catch (e) {
+      return [];
+    }
+  }
+  function saveHallOfFame(list) { storageSet(HOF_KEY, JSON.stringify(list)); }
+
   var state = {
-    phase: "start", // start | ready | playing | paused | levelclear | victory | gameover
+    phase: "start", // start | ready | playing | paused | levelclear | nameentry | halloffame | victory | gameover
     levelIndex: 0,
     score: 0,
     best: loadBest(),
@@ -923,6 +1057,9 @@ canvas {
     combo: 0,           // consecutive bricks destroyed without a paddle touch
     muted: loadMuted(),
     lang: loadLang(),
+    hallOfFame: loadHallOfFame(), // [{name, score}, ...], sorted desc, capped — see #42
+    pendingWon: null,   // which final screen "nameentry"/"halloffame" leads to — set by endGame()
+    hofHighlight: null, // the entry submitHallOfFameName() just added, for renderHallOfFame()'s highlight
     lastTime: 0,
     baseBallSpeed: 250
   };
@@ -1042,11 +1179,12 @@ canvas {
   // Input
   // ---------------------------------------------------------------------
   // Space is normally swallowed to stop the page scrolling, but it is also how
-  // a keyboard user activates a focused button. When one has focus, hand the key
-  // back to the browser rather than launching the ball.
-  function isButtonFocused() {
+  // a keyboard user activates a focused button, or types a literal space while
+  // entering a hall-of-fame name (#42). When either holds focus, hand the key
+  // back to the browser rather than launching the ball or firing the laser.
+  function isTypingTarget() {
     var el = document.activeElement;
-    return !!el && el.tagName === "BUTTON";
+    return !!el && (el.tagName === "BUTTON" || el.tagName === "INPUT");
   }
 
   window.addEventListener("keydown", function (e) {
@@ -1061,7 +1199,14 @@ canvas {
       // harmless and keeps all four movement codes behaving the same.
       e.preventDefault();
     }
-    if (e.code === "Space" && !isButtonFocused()) { e.preventDefault(); handleLaunchOrResume(); }
+    if (e.code === "Space" && !isTypingTarget()) { e.preventDefault(); handleLaunchOrResume(); }
+    // #42: the name field isn't wrapped in a <form> — nothing else in this
+    // file uses one — so Enter needs its own path to submit, mirroring how
+    // every other overlay's focused button already answers Space/Enter via
+    // native button activation.
+    if (e.code === "Enter" && document.activeElement === document.getElementById("nameentry-input")) {
+      submitHallOfFameName();
+    }
     if (e.code === "KeyP" || e.code === "Escape") togglePause();
   });
   window.addEventListener("keyup", function (e) { state.keys[e.code] = false; });
@@ -1182,9 +1327,10 @@ canvas {
   // Overlays
   // ---------------------------------------------------------------------
   var overlays = {};
-  ["start", "ready", "pause", "levelclear", "victory", "gameover"].forEach(function (name) {
-    overlays[name] = document.getElementById("overlay-" + name);
-  });
+  ["start", "ready", "pause", "levelclear", "victory", "gameover", "nameentry", "halloffame"]
+    .forEach(function (name) {
+      overlays[name] = document.getElementById("overlay-" + name);
+    });
   // The single source of truth for which overlay a phase shows and which
   // button on it gets focus — see #26 for the focus half, #36 for why this
   // is one map instead of two. "playing" shows no overlay; "ready" shows one
@@ -1199,6 +1345,12 @@ canvas {
     playing: null,
     paused: { overlay: "overlay-pause", button: "btn-resume" },
     levelclear: { overlay: "overlay-levelclear", button: "btn-next" },
+    // #42: a hall-of-fame-qualifying score detours through these two before
+    // reaching victory/gameover below — see endGame(). "nameentry"'s primary
+    // control is a text input, not a button, but showOverlay() just calls
+    // .focus() on whatever id it's given, so that works the same way.
+    nameentry: { overlay: "overlay-nameentry", button: "nameentry-input" },
+    halloffame: { overlay: "overlay-halloffame", button: "btn-hof-continue" },
     victory: { overlay: "overlay-victory", button: "btn-restart-win" },
     gameover: { overlay: "overlay-gameover", button: "btn-restart" }
   };
@@ -1221,13 +1373,15 @@ canvas {
       overlays[k].setAttribute("aria-hidden", "true");
     });
     // A focused button left over from the overlay that just hid would
-    // otherwise keep swallowing Space via isButtonFocused() (see #6) once
+    // otherwise keep swallowing Space via isTypingTarget() (see #6) once
     // the new overlay has no button of its own to take over — "ready" has
     // none, for instance. Scoped to buttons that actually belong to an
     // overlay (#33): the deck's mute/pause buttons deliberately keep focus
     // after a keyboard activation (see #6/#23), and a level clearing or a
     // life being lost — events with nothing to do with those buttons —
-    // must not yank focus away from them.
+    // must not yank focus away from them. Never matches "nameentry"'s input
+    // (tagName check below is BUTTON-only, #42) — but that's moot anyway,
+    // since every phase nameentry can lead to focuses its own button next.
     var focused = document.activeElement;
     if (focused && focused.tagName === "BUTTON" && OVERLAY_BUTTON_IDS[focused.id]) {
       focused.blur();
@@ -1238,7 +1392,7 @@ canvas {
       el.setAttribute("aria-hidden", "false");
       // Focusing the overlay's own call-to-action button is what makes Space
       // and Enter work from every overlay, not just "ready"/"paused": once the
-      // button holds focus, isButtonFocused() hands Space back to the browser
+      // button holds focus, isTypingTarget() hands Space back to the browser
       // (see #6), and the browser's native button activation does the rest.
       if (buttonId) document.getElementById(buttonId).focus();
     }
@@ -1268,6 +1422,7 @@ canvas {
     document.getElementById("levelclear-title").textContent =
       t("levelclear.title", { n: state.levelIndex + 1 });
     document.getElementById("levelclear-score").textContent = t("score", { score: state.score });
+    document.getElementById("nameentry-score").textContent = t("score", { score: state.score });
     document.getElementById("victory-score").textContent = t("score.final", { score: state.score });
     document.getElementById("victory-best").textContent = t("best", { score: state.best });
     document.getElementById("gameover-score").textContent = t("score", { score: state.score });
@@ -1332,6 +1487,7 @@ canvas {
     renderMuteButton();
     renderPauseButton();
     renderDynamicText();
+    renderHallOfFame(); // re-renders the empty-board message; entries themselves hold no language
     updateHud();
     saveLang(state.lang);
   }
@@ -1354,6 +1510,10 @@ canvas {
   });
   document.getElementById("btn-restart").addEventListener("click", newGame);
   document.getElementById("btn-restart-win").addEventListener("click", newGame);
+  document.getElementById("btn-nameentry-submit").addEventListener("click", submitHallOfFameName);
+  document.getElementById("btn-hof-continue").addEventListener("click", function () {
+    setPhase(state.pendingWon ? "victory" : "gameover");
+  });
 
   var muteBtn = document.getElementById("btn-mute");
   muteBtn.addEventListener("click", function (e) {
@@ -1748,7 +1908,78 @@ canvas {
   function endGame(won) {
     maybeSaveBest();
     updateHud();
-    setPhase(won ? "victory" : "gameover");
+    if (qualifiesForHallOfFame(state.score)) {
+      state.pendingWon = won; // read back by the halloffame "continue" button below
+      setPhase("nameentry");
+    } else {
+      setPhase(won ? "victory" : "gameover");
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // Hall of fame (#42)
+  // ---------------------------------------------------------------------
+  // A score of exactly 0 never qualifies, even on an empty board — nobody
+  // wants to be asked for their initials after losing on the very first
+  // frame. Above that, the rank (0-based) a score would take in the current
+  // list, or -1 if it wouldn't crack the top CONFIG.hallOfFame.max. Scans for
+  // the first entry the score actually beats, so a partially-filled list
+  // still gets a correctly-sorted insertion point rather than always
+  // appending at the end; a tie with the lowest listed score doesn't bump it,
+  // matching the classic arcade-leaderboard convention of no free rides.
+  function hallOfFameRank(score) {
+    var list = state.hallOfFame;
+    for (var i = 0; i < list.length; i++) {
+      if (score > list[i].score) return i;
+    }
+    return list.length < CONFIG.hallOfFame.max ? list.length : -1;
+  }
+  function qualifiesForHallOfFame(score) {
+    return score > 0 && hallOfFameRank(score) !== -1;
+  }
+
+  function insertHallOfFameEntry(name, score) {
+    var rank = hallOfFameRank(score);
+    if (rank === -1) return null; // shouldn't happen — endGame() only prompts when it qualifies
+    var entry = { name: name, score: score };
+    state.hallOfFame.splice(rank, 0, entry);
+    state.hallOfFame.length = Math.min(state.hallOfFame.length, CONFIG.hallOfFame.max);
+    saveHallOfFame(state.hallOfFame);
+    return entry;
+  }
+
+  // Reads the name field, falls back to a placeholder for an empty
+  // submission, and hands off to "halloffame" either way — every path out of
+  // "nameentry" ends there, never straight back to victory/gameover.
+  function submitHallOfFameName() {
+    var input = document.getElementById("nameentry-input");
+    var raw = (input.value || "").trim().slice(0, CONFIG.hallOfFame.nameMax);
+    var entry = insertHallOfFameEntry(raw || t("nameentry.anonymous"), state.score);
+    state.hofHighlight = entry;
+    input.value = "";
+    renderHallOfFame();
+    setPhase("halloffame");
+  }
+
+  // Rebuilds #hof-list from state.hallOfFame. Goes through innerHTML with
+  // escapeHtml() on every interpolated value rather than textContent — the
+  // dom-stub test harness has no createElement/appendChild to build nodes
+  // with — but a player-supplied name (the first free-text input this game
+  // has ever rendered) must never be interpreted as markup either way.
+  function renderHallOfFame() {
+    var list = document.getElementById("hof-list");
+    if (!state.hallOfFame.length) {
+      list.innerHTML = '<li class="hof-empty">' + escapeHtml(t("halloffame.empty")) + "</li>";
+      return;
+    }
+    list.innerHTML = state.hallOfFame.map(function (entry, i) {
+      var cls = "hof-entry" + (entry === state.hofHighlight ? " hof-new" : "");
+      return '<li class="' + cls + '">' +
+        '<span class="hof-rank">' + (i + 1) + '.</span>' +
+        '<span class="hof-name">' + escapeHtml(entry.name) + '</span>' +
+        '<span class="hof-score">' + escapeHtml(String(entry.score)) + '</span>' +
+        '</li>';
+    }).join("");
   }
 
   // ---------------------------------------------------------------------

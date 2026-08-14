@@ -5,6 +5,14 @@
 
 const { boot } = require("../dom-stub");
 
+// A hall-of-fame board already full of higher scores than anything set below
+// — seeded via the storage boot option so ending a run goes straight to
+// victory/gameover, not a "nameentry" detour (#42); hall-of-fame behaviour
+// itself is covered in regressions.js.
+const FULL_HOF = JSON.stringify(
+  Array.from({ length: 10 }, (_, i) => ({ name: "CPU", score: 999000 - i }))
+);
+
 // Drive the ball into a specific brick. Placed overlapping with a near-zero
 // speed so the frame resolves the collision without moving anywhere else.
 function hitBrick(g, brick) {
@@ -210,7 +218,7 @@ module.exports = {
     {
       name: "the best score tracks and survives a restart",
       fn(a) {
-        const g = boot().start();
+        const g = boot({ storage: { "neonbreak-hall-of-fame": FULL_HOF } }).start();
         g.T.state.score = 1234;
         g.T.state.lives = 1;
         g.T.state.balls.length = 0;

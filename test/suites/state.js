@@ -17,9 +17,20 @@ const OVERLAY_FOR = {
   playing: null,
   paused: "overlay-pause",
   levelclear: "overlay-levelclear",
+  nameentry: "overlay-nameentry",
+  halloffame: "overlay-halloffame",
   victory: "overlay-victory",
   gameover: "overlay-gameover",
 };
+
+// A hall-of-fame board already full of higher scores than anything these
+// tests set — seeded via the storage boot option so a run ending mid-test
+// goes straight to victory/gameover as it always has, rather than detouring
+// through "nameentry" (#42). Tests that are actually about the hall of fame
+// live in regressions.js and boot with an empty board on purpose instead.
+const FULL_HOF = JSON.stringify(
+  Array.from({ length: 10 }, (_, i) => ({ name: "CPU", score: 999000 - i }))
+);
 
 function assertPhase(a, g, phase) {
   a.eq(g.T.state.phase, phase, `expected phase "${phase}"`);
@@ -175,7 +186,7 @@ module.exports = {
     {
       name: "restarting from game over resets score, lives and level",
       fn(a) {
-        const g = boot().start();
+        const g = boot({ storage: { "neonbreak-hall-of-fame": FULL_HOF } }).start();
         g.T.state.score = 500;
         g.T.state.levelIndex = 2;
         g.T.state.lives = 1;

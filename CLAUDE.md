@@ -44,11 +44,14 @@ closure with nothing exposed globally. Inside the IIFE, roughly top to bottom:
 
 ### Phase state machine
 
-`state.phase` is one of `start | ready | playing | paused | levelclear | victory | gameover`.
+`state.phase` is one of
+`start | ready | playing | paused | levelclear | nameentry | halloffame | victory | gameover`.
 Transitions should always go through `setPhase(p)`, which also swaps the visible overlay via
 `showOverlay(id)` — each phase has exactly one corresponding `.overlay` element in the DOM.
 (A few transitions currently bypass `setPhase()` directly — see finding #18 in
-[docs/done.md](docs/done.md) before adding a new one.)
+[docs/done.md](docs/done.md) before adding a new one.) `nameentry`/`halloffame` are a detour
+`endGame()` inserts before `victory`/`gameover` when the final score cracks the top-10 hall of fame
+(#42) — see `qualifiesForHallOfFame()`.
 
 ### i18n
 
@@ -62,8 +65,10 @@ checks placeholder agreement and that every `data-i18n*` reference resolves).
 
 ### Persistence
 
-Two `localStorage` keys (`BEST_KEY`, `LANG_KEY`), always accessed through `storageGet`/
-`storageSet`, which swallow throws (Safari private-browsing throws on any access).
+Four `localStorage` keys (`BEST_KEY`, `LANG_KEY`, `MUTED_KEY`, `HOF_KEY` — the hall-of-fame board,
+#42), always accessed through `storageGet`/`storageSet`, which swallow throws (Safari
+private-browsing throws on any access). `HOF_KEY` additionally guards against valid-JSON-but-wrong-shape
+data in `loadHallOfFame()`, since it's parsed rather than just read as a raw string/number.
 
 ## Testing
 

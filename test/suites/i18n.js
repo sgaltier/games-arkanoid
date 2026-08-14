@@ -232,7 +232,13 @@ module.exports = {
     {
       name: "switching language mid-game re-renders the overlay already on screen",
       fn(a) {
-        const g = boot({ langs: ["fr-FR"] }).start();
+        // Hall-of-fame board pre-filled with higher scores (#42) so the run
+        // below goes straight to gameover, not a "nameentry" detour — this
+        // test is about live re-rendering, not the hall of fame.
+        const fullHof = JSON.stringify(
+          Array.from({ length: 10 }, (_, i) => ({ name: "CPU", score: 999000 - i }))
+        );
+        const g = boot({ langs: ["fr-FR"], storage: { "neonbreak-hall-of-fame": fullHof } }).start();
         g.T.state.score = 77;
         g.T.state.lives = 1;
         g.T.state.balls.length = 0;

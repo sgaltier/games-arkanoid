@@ -41,6 +41,15 @@ module.exports = {
         g.T.state.lives = 1;
         g.T.state.balls.length = 0;
         a.doesNotThrow(() => g.frame(), "writing the best score must not throw out of the loop");
+        // An unloadable hall-of-fame board is indistinguishable from an empty
+        // one, so any positive score qualifies (#42) — this run detours
+        // through "nameentry" first, exercising saveHallOfFame() against the
+        // same hostile storage before reaching the screen this test is about.
+        a.eq(g.T.state.phase, "nameentry");
+        a.doesNotThrow(() => {
+          g.el("btn-nameentry-submit").click(1);
+          g.el("btn-hof-continue").click(1);
+        }, "submitting a hall-of-fame name must not throw out of the loop");
         a.eq(g.T.state.phase, "gameover");
         a.eq(g.T.state.best, 300, "the best score should still update in memory");
       },
@@ -79,6 +88,39 @@ module.exports = {
 
         const second = boot({ storage: first.store });
         a.eq(second.T.state.best, 2500, "a later session should see the stored best");
+      },
+    },
+    {
+      name: "the hall of fame round-trips through storage (#42)",
+      fn(a) {
+        const first = boot().start();
+        first.T.state.score = 42;
+        first.T.state.lives = 1;
+        first.T.state.balls.length = 0;
+        first.frame();
+        first.el("nameentry-input").value = "Rex";
+        first.el("btn-nameentry-submit").click(1);
+        a.eq(first.store["neonbreak-hall-of-fame"], JSON.stringify(first.T.state.hallOfFame),
+          "the board should be persisted the moment a name is submitted");
+
+        const second = boot({ storage: first.store });
+        a.eq(second.T.state.hallOfFame.length, 1, "a later session should see the stored board");
+        a.eq(second.T.state.hallOfFame[0].name, "Rex");
+        a.eq(second.T.state.hallOfFame[0].score, 42);
+      },
+    },
+    {
+      name: "corrupted hall-of-fame storage degrades to an empty board rather than throwing (#42)",
+      fn(a) {
+        a.doesNotThrow(() => boot({ storage: { "neonbreak-hall-of-fame": "not json" } }),
+          "unparsable JSON under the hall-of-fame key must not take down the whole IIFE");
+        a.eq(boot({ storage: { "neonbreak-hall-of-fame": "not json" } }).T.state.hallOfFame.length, 0);
+        a.eq(
+          boot({ storage: { "neonbreak-hall-of-fame": JSON.stringify({ not: "an array" }) } })
+            .T.state.hallOfFame.length,
+          0,
+          "valid JSON that isn't an array should also degrade to empty"
+        );
       },
     },
     {

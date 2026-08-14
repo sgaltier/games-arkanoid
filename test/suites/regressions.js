@@ -946,5 +946,163 @@ module.exports = {
           "the pre-JS fallback text should already read the real level count, not a stale one");
       },
     },
+    {
+      name: "#42a — a qualifying score at game over detours through nameentry",
+      fn(a) {
+        const g = boot().start(); // fresh boot: empty hall-of-fame board
+        g.T.state.score = 50;
+        g.T.state.lives = 1;
+        g.T.state.balls.length = 0;
+        g.frame();
+        a.eq(g.T.state.phase, "nameentry", "an empty board should let any positive score in");
+        a.eq(g.shownOverlays()[0], "overlay-nameentry");
+        a.eq(g.doc.activeElement, g.el("nameentry-input"),
+          "the name field should be focused the same way every overlay's primary control is (#26)");
+      },
+    },
+    {
+      name: "#42b — a score of 0 never qualifies for the hall of fame",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.lives = 1;
+        g.T.state.balls.length = 0;
+        g.frame(); // state.score is still 0
+        a.eq(g.T.state.phase, "gameover", "0 points should go straight to gameover, not prompt for a name");
+      },
+    },
+    {
+      name: "#42c — a full board only accepts a score that beats its lowest entry",
+      fn(a) {
+        const full = JSON.stringify(
+          Array.from({ length: 10 }, (_, i) => ({ name: "CPU", score: 100 - i }))
+        ); // lowest entry: 91
+
+        const tie = boot({ storage: { "neonbreak-hall-of-fame": full } }).start();
+        tie.T.state.score = 91; // ties the lowest — must not qualify
+        tie.T.state.lives = 1;
+        tie.T.state.balls.length = 0;
+        tie.frame();
+        a.eq(tie.T.state.phase, "gameover", "a tie with the lowest entry should not bump it");
+
+        const beats = boot({ storage: { "neonbreak-hall-of-fame": full } }).start();
+        beats.T.state.score = 92; // beats the lowest by one point
+        beats.T.state.lives = 1;
+        beats.T.state.balls.length = 0;
+        beats.frame();
+        a.eq(beats.T.state.phase, "nameentry", "a score that beats the lowest entry should qualify");
+      },
+    },
+    {
+      name: "#42d — submitting a name inserts it into the board in sorted order",
+      fn(a) {
+        const seeded = JSON.stringify([{ name: "AAA", score: 300 }, { name: "BBB", score: 100 }]);
+        const g = boot({ storage: { "neonbreak-hall-of-fame": seeded } }).start();
+        g.T.state.score = 200;
+        g.T.state.lives = 1;
+        g.T.state.balls.length = 0;
+        g.frame();
+        a.eq(g.T.state.phase, "nameentry");
+        g.el("nameentry-input").value = "Ada";
+        g.el("btn-nameentry-submit").click(1);
+        a.eq(g.T.state.phase, "halloffame", "submitting should move on to the board");
+        const list = g.T.state.hallOfFame;
+        a.eq(JSON.stringify(list.map((e) => e.name)), JSON.stringify(["AAA", "Ada", "BBB"]),
+          "the new entry should land between the one it beats and the one it doesn't");
+        a.eq(g.store["neonbreak-hall-of-fame"], JSON.stringify(list), "the board should persist immediately");
+      },
+    },
+    {
+      name: "#42e — an empty name submission falls back to a placeholder",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.score = 10;
+        g.T.state.lives = 1;
+        g.T.state.balls.length = 0;
+        g.frame();
+        a.eq(g.T.state.phase, "nameentry");
+        // nameentry-input's .value is never set — mimics submitting with nothing typed.
+        g.el("btn-nameentry-submit").click(1);
+        a.eq(g.T.state.hallOfFame[0].name, "???",
+          "an empty name should fall back to a placeholder, not save blank");
+      },
+    },
+    {
+      name: "#42f — a submitted name containing HTML never gets interpreted as markup",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.score = 10;
+        g.T.state.lives = 1;
+        g.T.state.balls.length = 0;
+        g.frame();
+        g.el("nameentry-input").value = '<img src=x onerror="alert(1)">';
+        g.el("btn-nameentry-submit").click(1);
+        const rendered = g.el("hof-list").innerHTML;
+        a.not(rendered.includes("<img"), "a raw <img> tag reached the rendered board");
+        a.includes(rendered, "&lt;img", "the name should render as literal escaped text instead");
+      },
+    },
+    {
+      name: "#42g — the continue button routes back to victory or gameover depending on how the run ended",
+      fn(a) {
+        const g = boot();
+        g.el("btn-start").click(1);
+        g.T.startLevel(g.T.LEVELS.length - 1); // final level, so clearing it wins
+        g.key("Space");
+        g.T.state.score = 10;
+        g.T.state.bricks.forEach((b) => { if (b.hp !== Infinity) b.alive = false; });
+        g.T.state.remainingBricks = 0;
+        g.frame();
+        a.eq(g.T.state.phase, "nameentry", "a qualifying score should still detour on a win");
+        g.el("btn-nameentry-submit").click(1);
+        a.eq(g.T.state.phase, "halloffame");
+        g.el("btn-hof-continue").click(1);
+        a.eq(g.T.state.phase, "victory", "a win should still end on victory, not gameover, after the detour");
+      },
+    },
+    {
+      name: "#42h — the name field accepts a literal space instead of launching or firing",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.score = 10;
+        g.T.state.lives = 1;
+        g.T.state.balls.length = 0;
+        g.frame();
+        g.el("nameentry-input").focus();
+        const ev = g.key("Space");
+        a.not(ev.defaultPrevented, "Space should reach the input, not be swallowed for the ball/laser");
+      },
+    },
+    {
+      name: "#42i — pressing Enter in the name field submits, like every other overlay's focused control",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.score = 10;
+        g.T.state.lives = 1;
+        g.T.state.balls.length = 0;
+        g.frame();
+        g.el("nameentry-input").value = "Zed";
+        g.key("Enter");
+        a.eq(g.T.state.phase, "halloffame", "Enter should submit the name, same as clicking Valider/Submit");
+        a.eq(g.T.state.hallOfFame[0].name, "Zed");
+      },
+    },
+    {
+      name: "#42j — the board never grows past CONFIG.hallOfFame.max",
+      fn(a) {
+        const full = JSON.stringify(
+          Array.from({ length: 10 }, (_, i) => ({ name: "CPU", score: 200 - i }))
+        );
+        const g = boot({ storage: { "neonbreak-hall-of-fame": full } }).start();
+        g.T.state.score = 500; // beats everything on the board
+        g.T.state.lives = 1;
+        g.T.state.balls.length = 0;
+        g.frame();
+        g.el("btn-nameentry-submit").click(1);
+        a.eq(g.T.state.hallOfFame.length, g.T.CONFIG.hallOfFame.max, "the board should stay capped at max");
+        a.eq(g.T.state.hallOfFame[0].score, 500, "the new top score should be first");
+        a.eq(g.T.state.hallOfFame[g.T.state.hallOfFame.length - 1].score, 192,
+          "the lowest previous entry should have been pushed off the board");
+      },
+    },
   ],
 };

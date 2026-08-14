@@ -23,9 +23,49 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #37 | ✅ Fixed — 2026-08-13 |
 | #32 | ✅ Fixed — 2026-08-13 |
 | #38, #39, #40 | ✅ Fixed — 2026-08-14 |
-| #41, #42 | 🔲 Open |
+| #42 | ✅ Fixed — 2026-08-14 |
+| #41 | 🔲 Open |
 
-40 of 42 findings fixed. See [todo.md](todo.md) for what's still open.
+41 of 42 findings fixed. See [todo.md](todo.md) for what's still open.
+
+---
+
+## 2026-08-14 — Hall of fame (#42)
+
+### Added
+
+**A top-10 leaderboard, with name entry on a qualifying run** — clearing the final level or losing
+your last life now checks whether the final score cracks the current top 10 (strictly beats the
+lowest entry, or the board isn't full yet — a score of exactly 0 never qualifies, board or no board).
+If it does, the game detours through a new name-entry screen before the usual victory/game-over
+screen, then shows the updated board with the just-added entry highlighted. If it doesn't, nothing
+changes — no prompt, straight to victory/game over as before.
+
+Two new phases, `nameentry` and `halloffame`, slot into the existing `state.phase` →
+`setPhase()` → `PHASE_OVERLAY` → `showOverlay()` pipeline (#18) the same way every other phase does,
+rather than bolting an input onto the existing victory/game-over overlays. The board itself is a
+capped, sorted `{name, score}` list persisted under a new storage key, through the same guarded
+`storageGet`/`storageSet` helpers the best score and language already use (#2) — a throw, or
+corrupted data under that key, degrades to an empty board rather than taking the game down.
+
+A submitted name is trimmed, capped to 12 characters, and falls back to a placeholder when left
+empty. It's the first free-text player input this game has ever rendered, so every value that reaches
+the board goes through an HTML-escaping helper before being interpolated into the page — a name like
+`<img src=x onerror=...>` renders as literal text, never as markup. Space still reaches the name field
+(the same guard that hands Space to a focused button now also recognises a focused text input,
+instead of hijacking it for launch/laser), and Enter submits directly from the field.
+
+### Notes
+
+Ten `#42a`–`#42j` regression cases cover the qualification gate (including the score-0 and
+tie-with-the-lowest-entry edge cases), sorted insertion, the empty-name fallback, HTML-escaping,
+routing back to victory vs. game over, Space/Enter handling, and the board's size cap — plus two
+round-trip cases in the `persistence` suite, one of them under `storageThrows`. Four existing tests
+that happened to end a run with a score that would have incidentally qualified now seed a full board
+via the `storage` boot option, so they keep testing what they were actually about (restart resetting
+state, live language re-rendering, best-score persistence) rather than tripping over the hall of fame.
+
+Full suite: 188 passed, 0 failed, 0 pending.
 
 ---
 
