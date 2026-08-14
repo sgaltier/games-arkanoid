@@ -491,7 +491,7 @@ canvas {
     </div>
     <div class="hud-cell level">
       <div class="hud-label" data-i18n="hud.level">Niveau</div>
-      <div class="hud-value" id="hud-level">1/5</div>
+      <div class="hud-value" id="hud-level">1/10</div>
     </div>
     <div class="hud-cell lives">
       <div class="hud-label" data-i18n="hud.lives">Vies</div>
@@ -638,11 +638,13 @@ canvas {
     // #32: levels 6-10 lean progressively harder on walls (`#`, indestructible
     // — shape the ball's path rather than something to clear) and silvers
     // (`S`, 2hp) rather than just adding more 1hp rows. Speed growth per level
-    // is smaller than levels 1-5's (~7% vs ~10-13%): level 10 is deliberately
-    // kept under the ceiling the "cannot tunnel through the paddle at maximum
-    // speed" test enforces — baseBallSpeed * speed * fast-powerup's 1.4x *
-    // the 33ms clamped max dt must stay under the paddle's thickness plus the
-    // ball's diameter, or a ball can pass through the paddle in one frame.
+    // is smaller than levels 1-5's (~7% vs ~10-13%). #38: earlier this comment
+    // claimed level 10's speed was kept under the ceiling of a "cannot tunnel
+    // through the paddle" test — that ceiling never accounted for the mid-level
+    // difficulty ramp (state.difficultyMult) stacking with the fast power-up,
+    // so it wasn't actually holding; a swept paddle check in updateBalls() now
+    // catches the crossing directly instead, and level speed is no longer a
+    // correctness constraint.
     { rows: ["1#2#3#4#1#", "S1S2S3S4S1", ".2.3.4.1.2", "3S4S1S2S3S", "#3#4#1#2#3", "4.1.2.3.4.", "1234123412"], speed: 1.60 },
     { rows: ["##2#4#1#3#", "S3S1S4S2S1", "1.3.S.2.4.", "4242424242", "S1S2S3S4S2", "#4#1#3#2#4", ".1.3.S.4.2", "3142314231"], speed: 1.70 },
     { rows: ["#1#2#S#3#4", "2S3S1S4S2S", ".4.2.S.1.3", "1#3#S#2#4#", "4S2S1S3S4S", "#2#4#1#S#3", ".3.1.4.2.S", "2413241324"], speed: 1.82 },
@@ -1634,6 +1636,19 @@ canvas {
 
       // paddle
       var pr = { x: state.paddle.x, y: state.paddle.y, w: pw, h: state.paddle.h };
+      // #38: on a slow frame a fast ball (level speed x fast power-up x the
+      // mid-level difficulty ramp) can travel further in one step than the paddle
+      // is thick, landing below it with nothing left to overlap. Rewind it to the
+      // point where it crossed the paddle's top plane so the check below sees a
+      // normal top hit and steers it as usual.
+      if (ball.dy > 0 && prevY + ball.r <= pr.y && ball.y - ball.r > pr.y + pr.h) {
+        var tCross = (pr.y - ball.r - prevY) / (ball.y - prevY);
+        var xCross = ball.x - ball.dx * v * (1 - tCross);
+        if (xCross + ball.r > pr.x && xCross - ball.r < pr.x + pw) {
+          ball.x = xCross;
+          ball.y = pr.y - ball.r + 0.5; // circleRectCollide uses strict `<`
+        }
+      }
       if (ball.dy > 0 && circleRectCollide(ball, pr)) {
         state.combo = 0; // any paddle touch — top face or side clip — ends the streak
         var isTopHit = prevY + ball.r <= pr.y; // was above the paddle top before this frame moved it in

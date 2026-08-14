@@ -22,8 +22,56 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #35, #36 | ✅ Fixed — 2026-08-13 |
 | #37 | ✅ Fixed — 2026-08-13 |
 | #32 | ✅ Fixed — 2026-08-13 |
+| #38, #39, #40 | ✅ Fixed — 2026-08-14 |
 
-All 37 findings fixed — nothing open.
+All 40 findings fixed — nothing open.
+
+---
+
+## 2026-08-14 — Paddle no longer tunnels at worst-case speed, plus test/doc follow-ups (#38, #39, #40)
+
+### Fixed
+
+**A fast ball stacked with the difficulty ramp can no longer tunnel through the paddle** (#38)
+The existing "cannot tunnel through the paddle at maximum speed" test only budgeted for level speed
+times the `fast` power-up's 1.4x, capped by the frame loop's 33ms clamp — it never accounted for
+`state.difficultyMult`, the mid-level ramp that stacks on top of both (up to 1.6x). Factor that in and
+a single slow frame (>~22ms, well inside the 33ms clamp) on level 10 with `fast` active and the ramp
+maxed let the ball cross the paddle's 26px total thickness (paddle height plus the ball's diameter) in
+one step — the paddle collision check never got a chance to fire, and the ball was lost on the next
+frame with no bounce. `updateBalls()` now runs a swept check for the paddle specifically (bricks stay
+exempt — a missed brick costs nothing) immediately before the existing overlap test: when the ball's
+start-of-frame position was above the paddle and its end-of-frame position has already cleared the
+paddle's bottom edge — the tunneling signature — it's rewound to the point where it crossed the
+paddle's top plane, so the existing top-hit steering runs exactly as it would for a normal bounce.
+
+The `LEVELS` comment that claimed level 10's speed was "kept under the ceiling" of the old test is
+corrected: that ceiling never actually held once the ramp was in the mix, and level speed is no longer
+a correctness constraint now that the sweep exists.
+
+**Stale "1/5" HUD markup fallback** (#39)
+The static pre-JS fallback text for the level counter still read "1/5" after #32 took the game to 10
+levels. `updateHud()` overwrites it on the very first frame, so this was only ever visible for one
+frame before JS ran — but that's exactly the case #32 already reasoned about and fixed for the two
+overlay-eyebrow fallbacks. Now reads "1/10" to match.
+
+**Physics invariant sweeps now cover all 10 levels** (#40)
+Both randomised-run sweeps in `test/suites/physics.js` hard-coded a level bound (`5` and `3`) left over
+from before #32. Levels 6–10 introduce much denser wall/silver checkerboards than 1–5 — level 10's top
+two rows have no empty cells at all — which is exactly the kind of brick-adjacency layout the
+smallest-penetration collision resolver (#10) was written to handle, and it was going untested. Both
+loops now derive their bound from `LEVELS.length` instead.
+
+### Notes
+
+The old "cannot tunnel" test was paper math — it asserted the displacement formula stayed under the
+paddle's thickness, not that the game actually bounced the ball. It's now a behavioural test that
+drives the real worst case (level 10, `fast`, `difficultyMult` pinned to its cap, one clamped 33ms
+frame) through the actual collision code and asserts the ball still bounces. Matching regression tests
+for #38 and #39 were added to `test/suites/regressions.js`, each confirmed failing against the pre-fix
+code before the fix landed, per the project's test convention.
+
+Full suite: 177 passed, 0 failed, 0 pending.
 
 ---
 

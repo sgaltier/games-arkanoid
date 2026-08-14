@@ -199,28 +199,39 @@ module.exports = {
       },
     },
     {
-      name: "the ball cannot tunnel through the paddle at maximum speed",
+      // #38: this used to be paper math — asserting the displacement formula
+      // stayed under the paddle's thickness — which missed that the mid-level
+      // difficulty ramp (state.difficultyMult) also multiplies into that same
+      // displacement, on top of level speed and the fast power-up. Drive the
+      // actual worst case through the real collision code instead.
+      name: "the ball cannot tunnel through the paddle at the worst-case combined speed",
       fn(a) {
         const g = boot();
         g.el("btn-start").click(1);
         g.T.startLevel(g.T.LEVELS.length - 1); // fastest level
         g.key("Space");
-        g.T.applyPowerup({ type: "fast" });   // and the speed-up power-up
+        g.T.applyPowerup({ type: "fast" });   // speed-up power-up...
+        g.T.state.difficultyMult = g.T.CONFIG.difficulty.max; // ...stacked with the ramp at its cap
 
         const ball = g.T.state.balls[0];
-        const maxDt = 0.033; // the frame loop clamps dt to this
-        const step = ball.speed * g.T.ballSpeedMult() * maxDt;
-        const barrier = g.T.state.paddle.h + 2 * ball.r;
+        const paddle = g.T.state.paddle;
+        ball.x = paddle.x + g.T.paddleWidth() / 2;
+        ball.y = paddle.y - ball.r - 1; // just above the paddle, heading straight down
+        ball.dx = 0;
+        ball.dy = 1;
+        ball.attached = false;
 
-        a.lt(step, barrier,
-          `a single frame moves ${step.toFixed(1)}px but the paddle is only ` +
-          `${barrier.toFixed(1)}px thick including the ball — the ball can pass through it`);
+        g.frame(33); // the frame loop clamps dt to this
+
+        a.lt(ball.dy, 0, "the ball should have bounced off the paddle, not tunneled through it");
+        a.lt(ball.y, paddle.y, "the ball should end up above the paddle, not past it");
       },
     },
     {
       name: "invariants hold over a long randomised run on every level",
       fn(a) {
-        for (let level = 0; level < 5; level++) {
+        const levelCount = boot().T.LEVELS.length;
+        for (let level = 0; level < levelCount; level++) {
           const g = boot({ seed: 1000 + level });
           g.el("btn-start").click(1);
           g.T.startLevel(level);
@@ -243,7 +254,8 @@ module.exports = {
         // Same sweep, but every drop is collected the instant it appears. The
         // |dy| floor is not asserted here: multi-ball clones are spawned at an
         // angle offset that can legitimately produce a shallow ball (finding #12).
-        for (let level = 0; level < 3; level++) {
+        const levelCount = boot().T.LEVELS.length;
+        for (let level = 0; level < levelCount; level++) {
           const g = boot({ seed: 7000 + level });
           g.el("btn-start").click(1);
           g.T.startLevel(level);

@@ -907,5 +907,44 @@ module.exports = {
         a.eq(PHASE_OVERLAY.playing, null, "playing shows no overlay");
       },
     },
+    {
+      name: "#38 — a fast ball stacked with the difficulty ramp does not tunnel through the paddle",
+      fn(a) {
+        const g = boot();
+        g.el("btn-start").click(1);
+        g.T.startLevel(g.T.LEVELS.length - 1); // fastest level
+        g.key("Space");
+        g.T.applyPowerup({ type: "fast" });
+        // Pin the mid-level ramp at its cap — the combination the original
+        // "cannot tunnel" test never budgeted for.
+        g.T.state.difficultyMult = g.T.CONFIG.difficulty.max;
+
+        const ball = g.T.state.balls[0];
+        const paddle = g.T.state.paddle;
+        ball.x = paddle.x + g.T.paddleWidth() / 2;
+        ball.y = paddle.y - ball.r - 1;
+        ball.dx = 0;
+        ball.dy = 1;
+        ball.attached = false;
+
+        g.frame(33); // the frame loop clamps dt to this
+
+        a.lt(ball.dy, 0, "the ball crossed the paddle with no collision ever detected");
+        a.lt(ball.y, paddle.y, "the ball should have been rewound to a bounce, not left past the paddle");
+      },
+    },
+    {
+      name: "#39 — the static HUD level markup matches the real level count",
+      fn(a) {
+        // updateHud() overwrites this on the very first frame (it runs once
+        // unconditionally at boot), so the stale markup was only ever visible
+        // for the instant before JS runs — check the raw source, not the
+        // post-boot DOM, or a booted handle would mask the bug either way.
+        const g = boot();
+        const total = g.T.LEVELS.length;
+        a.match(HTML, new RegExp(`id="hud-level">1/${total}<`),
+          "the pre-JS fallback text should already read the real level count, not a stale one");
+      },
+    },
   ],
 };
