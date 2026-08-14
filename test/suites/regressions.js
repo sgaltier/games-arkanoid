@@ -14,6 +14,36 @@
 
 const { boot, HTML, SCRIPT } = require("../dom-stub");
 
+// #49 fixture. Level 0 is four solid rows of ten 1hp bricks with no gaps, so
+// buildLevel()'s row-major order makes state.bricks[row * 10 + col] the cell at
+// that grid position — a real layout with real geometry, rather than a
+// hand-built one that could drift from what buildLevel actually produces.
+// Returns { g, at, blast } where blast(brick) drives a ball up into it, so the
+// explosion is reached through the game's own collision path and brickHit does
+// not have to join SEAM.
+function explosiveLevel(opts) {
+  const g = boot(opts).start();
+  g.T.startLevel(0);
+  g.T.setPhase("playing"); // startLevel leaves it "ready", where balls do not move
+  const at = (r, c) => g.T.state.bricks[r * 10 + c];
+  const blast = (target) => {
+    const ball = g.T.state.balls[0];
+    ball.attached = false;
+    ball.x = target.x + target.w / 2;
+    ball.y = target.y + target.h + 8;
+    ball.dx = 0;
+    ball.dy = -1;
+    ball.speed = 300;
+    g.frame();
+  };
+  const deadCells = () => {
+    const out = [];
+    for (let r = 0; r < 4; r++) for (let c = 0; c < 10; c++) if (!at(r, c).alive) out.push(r + "," + c);
+    return out;
+  };
+  return { g, at, blast, deadCells };
+}
+
 module.exports = {
   name: "regressions — one test per fixed finding",
   tests: [
@@ -1302,6 +1332,102 @@ module.exports = {
         a.ok(posted, "the submit should have reached the API");
         a.includes(g.el("hof-list").innerHTML, "Srv", "the list should show what the server returned");
         a.includes(g.el("hof-list").innerHTML, "4242");
+      },
+    },
+
+    // -----------------------------------------------------------------------
+    // #49 — explosive bricks
+    // -----------------------------------------------------------------------
+    {
+      name: "#49a — destroying an explosive takes the eight cells around it, and nothing further",
+      fn(a) {
+        const { at, blast, deadCells } = explosiveLevel();
+        at(1, 4).type = "X";
+        blast(at(1, 4));
+        a.eq(
+          deadCells().join(" "),
+          "0,3 0,4 0,5 1,3 1,4 1,5 2,3 2,4 2,5",
+          "the blast should clear exactly the 3x3 block centred on the explosive"
+        );
+      },
+    },
+    {
+      name: "#49b — the blast does not reach two cells away",
+      fn(a) {
+        // Guards the geometric neighbour test's tolerance: it is a cell pitch
+        // plus 1px, and must not creep into the next ring if the layout
+        // constants ever change.
+        const { at, blast } = explosiveLevel();
+        at(1, 4).type = "X";
+        blast(at(1, 4));
+        a.ok(at(1, 2).alive, "a brick two columns away must survive");
+        a.ok(at(1, 6).alive, "and on the other side too");
+        a.ok(at(3, 4).alive, "a brick two rows away must survive");
+      },
+    },
+    {
+      name: "#49c — a blast leaves indestructible walls standing",
+      fn(a) {
+        const { at, blast } = explosiveLevel();
+        at(1, 4).type = "X";
+        at(1, 3).type = "#";
+        at(1, 3).hp = Infinity;
+        blast(at(1, 4));
+        a.ok(at(1, 3).alive, "an explosion must not clear what the ball itself cannot");
+        a.ok(!at(1, 5).alive, "while an ordinary neighbour still goes");
+      },
+    },
+    {
+      name: "#49d — silver survives one blast and falls to a second",
+      fn(a) {
+        // The blast deals damage rather than deleting, so brick durability keeps
+        // meaning what it means everywhere else.
+        const { at, blast } = explosiveLevel();
+        at(1, 4).type = "X";
+        at(0, 4).type = "S";
+        at(0, 4).hp = 2;
+        blast(at(1, 4));
+        a.ok(at(0, 4).alive, "silver should take the first blast without dying");
+        a.eq(at(0, 4).type, "Sc", "and should show as damaged");
+
+        at(2, 4).type = "X";
+        at(2, 4).alive = true;
+        at(2, 4).hp = 1;
+        // A second explosive directly under the damaged silver, two rows down,
+        // is not adjacent to it — so revive the cell between them and blast that.
+        at(1, 4).alive = true;
+        at(1, 4).hp = 1;
+        at(1, 4).type = "X";
+        blast(at(1, 4));
+        a.ok(!at(0, 4).alive, "the second blast should finish the damaged silver");
+      },
+    },
+    {
+      name: "#49e — explosives chain into each other and the cascade terminates",
+      fn(a) {
+        const { at, blast, deadCells } = explosiveLevel();
+        at(1, 4).type = "X";
+        at(1, 5).type = "X"; // adjacent, so the first blast sets off the second
+        blast(at(1, 4));
+        const dead = deadCells();
+        a.ok(dead.includes("1,5"), "the adjacent explosive should have gone up too");
+        a.ok(dead.includes("0,6") && dead.includes("1,6") && dead.includes("2,6"),
+          "and taken its own neighbours with it, which the first blast could not reach");
+        a.eq(dead.length, 12, "the two overlapping 3x3 blocks cover twelve cells");
+      },
+    },
+    {
+      name: "#49f — remainingBricks matches what the cascade actually destroyed",
+      fn(a) {
+        // The level-clear check reads remainingBricks, so a blast that skipped
+        // the counter would either end the level early or make it unclearable.
+        const { g, at, blast, deadCells } = explosiveLevel();
+        const before = g.T.state.remainingBricks;
+        at(1, 4).type = "X";
+        at(1, 5).type = "X";
+        blast(at(1, 4));
+        a.eq(g.T.state.remainingBricks, before - deadCells().length,
+          "every brick the cascade cleared must be one off the counter");
       },
     },
   ],

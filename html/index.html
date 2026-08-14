@@ -732,13 +732,14 @@ canvas {
   // ---------------------------------------------------------------------
   // Level data — 10 columns wide, each char is a brick type
   //   . empty   1 cyan   2 magenta   3 amber   4 lime   S silver(2hp)   # wall(indestructible)
+  //   X explosive (1hp; destroying it damages the 8 surrounding cells — #49)
   // ---------------------------------------------------------------------
   var LEVELS = [
     { rows: ["1111111111", "2222222222", "3333333333", "4444444444"], speed: 1.0 },
     { rows: ["2121212121", "1212121212", "SSSSSSSSSS", "3434343434", "4343434343"], speed: 1.1 },
-    { rows: ["1.2.3.4.1.", ".2.3.4.1.2", "SS..SS..SS", ".2.3.4.1.2", "1.2.3.4.1.", "3.4.1.2.3."], speed: 1.2 },
+    { rows: ["1.2.X.4.1.", ".2.3.4.1.2", "SS..SS..SS", ".2.3.4.1.2", "1.2.3.4.1.", "3.4.1.2.3."], speed: 1.2 },
     { rows: ["#1#2#3#4#1", "2222222222", "S1S2S3S4S1", "3333333333", "4S4S4S4S4S", "1111111111", "2.4.#.4.2."], speed: 1.32 },
-    { rows: ["##1#2#3#4#", "S2S3S4S1S2", "3434343434", "S4S1S2S3S4", "2323232323", "S1S2S3S4S1", "4.3.#.2.1.", "1234123412"], speed: 1.48 },
+    { rows: ["##1#2#3#4#", "S2S3S4S1S2", "34X4343X34", "S4S1S2S3S4", "2323232323", "S1S2S3S4S1", "4.3.#.2.1.", "1234123412"], speed: 1.48 },
     // #32: levels 6-10 lean progressively harder on walls (`#`, indestructible
     // — shape the ball's path rather than something to clear) and silvers
     // (`S`, 2hp) rather than just adding more 1hp rows. Speed growth per level
@@ -749,11 +750,11 @@ canvas {
     // so it wasn't actually holding; a swept paddle check in updateBalls() now
     // catches the crossing directly instead, and level speed is no longer a
     // correctness constraint.
-    { rows: ["1#2#3#4#1#", "S1S2S3S4S1", ".2.3.4.1.2", "3S4S1S2S3S", "#3#4#1#2#3", "4.1.2.3.4.", "1234123412"], speed: 1.60 },
+    { rows: ["1#2#3#4#1#", "S1S2S3S4S1", ".2.3.4.1.2", "3S4S1S2S3S", "#3#4#1#2#3", "4.1.X.3.4.", "1234123412"], speed: 1.60 },
     { rows: ["##2#4#1#3#", "S3S1S4S2S1", "1.3.S.2.4.", "4242424242", "S1S2S3S4S2", "#4#1#3#2#4", ".1.3.S.4.2", "3142314231"], speed: 1.70 },
-    { rows: ["#1#2#S#3#4", "2S3S1S4S2S", ".4.2.S.1.3", "1#3#S#2#4#", "4S2S1S3S4S", "#2#4#1#S#3", ".3.1.4.2.S", "2413241324"], speed: 1.82 },
+    { rows: ["#1#2#S#3#4", "2S3SXS4S2S", ".4.2.S.1.3", "1#3#S#2#4#", "4S2S1S3S4S", "#2#4#1#S#3", ".3.1.4.2.S", "2413241324"], speed: 1.82 },
     { rows: ["#S#1#S#2#S", "3S1S4S2S1S", ".2.S.4.S.1", "4#2#S#1#3#", "1S3S2S4S3S", ".4.1.S.2.S", "#1#S#3#4#S", "4231423142", "2341234123"], speed: 1.95 },
-    { rows: ["#S#S#S#S#S", "S#S#S#S#S#", "4321432143", "S1S2S3S4S1", ".1.2.3.4.1", "2S3S4S1S2S", "#2#3#4#1#2", "3.4.1.2.3.", "S4S1S2S3S4", "1234123412"], speed: 2.08 }
+    { rows: ["#S#S#S#S#S", "S#S#S#S#S#", "43X1432X43", "S1S2S3S4S1", ".1.2.3.4.1", "2S3S4S1S2S", "#2#3#4#1#2", "3.4.1.2.3.", "S4S1S2S3S4", "1234123412"], speed: 2.08 }
   ];
 
   var BRICK_COLOR = {
@@ -763,7 +764,11 @@ canvas {
     "4": { fill: "#9dff1e", glow: "rgba(157,255,30,.7)" },
     "S": { fill: "#c3cee0", glow: "rgba(195,206,224,.6)" },
     "Sc": { fill: "#6c7590", glow: "rgba(108,117,144,.4)" },
-    "#": { fill: "#4b5170", glow: "rgba(75,81,112,.35)" }
+    "#": { fill: "#4b5170", glow: "rgba(75,81,112,.35)" },
+    // #49: explosive. Deliberately the hottest colour on the board — it is the
+    // one brick whose type changes what a hit does, so it has to read as
+    // different at a glance, not just as another hue in the rotation.
+    "X": { fill: "#ff5c1a", glow: "rgba(255,92,26,.85)" }
   };
 
   var COLS = 10;
@@ -1812,6 +1817,36 @@ canvas {
     }
   }
 
+  // #49: an explosive brick damages the eight cells around it when destroyed.
+  // Neighbours are found geometrically rather than by grid index, so this keeps
+  // working if the layout constants ever change: a neighbour's centre is one
+  // cell pitch away on each axis at most, and a cell two away is more than
+  // `+ 1` beyond that, so the tolerance cannot leak into the next ring.
+  //
+  // Damage goes through brickHit() rather than killing outright, which is what
+  // makes walls stay standing, silver take two blasts, and — the point of the
+  // type — a caught explosive chain into the next one. Termination: brickHit()
+  // clears `alive` before this runs, so a cascade can never come back to a
+  // brick it already destroyed, and every brick dies at most once.
+  function explode(brick) {
+    var cx = brick.x + brick.w / 2;
+    var cy = brick.y + brick.h / 2;
+    burst(cx, cy, BRICK_COLOR["X"].fill, 26);
+    beep(90, 0.22, "sawtooth", 0.05);
+    var reachX = BRICK_W + BRICK_MARGIN + 1;
+    var reachY = BRICK_H + BRICK_MARGIN + 1;
+    var neighbours = state.bricks.filter(function (o) {
+      return o !== brick && o.alive &&
+        Math.abs((o.x + o.w / 2) - cx) <= reachX &&
+        Math.abs((o.y + o.h / 2) - cy) <= reachY;
+    });
+    for (var i = 0; i < neighbours.length; i++) {
+      // Re-checked here, not just when the list was built: an earlier neighbour
+      // in this same loop may have been explosive and already taken this one out.
+      if (neighbours[i].alive) brickHit(neighbours[i]);
+    }
+  }
+
   function brickHit(brick) {
     var color = BRICK_COLOR[brick.type] || BRICK_COLOR["1"];
     burst(brick.x + brick.w / 2, brick.y + brick.h / 2, color.fill, 10);
@@ -1841,6 +1876,9 @@ canvas {
         state.drops.push({ x: brick.x + brick.w / 2, y: brick.y + brick.h / 2, def: def });
       }
       updateHud();
+      // Last, so everything above has already settled for this brick before the
+      // cascade re-enters brickHit for its neighbours.
+      if (brick.type === "X") explode(brick);
     } else {
       beep(240, 0.05, "square");
     }
@@ -2217,7 +2255,7 @@ canvas {
       var c = BRICK_COLOR[b.type] || BRICK_COLOR["1"];
       ctx.save();
       ctx.shadowColor = c.glow;
-      ctx.shadowBlur = b.type === "#" ? 3 : 8;
+      ctx.shadowBlur = b.type === "#" ? 3 : b.type === "X" ? 14 : 8;
       ctx.fillStyle = c.fill;
       ctx.fillRect(b.x, b.y, b.w, b.h);
       ctx.restore();
@@ -2226,6 +2264,14 @@ canvas {
       if (b.type === "#") {
         ctx.strokeStyle = "rgba(0,0,0,0.4)";
         ctx.strokeRect(b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1);
+      } else if (b.type === "X") {
+        // #49: a core dot as well as the hotter colour — colour alone would
+        // leave the one brick that behaves differently unreadable to a
+        // colourblind player, the same gap #62 covers for the rest of the set.
+        ctx.fillStyle = "rgba(255,255,255,0.85)";
+        ctx.beginPath();
+        ctx.arc(b.x + b.w / 2, b.y + b.h / 2, 3.5, 0, Math.PI * 2);
+        ctx.fill();
       }
     }
   }

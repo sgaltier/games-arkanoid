@@ -25,10 +25,43 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #38, #39, #40 | ✅ Fixed — 2026-08-14 |
 | #42, #43 | ✅ Fixed — 2026-08-14 |
 | #67 | ✅ Fixed — 2026-08-14 |
-| #41, #49, #51, #52, #58, #59, #60 | 🔲 Open |
+| #49 | ✅ Fixed — 2026-08-14 |
+| #41, #51, #52, #58, #59, #60 | 🔲 Open |
 
-43 of 50 findings fixed. See [todo.md](todo.md) for what's still open, and
+44 of 50 findings fixed. See [todo.md](todo.md) for what's still open, and
 [feature-ideas.md](feature-ideas.md) for proposals not yet promoted to the backlog.
+
+---
+
+## 2026-08-14 — Explosive bricks (#49)
+
+### Added
+
+**A new `X` brick type that takes its neighbours with it.** One hit destroys it like any 1hp brick,
+and the blast then damages the eight surrounding cells — so a well-placed shot cascades instead of
+clearing one brick. Two explosives side by side chain into each other, which is the point of the
+type and what level authors get to build with. Seven are placed across levels 3, 5, 6, 8 and 10,
+singly at first and paired later.
+
+Drawn in the hottest colour on the board with a white core dot. The dot is not decoration: colour
+alone would leave the one brick that behaves differently unreadable to a colourblind player, which
+is the same gap #62 covers for the rest of the set.
+
+### Notes
+
+The blast deals damage through `brickHit()` rather than clearing cells directly. That is the whole
+design: it is why walls stay standing, why silver takes two blasts, why scoring, combos, drops and
+`state.remainingBricks` all stay consistent, and why one explosive sets off the next. Clearing cells
+directly would have been shorter and would have quietly desynced the brick counter, making levels
+end early or become unclearable.
+
+Neighbours are found by geometry — one cell pitch on each axis plus a 1px tolerance — rather than by
+grid arithmetic, so the blast keeps working if the layout constants ever change.
+
+Six regression cases, each verified against a mutation that should break it: the explosion disabled,
+the radius widened to two cells, and the blast bypassing `brickHit`. Two of the six deliberately
+survive a disabled explosion, because they guard the opposite mistakes — an over-wide blast and a
+desynced counter.
 
 ---
 

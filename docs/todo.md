@@ -9,7 +9,7 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 7 open findings.
+**Status:** 6 open findings.
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
 test → fix → move the finding's whole entry from this file to [done.md](done.md), prepending a
@@ -43,13 +43,6 @@ commitment.
 ---
 
 ## New brick types
-
-### 49. Explosive bricks (S)
-
-A brick that, when destroyed, destroys its immediate neighbours in a small radius and pushes a
-particle shockwave outward. It is the most satisfying single brick type in the genre because it
-converts a lucky hit into a visible cascade, and it gives level authors a lever for building
-deliberate chain reactions. Implementation touches `brickHit()` and the level character map only.
 
 ### 51. Regenerating and multi-hit-with-feedback bricks (S)
 
