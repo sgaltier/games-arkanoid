@@ -1,6 +1,6 @@
 # Release notes
 
-Changes to **Neon Break**, newest first. `#N` references point at the numbered findings in
+Changes to **Blokrush**, newest first. `#N` references point at the numbered findings in
 [done.md](done.md) (shipped) or [todo.md](todo.md) (still open).
 
 The project is not versioned or tagged, so entries are grouped by the commit that delivered them.
@@ -748,6 +748,6 @@ code changes.
 
 ## 2026-08-12 — Initial commit (`8b6c46d`)
 
-`arkanoid.html` — a single self-contained French-language neon arcade breakout game. Vanilla JS in an
+`blokrush.html` — a single self-contained French-language neon arcade breakout game. Vanilla JS in an
 IIFE, 2D canvas, WebAudio blips, five hand-authored levels, six power-ups, no dependencies and no
 build step.

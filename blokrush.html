@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Neon Break — Casse-briques arcade</title>
+<title>Blokrush — Casse-briques arcade</title>
 <style>
 /*
-  NEON ARKANOID — design plan
+  BLOKRUSH — design plan
   Color: deep violet-black void (#0a0118) with an arcade-cabinet panel (#171030),
          four neon brick hues (cyan/magenta/amber/lime) + silver for armored bricks.
   Type:  condensed display face for the marquee title, monospace for the LED-style
@@ -569,13 +569,13 @@ canvas {
   <div class="play-row">
     <div class="screen-wrap">
       <div class="screen">
-        <canvas id="game" width="480" height="680" data-i18n-attr="aria-label:canvas.label" aria-label="Zone de jeu Neon Break" aria-describedby="hud"></canvas>
+        <canvas id="game" width="480" height="680" data-i18n-attr="aria-label:canvas.label" aria-label="Zone de jeu Blokrush" aria-describedby="hud"></canvas>
         <div class="scanlines" aria-hidden="true"></div>
         <div class="vignette" aria-hidden="true"></div>
 
         <div class="overlay show" id="overlay-start" role="status" aria-live="polite" aria-hidden="false">
           <p class="overlay-eyebrow" id="start-eyebrow">Niveau 1 / 10</p>
-          <h2 class="overlay-title">Neon Break</h2>
+          <h2 class="overlay-title">Blokrush</h2>
           <p class="overlay-sub" data-i18n="start.sub">Détruisez toutes les briques pour passer au niveau suivant. Rattrapez les bonus qui tombent &mdash; évitez les malus.</p>
           <button class="btn" id="btn-start" type="button" data-i18n="start.btn">Lancer la partie</button>
           <!-- #43: opens the hall of fame (#42) on demand, before playing. -->
@@ -866,14 +866,14 @@ canvas {
   // ---------------------------------------------------------------------
   var STRINGS = {
     fr: {
-      "doc.title": "Neon Break — Casse-briques arcade",
+      "doc.title": "Blokrush — Casse-briques arcade",
       "lang.group": "Langue",
       "tagline": "Casse-briques — Arcade",
       "hud.score": "Score",
       "hud.best": "Meilleur",
       "hud.level": "Niveau",
       "hud.lives": "Vies",
-      "canvas.label": "Zone de jeu Neon Break",
+      "canvas.label": "Zone de jeu Blokrush",
       "start.sub": "Détruisez toutes les briques pour passer au niveau suivant. Rattrapez les bonus qui tombent — évitez les malus.",
       "start.btn": "Lancer la partie",
       "start.viewHof": "Tableau des scores",
@@ -913,14 +913,14 @@ canvas {
       "halloffame.empty": "Aucun score enregistré pour l'instant."
     },
     en: {
-      "doc.title": "Neon Break — Arcade Brick Breaker",
+      "doc.title": "Blokrush — Arcade Brick Breaker",
       "lang.group": "Language",
       "tagline": "Brick Breaker — Arcade",
       "hud.score": "Score",
       "hud.best": "Best",
       "hud.level": "Level",
       "hud.lives": "Lives",
-      "canvas.label": "Neon Break play area",
+      "canvas.label": "Blokrush play area",
       "start.sub": "Destroy every brick to reach the next level. Catch the power-ups as they fall — dodge the bad ones.",
       "start.btn": "Start game",
       "start.viewHof": "High scores",

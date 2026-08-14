@@ -1,6 +1,6 @@
-# Neon Break — Feature Ideas
+# Blokrush — Feature Ideas
 
-A menu of features Neon Break does **not** have yet, drawn from what the genre's best-regarded
+A menu of features Blokrush does **not** have yet, drawn from what the genre's best-regarded
 entries do — *Arkanoid* / *Arkanoid DS*, *Shatter*, *Ricochet Infinity*, *Wizorb*, *DX-Ball 2*,
 *Block Breaker Deluxe*, *Brick Rage*, and the various modern mobile breakouts.
 

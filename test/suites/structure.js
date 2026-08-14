@@ -123,7 +123,7 @@ module.exports = {
       fn(a) {
         const problems = [];
         for (const { file, text } of docFiles()) {
-          for (const m of text.matchAll(/arkanoid\.html#L(\d+)(?:-L(\d+))?/g)) {
+          for (const m of text.matchAll(/blokrush\.html#L(\d+)(?:-L(\d+))?/g)) {
             const from = Number(m[1]);
             const to = m[2] ? Number(m[2]) : from;
             if (from < 1 || to > GAME_LINES.length) {
@@ -142,7 +142,7 @@ module.exports = {
       name: "docs link labels agree with the anchors they point at",
       fn(a) {
         const problems = [];
-        const linkRe = /\[(?:arkanoid\.html)?:?([\d–-]+)\]\(\.\.\/arkanoid\.html#L(\d+)(?:-L(\d+))?\)/g;
+        const linkRe = /\[(?:blokrush\.html)?:?([\d–-]+)\]\(\.\.\/blokrush\.html#L(\d+)(?:-L(\d+))?\)/g;
         for (const { file, text } of docFiles()) {
           for (const m of text.matchAll(linkRe)) {
             const label = m[1].replace(/–/g, "-");

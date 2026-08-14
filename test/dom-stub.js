@@ -1,6 +1,6 @@
 "use strict";
 /*
-  Loads the real arkanoid.html into a fake DOM so its game loop can be driven and
+  Loads the real blokrush.html into a fake DOM so its game loop can be driven and
   inspected from Node, with no dependencies.
 
   The game lives inside an IIFE, so nothing is reachable from outside. boot()
@@ -9,18 +9,18 @@
   names, which is the price of being able to test the physics at all. Keep the
   list short — adding to it should be a decision, not a reflex.
 
-  arkanoid.html itself is never modified; the injection happens on an in-memory
+  blokrush.html itself is never modified; the injection happens on an in-memory
   copy of the extracted script text.
 */
 
 const fs = require("fs");
 const path = require("path");
 
-const GAME_FILE = path.join(__dirname, "..", "arkanoid.html");
+const GAME_FILE = path.join(__dirname, "..", "blokrush.html");
 const HTML = fs.readFileSync(GAME_FILE, "utf8");
 
 const SCRIPT = (HTML.match(/<script>([\s\S]*?)<\/script>/) || [])[1];
-if (!SCRIPT) throw new Error("could not find the <script> block in arkanoid.html");
+if (!SCRIPT) throw new Error("could not find the <script> block in blokrush.html");
 
 const BODY_START = HTML.indexOf("<body>");
 const BODY_END = HTML.indexOf("</body>");

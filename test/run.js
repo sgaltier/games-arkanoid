@@ -1,6 +1,6 @@
 "use strict";
 /*
-  Zero-dependency test runner for Neon Break.
+  Zero-dependency test runner for Blokrush.
 
     node test/run.js              run everything
     node test/run.js physics      run only the named suite(s)

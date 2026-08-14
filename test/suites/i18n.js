@@ -168,7 +168,7 @@ module.exports = {
         a.eq(g.byKey("hud.best").textContent, "Meilleur");
         g.langButton("en").click(1);
         a.eq(g.byKey("hud.best").textContent, "Best");
-        a.eq(g.el("game").getAttribute("aria-label"), "Neon Break play area",
+        a.eq(g.el("game").getAttribute("aria-label"), "Blokrush play area",
           "attribute strings should translate too");
         const hint = g.registry.find((e) => e._attrs["data-i18n-html"]);
         a.match(hint.innerHTML, /<kbd>/, "markup strings must keep their markup");
