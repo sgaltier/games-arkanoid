@@ -52,6 +52,28 @@ function gridLevel(opts) {
   return { g, at, blast, deadCells, idle };
 }
 
+// #52 fixture: a board of nothing but mystery bricks, played until a good
+// number have resolved. LEVELS is reachable through the seam and each boot()
+// re-evaluates the script, so overwriting level 0's rows affects only this game.
+function mysteryBoard(seed, seconds) {
+  const g = boot({ seed }).start();
+  g.T.LEVELS[0].rows = ["??????????", "??????????", "??????????", "??????????"];
+  g.T.startLevel(0);
+  g.T.setPhase("playing");
+  g.T.launchBall();
+  g.runAlive(seconds === undefined ? 40 : seconds);
+  return g;
+}
+
+// What the level-clear counter is supposed to be tracking: bricks standing
+// right now that can still be destroyed. A resolved wall is not one, and
+// neither is a regenerating brick that is currently down — #51 deliberately
+// leaves those uncounted so a level can be cleared while one is away, and
+// updateBricks() adds it back on return.
+function standingDestroyable(g) {
+  return g.T.state.bricks.filter((b) => b.alive && b.hp !== Infinity).length;
+}
+
 module.exports = {
   name: "regressions — one test per fixed finding",
   tests: [
@@ -1552,6 +1574,89 @@ module.exports = {
         g.frame();
         a.gt(g.counters.canvasOps, intact,
           "cracked silver should draw more than intact silver, not just recolour it");
+      },
+    },
+
+    // -----------------------------------------------------------------------
+    // #52 — mystery bricks
+    // -----------------------------------------------------------------------
+    {
+      name: "#52a — a mystery brick becomes a real type when first struck",
+      fn(a) {
+        const g = mysteryBoard(999);
+        const resolved = g.T.state.bricks.filter((b) => b.type !== "?");
+        a.gt(resolved.length, 0, "play should have revealed some of them");
+        const allowed = ["1", "2", "3", "4", "S", "Sc", "X", "R", "#"];
+        const strays = resolved.filter((b) => !allowed.includes(b.type));
+        a.empty(strays.map((b) => b.type), "a mystery resolved into a type that does not exist");
+      },
+    },
+    {
+      name: "#52b — a mystery that becomes a wall comes off the clearable count",
+      fn(a) {
+        // The softlock. buildLevel() counts every "?" as clearable, because at
+        // build time it has 1hp like anything else. A mystery that resolves into
+        // an indestructible wall can never be cleared, so if the count does not
+        // come down with it the level can never reach zero and the run is stuck
+        // with nothing left to hit.
+        const g = mysteryBoard(999);
+        const walls = g.T.state.bricks.filter((b) => b.type === "#").length;
+        // Without this the test would still pass if the seed stopped producing a
+        // wall — quietly checking nothing, which is the failure mode that matters
+        // most here.
+        a.gt(walls, 0, "this seed must actually produce a wall or the case is untested");
+        a.eq(g.T.state.remainingBricks, standingDestroyable(g),
+          "the counter must track only what can still be destroyed");
+      },
+    },
+    {
+      name: "#52c — the count stays honest across many different boards",
+      fn(a) {
+        let wallsSeen = 0;
+        for (const seed of [1, 7, 42, 999, 12345, 31337]) {
+          const g = mysteryBoard(seed);
+          wallsSeen += g.T.state.bricks.filter((b) => b.type === "#").length;
+          a.eq(g.T.state.remainingBricks, standingDestroyable(g),
+            `counter drifted from what is actually destroyable (seed ${seed})`);
+        }
+        a.gt(wallsSeen, 0, "no seed produced a wall, so the interesting case went untested");
+      },
+    },
+    {
+      name: "#52d — the revealing hit lands on whatever the brick became",
+      fn(a) {
+        // Resolving happens at the top of brickHit(), so the same hit then
+        // applies to the new type rather than being spent on the reveal.
+        const g = mysteryBoard(999);
+        const silver = g.T.state.bricks.filter((b) => b.type === "S" || b.type === "Sc");
+        a.gt(silver.length, 0, "this seed must produce silver or the case is untested");
+        a.empty(
+          silver.filter((b) => b.type === "S" && b.hp === 2).map(() => "undamaged"),
+          "a mystery that turned into silver should have taken the revealing hit, not shrugged it off"
+        );
+      },
+    },
+    {
+      name: "#52e — a board of mystery bricks can still be cleared",
+      fn(a) {
+        // End to end: whatever the board resolves into, destroying everything
+        // destroyable must drive the counter to zero and clear the level. If a
+        // resolved wall were still counted this would hang at a non-zero count.
+        const g = mysteryBoard(999, 20);
+        for (const b of g.T.state.bricks) {
+          // Bricks already down and waiting to regenerate were taken off the
+          // counter when they fell, so cancelling their return must not
+          // decrement again — only what is standing is still counted.
+          b.regenTimer = 0;
+          b.regenLeft = 0;
+          if (b.alive && b.hp !== Infinity) {
+            b.alive = false;
+            g.T.state.remainingBricks -= 1;
+          }
+        }
+        a.eq(g.T.state.remainingBricks, 0, "clearing everything destroyable must reach zero");
+        g.frame();
+        a.eq(g.T.state.phase, "levelclear", "and the level should then clear");
       },
     },
   ],

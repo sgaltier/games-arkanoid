@@ -734,13 +734,14 @@ canvas {
   //   . empty   1 cyan   2 magenta   3 amber   4 lime   S silver(2hp)   # wall(indestructible)
   //   X explosive (1hp; destroying it damages the 8 surrounding cells — #49)
   //   R regenerating (1hp; comes back after a delay, up to CONFIG.regen.max times — #51)
+  //   ? mystery (resolves into one of MYSTERY_TYPES on the first hit — #52)
   // ---------------------------------------------------------------------
   var LEVELS = [
     { rows: ["1111111111", "2222222222", "3333333333", "4444444444"], speed: 1.0 },
-    { rows: ["2121212121", "1212121212", "SSSSSSSSSS", "3434343434", "4343434343"], speed: 1.1 },
+    { rows: ["21212?2121", "1212?21212", "SSSSSSSSSS", "3434343434", "4343434343"], speed: 1.1 },
     { rows: ["1.2.X.4.1.", ".2.3.4.1.2", "SS..SS..SS", ".2.3.4.1.2", "1.2.3.4.1.", "3.4.1.2.3."], speed: 1.2 },
     { rows: ["#1#2#3#4#1", "22222R2222", "S1S2S3S4S1", "3333333333", "4S4S4S4S4S", "1111111111", "2.4.#.4.2."], speed: 1.32 },
-    { rows: ["##1#2#3#4#", "S2S3S4S1S2", "34X4343X34", "S4S1S2S3S4", "2323232323", "S1S2S3S4S1", "4.3.#.2.1.", "1234123412"], speed: 1.48 },
+    { rows: ["##1#2#3#4#", "S2S3S4S1S2", "34X4343X34", "S4S1S2?3S4", "2323232323", "S1S2S3S4S1", "4.3.#.2.1.", "1234123412"], speed: 1.48 },
     // #32: levels 6-10 lean progressively harder on walls (`#`, indestructible
     // — shape the ball's path rather than something to clear) and silvers
     // (`S`, 2hp) rather than just adding more 1hp rows. Speed growth per level
@@ -752,10 +753,10 @@ canvas {
     // catches the crossing directly instead, and level speed is no longer a
     // correctness constraint.
     { rows: ["1#2#3#4#1#", "S1S2S3S4S1", ".2.3.4.1.2", "3S4S1S2S3S", "#3#4#1#2#3", "4.1.X.3.4.", "1234123412"], speed: 1.60 },
-    { rows: ["##2#4#1#3#", "S3S1S4S2S1", "1.3.S.2.4.", "424R4242R4", "S1S2S3S4S2", "#4#1#3#2#4", ".1.3.S.4.2", "3142314231"], speed: 1.70 },
+    { rows: ["##2#4#1#3#", "S3S1S4S2S1", "1.3.?.2.4.", "424R4?42R4", "S1S2S3S4S2", "#4#1#3#2#4", ".1.3.S.4.2", "3142314231"], speed: 1.70 },
     { rows: ["#1#2#S#3#4", "2S3SXS4S2S", ".4.2.S.1.3", "1#3#S#2#4#", "4S2S1S3S4S", "#2#4#1#S#3", ".3.1.4.2.S", "2413241324"], speed: 1.82 },
-    { rows: ["#S#1#S#2#S", "3S1S4S2S1S", ".2.S.4.S.1", "4#2#S#1#3#", "1S3S2S4S3S", ".4.1.R.2.S", "#1#S#3#4#S", "4231423142", "2341234123"], speed: 1.95 },
-    { rows: ["#S#S#S#S#S", "S#S#S#S#S#", "43X1432X43", "S1S2S3S4S1", ".1.2.3.4.1", "2R3S4S1S2R", "#2#3#4#1#2", "3.4.1.2.3.", "S4S1S2S3S4", "1234123412"], speed: 2.08 }
+    { rows: ["#S#1#S#2#S", "3S1S4S2S1S", ".2.?.4.S.1", "4#2#?#1#3#", "1S3S2S4S3S", ".4.1.R.2.S", "#1#S#3#4#S", "4231423142", "2341234123"], speed: 1.95 },
+    { rows: ["#S#S#S#S#S", "S#S#S#S#S#", "43X1432X43", "S1S2S3S4S1", ".1.2.?.4.1", "2R3S4S1S2R", "#2#3#4#1#2", "3.4.1.2.3.", "S4S1S2S3S4", "1234123412"], speed: 2.08 }
   ];
 
   var BRICK_COLOR = {
@@ -771,7 +772,10 @@ canvas {
     // different at a glance, not just as another hue in the rotation.
     "X": { fill: "#ff5c1a", glow: "rgba(255,92,26,.85)" },
     // #51: regenerating.
-    "R": { fill: "#b06cff", glow: "rgba(176,108,255,.8)" }
+    "R": { fill: "#b06cff", glow: "rgba(176,108,255,.8)" },
+    // #52: unresolved mystery. Deliberately drab and unlike anything it can
+    // turn into — it should read as "not yet a type", not as a type.
+    "?": { fill: "#3d4463", glow: "rgba(120,130,180,.55)" }
   };
 
   var COLS = 10;
@@ -794,6 +798,20 @@ canvas {
     { type: "narrow", color: "#ff3b3b", weight: 4, good: false, label: "N" },
     { type: "fast", color: "#ff7a3b", weight: 4, good: false, label: "F" }
   ];
+  // #52: what a "?" can turn into, weighted. Ordinary bricks dominate so the
+  // usual outcome is anticlimactic and the rare ones land; "#" is the risk the
+  // type exists for, and is rarest because it is the only outcome that takes
+  // something away from the player permanently.
+  var MYSTERY_TYPES = [
+    { type: "1", weight: 6 }, { type: "2", weight: 6 },
+    { type: "3", weight: 6 }, { type: "4", weight: 6 },
+    { type: "S", weight: 4 },
+    { type: "X", weight: 3 },
+    { type: "R", weight: 2 },
+    { type: "#", weight: 2 }
+  ];
+  var MYSTERY_TOTAL_WEIGHT = MYSTERY_TYPES.reduce(function (s, m) { return s + m.weight; }, 0);
+
   var POWERUP_TOTAL_WEIGHT = POWERUPS.reduce(function (s, p) { return s + p.weight; }, 0);
   var DROP_CHANCE = 0.16;
   // Computed once — getComputedStyle forces a synchronous style recalculation,
@@ -1890,7 +1908,33 @@ canvas {
     }
   }
 
+  // #52: turn a "?" into a real type. Called at the top of brickHit(), so the
+  // hit that revealed the brick then lands on whatever it became — silver takes
+  // its first damage, an explosive goes off, a wall simply refuses.
+  //
+  // The remainingBricks adjustment is the whole reason this is not a two-line
+  // function. buildLevel() counted every "?" as clearable, because at build time
+  // it had 1hp like any other brick. Resolving into "#" makes it permanently
+  // unclearable, so the count has to come down with it — otherwise the level can
+  // never reach zero and the run softlocks with nothing left to hit.
+  function resolveMystery(brick) {
+    var r = Math.random() * MYSTERY_TOTAL_WEIGHT;
+    var type = MYSTERY_TYPES[MYSTERY_TYPES.length - 1].type;
+    for (var i = 0; i < MYSTERY_TYPES.length; i++) {
+      r -= MYSTERY_TYPES[i].weight;
+      if (r <= 0) { type = MYSTERY_TYPES[i].type; break; }
+    }
+    brick.type = type;
+    brick.hp = type === "#" ? Infinity : type === "S" ? 2 : 1;
+    brick.regenLeft = type === "R" ? CONFIG.regen.max : 0;
+    brick.regenTimer = 0;
+    if (type === "#") state.remainingBricks -= 1;
+    burst(brick.x + brick.w / 2, brick.y + brick.h / 2, BRICK_COLOR[type].fill, 12);
+    beep(660, 0.08, "triangle", 0.04);
+  }
+
   function brickHit(brick) {
+    if (brick.type === "?") resolveMystery(brick);
     var color = BRICK_COLOR[brick.type] || BRICK_COLOR["1"];
     burst(brick.x + brick.w / 2, brick.y + brick.h / 2, color.fill, 10);
     if (brick.type === "#") { beep(120, 0.05, "square", 0.03); return; }
@@ -2358,6 +2402,14 @@ canvas {
         ctx.beginPath();
         ctx.arc(b.x + b.w / 2, b.y + b.h / 2, 4, 0, Math.PI * 2);
         ctx.stroke();
+      } else if (b.type === "?") {
+        ctx.fillStyle = "rgba(255,255,255,0.9)";
+        ctx.font = DROP_FONT;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("?", b.x + b.w / 2, b.y + b.h / 2 + 1);
+        ctx.textAlign = "left";
+        ctx.textBaseline = "alphabetic";
       }
     }
   }

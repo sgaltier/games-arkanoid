@@ -9,7 +9,7 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 5 open findings.
+**Status:** 4 open findings.
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
 test → fix → move the finding's whole entry from this file to [done.md](done.md), prepending a
@@ -39,17 +39,6 @@ solvable, brick-adjacency layouts that don't trap the ball.
 
 Not attempted; flagged here as a possible follow-up if endless play is wanted later, not as a
 commitment.
-
----
-
-## New brick types
-
-### 52. Mystery bricks (S)
-
-A brick whose type is hidden until first struck, then resolves into any other type — including an
-indestructible wall, which is the risk that makes it interesting. It is a small change (one new
-character in the level map plus a resolve step in `brickHit()`) that adds per-run variance to
-hand-authored levels for free.
 
 ---
 

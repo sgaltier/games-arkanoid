@@ -27,10 +27,43 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #67 | ✅ Fixed — 2026-08-14 |
 | #49 | ✅ Fixed — 2026-08-14 |
 | #51 | ✅ Fixed — 2026-08-14 |
-| #41, #52, #58, #59, #60 | 🔲 Open |
+| #52 | ✅ Fixed — 2026-08-14 |
+| #41, #58, #59, #60 | 🔲 Open |
 
-45 of 50 findings fixed. See [todo.md](todo.md) for what's still open, and
+46 of 50 findings fixed. See [todo.md](todo.md) for what's still open, and
 [feature-ideas.md](feature-ideas.md) for proposals not yet promoted to the backlog.
+
+---
+
+## 2026-08-14 — Mystery bricks (#52)
+
+### Added
+
+**A `?` brick that could be anything.** It has no type until you hit it; the first strike resolves
+it into an ordinary brick, silver, an explosive, a regenerator — or an indestructible wall, which is
+the risk that makes hitting one a decision rather than a formality. The revealing hit then lands on
+whatever it became, so a `?` that turns into an explosive goes off immediately, and one that turns
+into a wall simply refuses. Eight are placed across levels 2, 5, 7, 9 and 10.
+
+Ordinary bricks are weighted heavily, so most reveals are anticlimactic and the rare ones land. The
+wall is rarest, being the only outcome that costs the player something permanently.
+
+### Notes
+
+The finding described this as a small change — one character in the level map and a resolve step.
+It is one line longer than that, and the extra line prevents a softlock: a `?` is counted as
+clearable when the level is built, because it has 1hp like anything else, so a `?` that resolves
+into an indestructible wall has to come off the count as it resolves. Without that the level could
+never reach zero and the run would sit there with nothing left to hit.
+
+Five regression cases, each checked against a mutation that should break it, including that exact
+softlock. Two of them depend on a seeded board producing a wall and a silver, so both now assert the
+interesting case actually occurred — otherwise a future change to how randomness is consumed would
+leave them passing while checking nothing.
+
+Also fixed a wrong model in the tests: the first version of the counter helper treated a brick that
+is down awaiting regeneration as still destroyable. It deliberately is not (#51) — that is what lets
+a level clear while one is away. The helper was wrong, not the game.
 
 ---
 
