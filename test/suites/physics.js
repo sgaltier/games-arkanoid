@@ -26,6 +26,16 @@ function place(g, { x, y, dx, dy, speed }) {
 
 function len(b) { return Math.hypot(b.dx, b.dy); }
 
+// The levels the randomised sweeps below run over: every authored level, plus a
+// spread of generated ones (#41). Sweeping all 100 would triple a suite that
+// runs in ~1.3s today for coverage the sample already gives — the generated
+// levels differ by archetype and type mix, not one by one.
+function sweptLevels(g) {
+  const authored = g.T.LEVELS.length;
+  const sampled = [15, 30, 50, 75, 100].map((n) => n - 1);
+  return Array.from({ length: authored }, (_, i) => i).concat(sampled);
+}
+
 // Auto-player: keep the paddle under the ball so a sweep can run for a long time.
 function autoplay(g) {
   const b = g.T.state.balls[0];
@@ -208,7 +218,7 @@ module.exports = {
       fn(a) {
         const g = boot();
         g.el("btn-start").click(1);
-        g.T.startLevel(g.T.LEVELS.length - 1); // fastest level
+        g.T.startLevel(g.T.CONFIG.progression.totalLevels - 1); // fastest level
         g.key("Space");
         g.T.applyPowerup({ type: "fast" });   // speed-up power-up...
         g.T.state.difficultyMult = g.T.CONFIG.difficulty.max; // ...stacked with the ramp at its cap
@@ -230,8 +240,7 @@ module.exports = {
     {
       name: "invariants hold over a long randomised run on every level",
       fn(a) {
-        const levelCount = boot().T.LEVELS.length;
-        for (let level = 0; level < levelCount; level++) {
+        for (const level of sweptLevels(boot())) {
           const g = boot({ seed: 1000 + level });
           g.el("btn-start").click(1);
           g.T.startLevel(level);
@@ -254,8 +263,7 @@ module.exports = {
         // Same sweep, but every drop is collected the instant it appears. The
         // |dy| floor is not asserted here: multi-ball clones are spawned at an
         // angle offset that can legitimately produce a shallow ball (finding #12).
-        const levelCount = boot().T.LEVELS.length;
-        for (let level = 0; level < levelCount; level++) {
+        for (const level of sweptLevels(boot())) {
           const g = boot({ seed: 7000 + level });
           g.el("btn-start").click(1);
           g.T.startLevel(level);

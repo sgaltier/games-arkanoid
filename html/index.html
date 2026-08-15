@@ -564,7 +564,7 @@ canvas {
     </div>
     <div class="hud-cell level">
       <div class="hud-label" data-i18n="hud.level">Niveau</div>
-      <div class="hud-value" id="hud-level">1/10</div>
+      <div class="hud-value" id="hud-level">1/100</div>
     </div>
     <div class="hud-cell lives">
       <div class="hud-label" data-i18n="hud.lives">Vies</div>
@@ -756,7 +756,16 @@ canvas {
     { rows: ["##2#4#1#3#", "S3S1S4S2S1", "1.3.?.2.4.", "424R4?42R4", "S1S2S3S4S2", "#4#1#3#2#4", ".1.3.S.4.2", "3142314231"], speed: 1.70 },
     { rows: ["#1#2#S#3#4", "2S3SXS4S2S", ".4.2.S.1.3", "1#3#S#2#4#", "4S2S1S3S4S", "#2#4#1#S#3", ".3.1.4.2.S", "2413241324"], speed: 1.82 },
     { rows: ["#S#1#S#2#S", "3S1S4S2S1S", ".2.?.4.S.1", "4#2#?#1#3#", "1S3S2S4S3S", ".4.1.R.2.S", "#1#S#3#4#S", "4231423142", "2341234123"], speed: 1.95 },
-    { rows: ["#S#S#S#S#S", "S#S#S#S#S#", "43X1432X43", "S1S2S3S4S1", ".1.2.?.4.1", "2R3S4S1S2R", "#2#3#4#1#2", "3.4.1.2.3.", "S4S1S2S3S4", "1234123412"], speed: 2.08 }
+    // #68: rows 1 and 2 used to be offset ("#S#S#S#S#S" over "S#S#S#S#S#"),
+    // which boxed each of the top row's five silvers in on all four sides —
+    // walls left, right and below, the ceiling above. With a 7px ball and 3px
+    // brick margins there is no diagonal squeeze, so those five could never be
+    // hit and the level could never be cleared. Aligning the two rows into
+    // alternating full-height wall and silver pillars keeps the gauntlet (same
+    // brick types, same counts) and puts a destructible brick under every
+    // silver. Rows are checked by ensureReachable() only when generated, so an
+    // authored layout is on the author to keep clearable — `#68` is the test.
+    { rows: ["#S#S#S#S#S", "#S#S#S#S#S", "43X1432X43", "S1S2S3S4S1", ".1.2.?.4.1", "2R3S4S1S2R", "#2#3#4#1#2", "3.4.1.2.3.", "S4S1S2S3S4", "1234123412"], speed: 2.08 }
   ];
 
   var BRICK_COLOR = {
@@ -817,17 +826,23 @@ canvas {
     { count: 8, speed: 28, size: 2, alpha: 0.65 }
   ];
 
+  // Lehmer/Park-Miller, seeded by the caller. Deterministic, and deliberately
+  // not Math.random(): what it feeds — the star field here, generated layouts
+  // in #41 — has to come out the same every time a level is entered, or a retry
+  // reads as a glitch. Rolling for either from the shared stream would also make
+  // drop chances and mystery resolutions depend on how many levels had been
+  // painted or generated, which is the hazard #58f, #59g and #60d pin down for
+  // the shake, the music and the background.
+  function seededRandom(seed) {
+    var s = seed % 2147483647;
+    if (s <= 0) s += 2147483646;
+    return function () { s = (s * 16807) % 2147483647; return s / 2147483647; };
+  }
+
   // Grouped by layer, because drawParallax() then sets one fill style per layer
   // rather than one per star.
-  //
-  // Deterministic, and deliberately not Math.random(): a level has to look the
-  // same every time it is entered, or a retry reads as a glitch — and rolling
-  // for the field would put the paint into the same RNG stream drop chances and
-  // mystery bricks come out of, which is the hazard #58f and #59g pin down for
-  // the shake and the music.
   function buildStars(levelIndex) {
-    var seed = (levelIndex + 1) * 7919;
-    function next() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+    var next = seededRandom((levelIndex + 1) * 7919);
     var layers = [];
     for (var l = 0; l < STAR_LAYERS.length; l++) {
       var pts = [];
@@ -845,6 +860,198 @@ canvas {
   var BRICK_W = (GAME_W - FIELD_PAD * 2 - BRICK_MARGIN * (COLS - 1)) / COLS;
   var BRICK_H = 20;
   var BRICK_TOP = 66;
+
+  // ---------------------------------------------------------------------
+  // The generated campaign (#41)
+  //   The run is CONFIG.progression.totalLevels long; LEVELS covers the first
+  //   ten of it and generateLevel() builds the rest from the level index alone.
+  //   Level 47 is therefore the same layout for every player and reproducible
+  //   in a test, and nothing downstream can tell an authored level from a
+  //   generated one — levelDef() is the only thing that knows the difference.
+  // ---------------------------------------------------------------------
+
+  // Half-width row patterns (five cells), mirrored into the full ten columns.
+  // Per-cell randomness produces mush; the authored levels are patterned, and
+  // symmetry is most of what makes a layout read as authored rather than rolled.
+  var ARCHETYPES = [
+    // solid bands
+    function () { return true; },
+    // checker
+    function (r, c) { return (r + c) % 2 === 0; },
+    // columns, with a solid course every fourth row
+    function (r, c) { return r % 4 === 0 || c % 2 === 0; },
+    // pyramid — a couple of bricks at the top widening to a full bottom row
+    function (r, c, rows) { return c >= Math.floor((rows - 1 - r) * 5 / rows); },
+    // diamond — widest across the middle
+    function (r, c, rows) {
+      var m = (rows - 1) / 2;
+      return c >= Math.round(Math.abs(r - m) * 5 / (m + 1));
+    },
+    // fortress — an outer shell and an inner one, joined by side walls
+    function (r, c, rows) {
+      return r === 0 || r === 2 || r === rows - 3 || r === rows - 1 || c === 0;
+    },
+    // arch — an opening under the middle of the layout
+    function (r, c, rows) { return r < rows - 3 || c < 3; }
+  ];
+
+  // Flood fill up from the open space below the layout. Empty cells and
+  // destructible bricks are passable — a destructible brick opens its own cell
+  // once it is gone — and "#" is not.
+  var FLOOD_DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  function reachableCells(grid, rows) {
+    var seen = [], queue = [], r, c;
+    for (r = 0; r < rows; r++) {
+      seen.push([]);
+      for (c = 0; c < COLS; c++) seen[r].push(false);
+    }
+    for (c = 0; c < COLS; c++) {
+      if (grid[rows - 1][c] === "#") continue;
+      seen[rows - 1][c] = true;
+      queue.push([rows - 1, c]);
+    }
+    while (queue.length) {
+      var cell = queue.pop();
+      for (var i = 0; i < FLOOD_DIRS.length; i++) {
+        var nr = cell[0] + FLOOD_DIRS[i][0], nc = cell[1] + FLOOD_DIRS[i][1];
+        if (nr < 0 || nr >= rows || nc < 0 || nc >= COLS) continue;
+        if (seen[nr][nc] || grid[nr][nc] === "#") continue;
+        seen[nr][nc] = true;
+        queue.push([nr, nc]);
+      }
+    }
+    return seen;
+  }
+
+  // Turn one wall into an ordinary brick, preferring one that faces open space —
+  // that is the wall actually sealing the pocket. Returns false when there is no
+  // wall left to give, which is what bounds the repair loop below.
+  function openOneWall(grid, rows, seen, plainAt) {
+    var fallback = null;
+    for (var r = 0; r < rows; r++) {
+      for (var c = 0; c < COLS; c++) {
+        if (grid[r][c] !== "#") continue;
+        if (!fallback) fallback = [r, c];
+        if ((r > 0 && seen[r - 1][c]) || (r < rows - 1 && seen[r + 1][c]) ||
+            (c > 0 && seen[r][c - 1]) || (c < COLS - 1 && seen[r][c + 1])) {
+          grid[r][c] = plainAt(r, c);
+          return true;
+        }
+      }
+    }
+    if (!fallback) return false;
+    grid[fallback[0]][fallback[1]] = plainAt(fallback[0], fallback[1]);
+    return true;
+  }
+
+  // A destructible brick walled off from the ball is a softlock: nothing can
+  // reach it, remainingBricks never falls to zero and the run is dead with
+  // nothing left to hit. Repair rather than re-roll — a repair pass is
+  // deterministic, so it costs nothing in seed stability, and it terminates
+  // because with no walls left everything is reachable.
+  function ensureReachable(grid, rows, plainAt) {
+    for (;;) {
+      var seen = reachableCells(grid, rows);
+      var stuck = false;
+      for (var r = 0; r < rows && !stuck; r++) {
+        for (var c = 0; c < COLS; c++) {
+          var ch = grid[r][c];
+          if (ch !== "." && ch !== "#" && !seen[r][c]) { stuck = true; break; }
+        }
+      }
+      if (!stuck) return;
+      if (!openOneWall(grid, rows, seen, plainAt)) return;
+    }
+  }
+
+  // Scatter `count` bricks of one type over cells that already hold an ordinary
+  // brick. Done after the mirror so the counts stay exactly what the escalation
+  // table below asks for rather than silently doubling; a handful of asymmetric
+  // accents does not cost a layout its authored read, a doubled explosive budget
+  // would.
+  function scatterType(grid, rows, rnd, ch, count) {
+    for (var i = 0; i < count; i++) {
+      var open = [];
+      for (var r = 0; r < rows; r++) {
+        for (var c = 0; c < COLS; c++) {
+          var cur = grid[r][c];
+          if (cur === "1" || cur === "2" || cur === "3" || cur === "4" || cur === "S") {
+            open.push([r, c]);
+          }
+        }
+      }
+      if (!open.length) return;
+      var p = open[Math.floor(rnd() * open.length)];
+      grid[p[0]][p[1]] = ch;
+    }
+  }
+
+  // Both curves saturate rather than compound, so level 100 is hard but still a
+  // game. Speed is deliberately modest — at the cap the ball already crosses
+  // ~51px in a worst-case 33ms frame once the fast power-up and the mid-level
+  // ramp stack on it — which means layout, not speed, carries the back half of
+  // the difficulty. Both are anchored on the authored table so the curve picks
+  // up exactly where LEVELS leaves off.
+  function levelSpeed(n) {
+    var p = CONFIG.progression;
+    var last = LEVELS[LEVELS.length - 1].speed;
+    return p.speedCap - (p.speedCap - last) * Math.exp(-(n - LEVELS.length) / p.speedTau);
+  }
+  // Exactly n through the authored levels — the existing scoring tests pin that
+  // — then saturates toward scoreCap instead of growing linearly, so a level-100
+  // brick is worth about twice a level-10 one rather than ten times.
+  function levelMultiplier(n) {
+    if (n <= LEVELS.length) return n;
+    var p = CONFIG.progression;
+    return p.scoreCap - (p.scoreCap - LEVELS.length) *
+      Math.exp(-(n - LEVELS.length) / p.scoreTau);
+  }
+
+  function generateLevel(idx) {
+    var d = idx - LEVELS.length; // 0 on the first generated level
+    var rnd = seededRandom((idx + 1) * 104729);
+    var rows = Math.min(10, 6 + Math.floor(d / 12)); // 10 is the authored maximum
+    var shape = ARCHETYPES[Math.floor(rnd() * ARCHETYPES.length)];
+    var phase = Math.floor(rnd() * 4);
+    var diagonal = rnd() < 0.5; // colour by row, or along the diagonal
+    var silverP = Math.min(0.30, 0.10 + d * 0.005);
+    var wallP = d >= 3 ? Math.min(0.12, 0.03 + (d - 3) * 0.004) : 0;
+    function plainAt(r, c) {
+      return String(((diagonal ? r + c : r) + phase) % 4 + 1);
+    }
+
+    var grid = [];
+    for (var r = 0; r < rows; r++) {
+      var half = [];
+      for (var c = 0; c < 5; c++) {
+        if (!shape(r, c, rows)) { half.push("."); continue; }
+        // Never a wall in the bottom row: one there is the easiest way to seal
+        // a pocket off from the only direction the ball arrives from.
+        if (r < rows - 1 && rnd() < wallP) { half.push("#"); continue; }
+        if (rnd() < silverP) { half.push("S"); continue; }
+        half.push(plainAt(r, c));
+      }
+      grid.push(half.concat(half.slice().reverse()));
+    }
+
+    scatterType(grid, rows, rnd, "X", d >= 2 ? Math.floor(rnd() * 4) : 0);
+    scatterType(grid, rows, rnd, "?", d >= 5 ? 1 + Math.floor(rnd() * 4) : 0);
+    scatterType(grid, rows, rnd, "R", d >= 10 ? Math.floor(rnd() * 3) : 0);
+    ensureReachable(grid, rows, plainAt);
+
+    var out = [];
+    for (var i = 0; i < grid.length; i++) out.push(grid[i].join(""));
+    return { rows: out, speed: levelSpeed(idx + 1) };
+  }
+
+  // The one place that reads the level table. Memoised a single slot deep
+  // because resetPaddleAndBall() re-reads the definition on every lost ball.
+  var levelCache = { idx: -1, def: null };
+  function levelDef(idx) {
+    if (idx < LEVELS.length) return LEVELS[idx];
+    if (levelCache.idx !== idx) levelCache = { idx: idx, def: generateLevel(idx) };
+    return levelCache.def;
+  }
 
   // ---------------------------------------------------------------------
   // Power-ups
@@ -898,6 +1105,19 @@ canvas {
   //   through the physics for them.
   // ---------------------------------------------------------------------
   var CONFIG = {
+    // #41: the shape of a full run. `totalLevels` is the campaign length —
+    // LEVELS authors the first ten and generateLevel() builds the rest — and the
+    // two `Cap`/`Tau` pairs are the saturating speed and score curves that carry
+    // it (see levelSpeed/levelMultiplier). `extraLifeEvery` is the relief that
+    // makes the length survivable: three lives across a hundred levels is not.
+    progression: {
+      totalLevels: 100,
+      speedCap: 2.8,        // level speed approaches this...
+      speedTau: 25,         // ...with a time constant of this many levels
+      scoreCap: 20,         // same shape for the per-level score multiplier
+      scoreTau: 30,
+      extraLifeEvery: 10    // +1 life on clearing every Nth level, capped at maxLives
+    },
     dropFallSpeed: 130,      // px/s a dropped power-up capsule falls at
     particleGravity: 260,    // px/s² downward acceleration on burst particles
     maxBalls: 5,             // multi-ball never grows the ball count past this
@@ -1317,7 +1537,7 @@ canvas {
   // Level / entity construction
   // ---------------------------------------------------------------------
   function buildLevel(idx) {
-    var def = LEVELS[idx];
+    var def = levelDef(idx);
     var bricks = [];
     var remaining = 0;
     for (var r = 0; r < def.rows.length; r++) {
@@ -1354,7 +1574,7 @@ canvas {
     state.stickyEffect = null;
     state.laserEffect = null;
     state.paddle.x = clamp(state.paddle.x, 0, GAME_W - paddleWidth());
-    var speed = state.baseBallSpeed * LEVELS[state.levelIndex].speed;
+    var speed = state.baseBallSpeed * levelDef(state.levelIndex).speed;
     state.balls = [{
       x: GAME_W / 2, y: state.paddle.y - 9, r: 7,
       dx: 0, dy: 0, speed: speed, attached: true
@@ -1718,9 +1938,10 @@ canvas {
   // switching language mid-game refreshes whatever overlay happens to be up.
   // Writing to hidden overlays is harmless and keeps this branch-free.
   function renderDynamicText() {
-    var levelOf = t("level.of", { n: state.levelIndex + 1, total: LEVELS.length });
+    var total = CONFIG.progression.totalLevels;
+    var levelOf = t("level.of", { n: state.levelIndex + 1, total: total });
     document.getElementById("start-eyebrow").textContent =
-      t("level.of", { n: 1, total: LEVELS.length });
+      t("level.of", { n: 1, total: total });
     document.getElementById("ready-eyebrow").textContent = levelOf;
     document.getElementById("levelclear-title").textContent =
       t("levelclear.title", { n: state.levelIndex + 1 });
@@ -2271,7 +2492,7 @@ canvas {
       // collision. comboMult scales score, capped so it can't run away.
       state.combo += 1;
       var comboMult = Math.min(CONFIG.combo.max, 1 + (state.combo - 1) * CONFIG.combo.step);
-      var basePts = (brick.type === "Sc" ? 15 : 10) * (state.levelIndex + 1);
+      var basePts = (brick.type === "Sc" ? 15 : 10) * levelMultiplier(state.levelIndex + 1);
       var pts = Math.round(basePts * comboMult);
       state.score += pts;
       spawnFloatingText(brick.x + brick.w / 2, brick.y + brick.h / 2, pts, state.combo);
@@ -2455,9 +2676,15 @@ canvas {
   function checkLevelClear() {
     if (state.remainingBricks <= 0) {
       maybeSaveBest();
-      if (state.levelIndex >= LEVELS.length - 1) {
+      if (state.levelIndex >= CONFIG.progression.totalLevels - 1) {
         endGame(true);
       } else {
+        // #41: the milestone life. Awarded on the way to the next level rather
+        // than unconditionally, so the last level of the run doesn't hand out
+        // one nobody gets to spend.
+        if ((state.levelIndex + 1) % CONFIG.progression.extraLifeEvery === 0) {
+          state.lives = Math.min(state.maxLives, state.lives + 1);
+        }
         setPhase("levelclear");
       }
     }
@@ -2589,7 +2816,7 @@ canvas {
     if (hudLast.score !== score) { hudScore.textContent = score; hudLast.score = score; }
     var best = Math.max(state.best, state.score);
     if (hudLast.best !== best) { hudBest.textContent = best; hudLast.best = best; }
-    var level = (state.levelIndex + 1) + "/" + LEVELS.length;
+    var level = (state.levelIndex + 1) + "/" + CONFIG.progression.totalLevels;
     if (hudLast.level !== level) { hudLevel.textContent = level; hudLast.level = level; }
     var dots = "";
     for (var i = 0; i < state.lives; i++) dots += "●";

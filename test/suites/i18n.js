@@ -225,7 +225,7 @@ module.exports = {
         g.T.renderDynamicText();
         const leftovers = g.registry.filter((e) => /\{\w+\}/.test(e.textContent));
         a.empty(leftovers.map((e) => e.textContent), "unsubstituted placeholders reached the DOM");
-        a.eq(g.el("ready-eyebrow").textContent, `Niveau 1 / ${g.T.LEVELS.length}`);
+        a.eq(g.el("ready-eyebrow").textContent, `Niveau 1 / ${g.T.CONFIG.progression.totalLevels}`);
         a.eq(g.el("gameover-best").textContent, "Meilleur score : 999");
       },
     },
@@ -271,7 +271,7 @@ module.exports = {
         const g = boot({ langs: ["en-GB"] });
         g.el("btn-start").click(1);
         g.T.startLevel(2);
-        a.eq(g.el("ready-eyebrow").textContent, `Level 3 / ${g.T.LEVELS.length}`);
+        a.eq(g.el("ready-eyebrow").textContent, `Level 3 / ${g.T.CONFIG.progression.totalLevels}`);
       },
     },
   ],

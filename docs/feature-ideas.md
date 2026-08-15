@@ -19,7 +19,8 @@ capability (things merely *absent*).
 moves. Do not reuse these numbers for new review findings. Numbers missing below (#49, #51, #52,
 #58, #59, #60) have already been promoted into [todo.md](todo.md).
 
-**What already exists** (so nothing below duplicates it): 10 hand-authored levels; 4 brick colours
+**What already exists** (so nothing below duplicates it): a 100-level campaign — 10 hand-authored
+levels and 90 generated deterministically from the level number (#41); 4 brick colours
 plus silver (2 hp) and indestructible walls; 8 power-ups (`widen`, `narrow`, `slow`, `fast`,
 `multi`, `life`, `sticky`, `laser`); a within-level difficulty ramp; a combo score multiplier;
 floating score pop-ups; particle bursts; a 10-entry local hall of fame; FR/EN localisation;
@@ -42,12 +43,13 @@ and a new sub-phase inside `playing` — but it is also the single biggest step 
 production value, and the current architecture (a `state` object with per-frame update/draw
 function pairs) accommodates a new entity kind cleanly.
 
-### 45. Procedural endless mode (M)
+### 45. Procedural levels past the authored 10 (M)
 
 Already logged as finding #41 in [todo.md](todo.md); repeated here only so this menu is complete.
-A generated-levels mode past the hand-authored 10, with the win condition replaced by a score
-target, a survival timer, or simply "play until you die". The open design question is what
-"winning" means once `LEVELS.length` stops being the boundary.
+The design question this entry used to leave open — what "winning" means once `LEVELS.length` stops
+being the boundary — has since been answered there: not an endless mode but a 100-level campaign,
+10 authored plus 90 generated, ending in the `victory` the game already has, with layouts seeded
+deterministically from the level number so one global board still means something.
 
 ### 46. Level select and per-level star ratings (S/M)
 
@@ -157,9 +159,10 @@ honest about which difficulty a score was set on.
 ### 64. Resume an interrupted run (S/M)
 
 Serialising enough of `state` to `localStorage` on pause or page-hide, and offering "continue" on
-the next visit. A run through 10 levels is long enough that closing the tab loses real progress
-today. The main design question is what to do about scores — a resumed run should probably still be
-hall-of-fame eligible, but that is a decision, not an accident.
+the next visit. Since #41 a full run is 100 levels — one to two hours in a single sitting — so
+closing the tab does not lose a few minutes, it loses the whole run. The main design question is
+what to do about scores: a resumed run should probably still be hall-of-fame eligible, but that is a
+decision, not an accident.
 
 ---
 

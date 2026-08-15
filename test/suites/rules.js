@@ -131,7 +131,7 @@ module.exports = {
       fn(a) {
         const g = boot();
         g.el("btn-start").click(1);
-        for (let i = 0; i < g.T.LEVELS.length; i++) {
+        for (let i = 0; i < g.T.CONFIG.progression.totalLevels; i++) {
           g.T.startLevel(i);
           const destructible = g.T.state.bricks.filter((b) => b.hp !== Infinity);
           a.gt(destructible.length, 0, `level ${i + 1} has nothing to destroy`);
@@ -144,7 +144,7 @@ module.exports = {
       fn(a) {
         const g = boot();
         g.el("btn-start").click(1);
-        for (let i = 0; i < g.T.LEVELS.length; i++) {
+        for (let i = 0; i < g.T.CONFIG.progression.totalLevels; i++) {
           g.T.startLevel(i);
           for (const b of g.T.state.bricks) {
             a.gte(b.x, 0, `level ${i + 1}: brick off the left edge`);

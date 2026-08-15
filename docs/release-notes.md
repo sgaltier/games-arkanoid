@@ -31,12 +31,72 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #58 | ✅ Fixed — 2026-08-14 |
 | #59 | ✅ Fixed — 2026-08-15 |
 | #60 | ✅ Fixed — 2026-08-15 |
-| #41 | 🔲 Open |
+| #41 | ✅ Fixed — 2026-08-15 |
+| #68 | ✅ Fixed — 2026-08-15 |
 
-49 of 50 findings fixed. See [todo.md](todo.md) for what's still open, and
+51 of 51 findings fixed. See [todo.md](todo.md) for what's still open, and
 [feature-ideas.md](feature-ideas.md) for proposals not yet promoted to the backlog.
 
 ---
+
+## 2026-08-15 — Level 10 was unfinishable (#68)
+
+### Fixed
+
+**Level 10 could not be cleared.** Its top two rows were offset by one, which walled each of the top
+row's five silver bricks in on every side — walls left, right and below, the ceiling above. The ball
+is too big to squeeze through a 3 px diagonal gap, so those five could never be hit by anything the
+game has, and the level never registered as complete. The two rows are now aligned into wall and
+silver pillars: same bricks, same count, same speed, but every silver has something breakable under
+it.
+
+Before the 100-level campaign this meant the game could not be won. After it, the run stopped dead
+at level 10 with ninety levels behind it.
+
+### Notes
+
+Generated levels are already checked for this at generation time; hand-authored ones were not, so
+the check now runs over those too, and a test pins the specific shape that caused it.
+
+## 2026-08-15 — A 100-level campaign (#41)
+
+### Added
+
+**The game is 100 levels long.** It used to end after the ten hand-authored ones, about fifteen
+minutes of play. Those ten are unchanged and still open the run; levels 11 to 100 are built from the
+level number, and the run still finishes on the same `victory` screen it always did. There is no
+endless mode — a run that ends is what keeps one global, never-reset leaderboard meaningful.
+
+**Level 47 is level 47 for everybody.** Layouts are seeded from the level number, not rolled, so
+every player meets the same board and a retry is a retry rather than a fresh shuffle.
+
+**Levels are built from shapes, not noise** — solid bands, checker, columns, pyramid, diamond,
+fortress, arch — each mirrored down the middle, which is most of what makes a layout read as drawn
+by hand. Silver, walls, explosives, mystery and regenerating bricks arrive on a schedule as the
+campaign deepens, so level 11 still plays like a level and level 90 does not look like level 11 with
+more of everything.
+
+**Clearing every tenth level hands back a life**, up to the usual maximum of five. Three lives across
+a hundred levels is not a game.
+
+### Notes
+
+Speed rises toward a ceiling rather than climbing forever: 2.32× at level 20, 2.65× at 50, 2.78× at
+100. Past a point, a faster ball stops being harder and starts being unreadable, so the back half of
+the difficulty is carried by what the levels are made of. Brick value saturates the same way — a
+level-100 brick is worth about twice a level-10 one, not ten times — and scoring through the first
+ten levels is bit-for-bit what it was.
+
+Every generated level is checked, at generation time, for bricks the ball could never reach; a wall
+that would seal one off is downgraded until the layout is clearable. A brick you cannot hit is a run
+that cannot end.
+
+Two server-side limits moved with it: a finished 100-level run scores enough, fast enough, that the
+old anti-forgery ceiling would have rejected it outright, and a run now takes long enough that the
+old session window could expire mid-game. Scores already on the world board stay exactly as they
+are; new runs simply score on a larger scale.
+
+Eight regression cases, each verified against the mutation that should break it.
 
 ## 2026-08-15 — Per-act backdrops and parallax (#60)
 

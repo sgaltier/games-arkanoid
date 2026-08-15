@@ -19,14 +19,19 @@ const NAME_MAX = 12;
 
 // A token older than this cannot be redeemed. Long enough for a slow full
 // playthrough, short enough that stockpiling tokens to age them is pointless.
-const TOKEN_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+// #41 made a full run 100 levels — one to two hours of play, with no save and
+// resume (#64) — so a lunch break mid-run used to invalidate the submission.
+// The UNIQUE constraint on `nonce` is what actually prevents replay, so the
+// longer window costs little.
+const TOKEN_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 // No genuine qualifying run is over in seconds.
 const MIN_RUN_MS = 15 * 1000;
-// Scoring-rate ceiling. Peak legitimate output is roughly 10 bricks/second at
-// the level-10 rate (38 points at the capped combo multiplier), so this sits
-// well above real play and exists to catch submissions that are wrong by orders
-// of magnitude rather than to police the margins.
-const MAX_POINTS_PER_SEC = 500;
+// Scoring-rate ceiling. Exists to catch submissions that are wrong by orders of
+// magnitude, not to police the margins. #41's 100-level campaign scores roughly
+// 1.5M; at 30 seconds a level that is ~504 points per second, which cleared the
+// previous ceiling of 500 — a finished run would have been rejected as a
+// forgery. 1000 keeps about 2x headroom over real play.
+const MAX_POINTS_PER_SEC = 1000;
 const ABSOLUTE_MAX_SCORE = 10000000;
 
 // Rate limit per client IP.

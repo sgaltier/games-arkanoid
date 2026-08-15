@@ -4,9 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Blokrush — a bilingual (French/English) neon-arcade Breakout clone. The game itself
-(HTML + CSS + JS) is one self-contained file, [html/index.html](html/index.html): no build step,
-no dependencies, no `package.json`. Open it directly in a browser (`file://` works) to play it.
+Blokrush — a bilingual (French/English) neon-arcade Breakout clone, a 100-level campaign ending in a
+`victory` screen (#41). The game itself (HTML + CSS + JS) is one self-contained file,
+[html/index.html](html/index.html): no build step, no dependencies, no `package.json`. Open it
+directly in a browser (`file://` works) to play it.
 
 Since #67 there is also a server side — [functions/api/scores.js](functions/api/scores.js), a
 Cloudflare Pages Function backing the global hall of fame. It is **not** required to play: with the
@@ -88,7 +89,14 @@ nameservers to gain one static subdomain would put that at risk for no benefit.
 `index.html` is `<style>` + markup + a `<script>` containing one IIFE — the whole game is a
 closure with nothing exposed globally. Inside the IIFE, roughly top to bottom:
 
-- `LEVELS` — 10 hand-authored levels as rows of characters (brick type per cell).
+- `LEVELS` — the 10 hand-authored levels as rows of characters (brick type per cell). Since #41 the
+  campaign is `CONFIG.progression.totalLevels` (100) long; `generateLevel(idx)` builds everything
+  past the table, seeded from the level index, and `levelDef(idx)` is the only thing that reads
+  either — never index `LEVELS` directly, and never use `LEVELS.length` as the campaign length.
+  Generated levels are flood-filled by `ensureReachable()` so no destructible brick can be walled
+  off; **authored ones are not**, and #68 was exactly that bug shipped — level 10 boxed five silvers
+  in behind walls and could never be cleared. Editing a row in `LEVELS` means re-running the suite:
+  `#68` is the guard.
 - `POWERUPS` — weighted drop table (`widen`, `slow`, `multi`, `life` good; `narrow`, `fast` bad).
 - `STRINGS` / `SUPPORTED_LANGS` / `DEFAULT_LANG` — the i18n table and `t(key, params)` lookup.
 - `state` — the single mutable game-state object (phase, score, bricks, balls, paddle, active

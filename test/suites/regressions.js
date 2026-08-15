@@ -14,6 +14,65 @@
 
 const { boot, HTML, SCRIPT } = require("../dom-stub");
 
+// Empty a level the short way. Bypassing brickHit means the remainingBricks
+// counter it maintains (#16) has to be kept in sync by hand.
+function clearBricks(g) {
+  g.T.state.bricks.forEach((b) => { if (b.hp !== Infinity) b.alive = false; });
+  g.T.state.remainingBricks = 0;
+}
+
+// Destructible bricks in the level currently loaded that the ball can never
+// touch — a softlock, since remainingBricks then never falls to zero and the run
+// is dead with nothing left to hit (#41c for generated levels, #68 for authored
+// ones). Written out here rather than calling the game's own validator, so a
+// broken validator cannot pass itself.
+function walledOffBricks(g) {
+  const bricks = g.T.state.bricks;
+  // Recover grid coordinates from geometry: the smallest gap between two
+  // distinct brick origins is the cell pitch, so an entirely empty row or column
+  // still counts as one cell rather than collapsing away and inventing adjacency.
+  const axis = (vals) => {
+    const u = [...new Set(vals)].sort((p, q) => p - q);
+    const pitch = Math.min(...u.slice(1).map((v, k) => v - u[k]));
+    return { min: u[0], pitch, size: Math.round((u[u.length - 1] - u[0]) / pitch) + 1 };
+  };
+  const X = axis(bricks.map((b) => b.x));
+  const Y = axis(bricks.map((b) => b.y));
+  const grid = Array.from({ length: Y.size }, () => Array(X.size).fill("."));
+  for (const b of bricks) {
+    grid[Math.round((b.y - Y.min) / Y.pitch)][Math.round((b.x - X.min) / X.pitch)] =
+      b.hp === Infinity ? "#" : "o";
+  }
+
+  // Up from the open space below the layout. Empty cells and destructible bricks
+  // are passable — a destructible brick opens its own cell once it is gone —
+  // walls are not.
+  const seen = grid.map((row) => row.map(() => false));
+  const queue = [];
+  for (let c = 0; c < X.size; c++) {
+    if (grid[Y.size - 1][c] === "#") continue;
+    seen[Y.size - 1][c] = true;
+    queue.push([Y.size - 1, c]);
+  }
+  while (queue.length) {
+    const [r, c] = queue.pop();
+    for (const [dr, dc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nr = r + dr, nc = c + dc;
+      if (nr < 0 || nr >= Y.size || nc < 0 || nc >= X.size) continue;
+      if (seen[nr][nc] || grid[nr][nc] === "#") continue;
+      seen[nr][nc] = true;
+      queue.push([nr, nc]);
+    }
+  }
+  const out = [];
+  for (let r = 0; r < Y.size; r++) {
+    for (let c = 0; c < X.size; c++) {
+      if (grid[r][c] === "o" && !seen[r][c]) out.push({ r, c });
+    }
+  }
+  return out;
+}
+
 // Shared #49/#51 fixture. Level 0 is four solid rows of ten 1hp bricks with no gaps, so
 // buildLevel()'s row-major order makes state.bricks[row * 10 + col] the cell at
 // that grid position — a real layout with real geometry, rather than a
@@ -977,7 +1036,7 @@ module.exports = {
       fn(a) {
         const g = boot();
         g.el("btn-start").click(1);
-        g.T.startLevel(g.T.LEVELS.length - 1); // fastest level
+        g.T.startLevel(g.T.CONFIG.progression.totalLevels - 1); // fastest level
         g.key("Space");
         g.T.applyPowerup({ type: "fast" });
         // Pin the mid-level ramp at its cap — the combination the original
@@ -1006,7 +1065,7 @@ module.exports = {
         // for the instant before JS runs — check the raw source, not the
         // post-boot DOM, or a booted handle would mask the bug either way.
         const g = boot();
-        const total = g.T.LEVELS.length;
+        const total = g.T.CONFIG.progression.totalLevels;
         a.match(HTML, new RegExp(`id="hud-level">1/${total}<`),
           "the pre-JS fallback text should already read the real level count, not a stale one");
       },
@@ -1111,7 +1170,7 @@ module.exports = {
       fn(a) {
         const g = boot();
         g.el("btn-start").click(1);
-        g.T.startLevel(g.T.LEVELS.length - 1); // final level, so clearing it wins
+        g.T.startLevel(g.T.CONFIG.progression.totalLevels - 1); // final level, so clearing it wins
         g.key("Space");
         g.T.state.score = 10;
         g.T.state.bricks.forEach((b) => { if (b.hp !== Infinity) b.alive = false; });
@@ -2040,6 +2099,230 @@ module.exports = {
           Math.random = real;
         }
         a.eq(rolls, 0, "entering a level and painting it must not touch the RNG stream");
+      },
+    },
+
+    // -----------------------------------------------------------------------
+    // #41 — the 100-level campaign: 90 generated levels past the authored 10
+    // -----------------------------------------------------------------------
+    {
+      name: "#41a — the campaign runs to totalLevels and then victory",
+      fn(a) {
+        const total = boot().T.CONFIG.progression.totalLevels;
+        a.gt(total, boot().T.LEVELS.length, "the campaign has to be longer than the authored table");
+
+        const g = boot();
+        g.el("btn-start").click(1);
+        g.T.startLevel(total - 2); // the second-to-last level
+        g.key("Space");
+        clearBricks(g);
+        g.frame();
+        a.eq(g.T.state.phase, "levelclear", "there should still be a level after this one");
+
+        const w = boot();
+        w.el("btn-start").click(1);
+        w.T.startLevel(total - 1); // the last one
+        w.key("Space");
+        clearBricks(w);
+        w.frame();
+        a.eq(w.T.state.phase, "victory", "clearing the final level should win the game");
+      },
+    },
+    {
+      name: "#41b — every level in the campaign loads, is destructible and fits the field",
+      fn(a) {
+        const g = boot();
+        g.el("btn-start").click(1);
+        for (let i = 0; i < g.T.CONFIG.progression.totalLevels; i++) {
+          g.T.startLevel(i);
+          a.eq(g.T.state.levelIndex, i);
+          a.gt(g.T.state.bricks.filter((b) => b.hp !== Infinity).length, 0,
+            `level ${i + 1} has nothing to destroy`);
+          for (const b of g.T.state.bricks) {
+            a.gte(b.x, 0, `level ${i + 1}: brick off the left edge`);
+            a.lte(b.x + b.w, g.T.GAME_W, `level ${i + 1}: brick off the right edge`);
+            a.gt(b.y, 0, `level ${i + 1}: brick above the field`);
+            a.lt(b.y + b.h, g.T.state.paddle.y, `level ${i + 1}: brick overlapping the paddle`);
+          }
+        }
+      },
+    },
+    {
+      name: "#41c — every destructible brick in a generated level is reachable",
+      fn(a) {
+        const g = boot();
+        g.el("btn-start").click(1);
+        for (let i = g.T.LEVELS.length; i < g.T.CONFIG.progression.totalLevels; i++) {
+          g.T.startLevel(i);
+          for (const cell of walledOffBricks(g)) {
+            a.ok(false, `level ${i + 1}: a destructible brick at row ${cell.r}, column ${cell.c} is walled off`);
+          }
+        }
+      },
+    },
+    {
+      name: "#41d — a generated level is the same layout for every player",
+      fn(a) {
+        // Level 47 has to be level 47 whoever loads it, so it cannot come out of
+        // the shared Math.random() stream. Two boots with different RNG seeds.
+        const layout = (seed) => {
+          const g = boot({ seed });
+          g.el("btn-start").click(1);
+          g.T.startLevel(46);
+          return {
+            bricks: g.T.state.bricks.map((b) => `${b.type}@${b.x},${b.y}`).join("|"),
+            speed: g.T.state.balls[0].speed,
+          };
+        };
+        const one = layout(11), two = layout(999999);
+        a.eq(one.bricks, two.bricks, "the same level index produced two different layouts");
+        a.eq(one.speed, two.speed, "and two different speeds");
+        a.gt(one.bricks.length, 0, "the level should actually have bricks to compare");
+      },
+    },
+    {
+      name: "#41e — the speed curve is monotonic and stays under its cap",
+      fn(a) {
+        // The tunnelling case at the campaign's top speed is #38's test, which
+        // now runs at level totalLevels rather than level 10.
+        const g = boot();
+        g.el("btn-start").click(1);
+        const p = g.T.CONFIG.progression;
+        let prev = 0;
+        for (let i = 0; i < p.totalLevels; i++) {
+          g.T.startLevel(i);
+          const mult = g.T.state.balls[0].speed / g.T.state.baseBallSpeed;
+          a.gte(mult, prev, `level ${i + 1} is slower than the level before it`);
+          a.lt(mult, p.speedCap, `level ${i + 1} broke the speed cap`);
+          prev = mult;
+        }
+        a.gt(prev, g.T.LEVELS[g.T.LEVELS.length - 1].speed,
+          "the last level should be faster than the last authored one");
+      },
+    },
+    {
+      name: "#41f — generating a level consumes no randomness",
+      fn(a) {
+        // Same hazard as #58f, #59g and #60d: rolling a layout from the shared
+        // stream would make drop chances and mystery resolutions depend on how
+        // many levels had been generated before it.
+        const g = boot();
+        g.el("btn-start").click(1);
+        const real = Math.random;
+        let rolls = 0;
+        Math.random = () => { rolls++; return real(); };
+        try {
+          g.T.startLevel(59); // never generated in this boot before now
+          g.frame();
+        } finally {
+          Math.random = real;
+        }
+        a.eq(rolls, 0, "generating a level must not touch the RNG stream");
+      },
+    },
+    {
+      name: "#41g — brick value is unchanged through the authored levels and saturates after them",
+      fn(a) {
+        const g = boot();
+        g.el("btn-start").click(1);
+        const authored = g.T.LEVELS.length;
+        const p = g.T.CONFIG.progression;
+        // The first brick of a level is scored at combo 1, so the points are
+        // exactly 10 x the level multiplier — which is what this reads back.
+        const firstBrickValue = (idx) => {
+          g.T.startLevel(idx);
+          g.key("Space");
+          const brick = g.T.state.bricks.find(
+            (b) => b.alive && b.hp === 1 && "1234".includes(b.type));
+          a.ok(brick, `level ${idx + 1} should contain a plain brick`);
+          const before = g.T.state.score;
+          const ball = g.T.state.balls[0];
+          ball.attached = false;
+          ball.x = brick.x + brick.w / 2;
+          ball.y = brick.y + brick.h + ball.r - 2;
+          ball.dx = 0;
+          ball.dy = -1;
+          ball.speed = 1;
+          g.frame();
+          a.eq(brick.alive, false, `the probe brick on level ${idx + 1} should have broken`);
+          return g.T.state.score - before;
+        };
+
+        for (let n = 1; n <= authored; n++) {
+          a.eq(firstBrickValue(n - 1), 10 * n,
+            `level ${n} must still score exactly 10 x ${n}`);
+        }
+        let prev = 10 * authored;
+        for (const n of [authored + 1, 20, 50, p.totalLevels]) {
+          const v = firstBrickValue(n - 1);
+          a.gte(v, prev, `level ${n} scores less than the level before it`);
+          a.lte(v, 10 * p.scoreCap, `level ${n} broke the score cap`);
+          prev = v;
+        }
+        a.gt(prev, 10 * authored, "the multiplier should still grow past the authored levels");
+      },
+    },
+    {
+      name: "#41h — a milestone level awards an extra life, capped at maxLives",
+      fn(a) {
+        const g = boot();
+        g.el("btn-start").click(1);
+        const every = g.T.CONFIG.progression.extraLifeEvery;
+        g.T.startLevel(every - 1); // the last level of the first milestone block
+        g.key("Space");
+        g.T.state.lives = 3;
+        clearBricks(g);
+        g.frame();
+        a.eq(g.T.state.phase, "levelclear");
+        a.eq(g.T.state.lives, 4, "clearing a milestone level should hand back a life");
+
+        g.el("btn-next").click(1); // and the level after it should not
+        const lives = g.T.state.lives;
+        clearBricks(g);
+        g.frame();
+        a.eq(g.T.state.lives, lives, "an ordinary level must not award anything");
+
+        const cap = boot();
+        cap.el("btn-start").click(1);
+        cap.T.startLevel(every * 2 - 1);
+        cap.key("Space");
+        cap.T.state.lives = cap.T.state.maxLives;
+        clearBricks(cap);
+        cap.frame();
+        a.eq(cap.T.state.lives, cap.T.state.maxLives, "the milestone life must respect the cap");
+      },
+    },
+
+    // -----------------------------------------------------------------------
+    // #68 — an authored level the ball could not finish
+    // -----------------------------------------------------------------------
+    {
+      name: "#68 — every authored level can actually be cleared",
+      fn(a) {
+        // Level 10's first two rows were offset ("#S#S#S#S#S" over
+        // "S#S#S#S#S#"), which boxed each of the top row's five silvers in on
+        // all four sides — walls left, right and below, the ceiling above. With
+        // a 7px ball and 3px brick margins there is no diagonal squeeze, so the
+        // level could never be cleared and the campaign stopped dead there.
+        // ensureReachable() only guards generated levels, so an authored layout
+        // needs this check instead.
+        const g = boot();
+        g.el("btn-start").click(1);
+        for (let i = 0; i < g.T.LEVELS.length; i++) {
+          g.T.startLevel(i);
+          for (const cell of walledOffBricks(g)) {
+            a.ok(false, `level ${i + 1}: a destructible brick at row ${cell.r}, column ${cell.c} is walled off`);
+          }
+        }
+
+        // And the specific shape that caused it, so the test fails for the
+        // original reason rather than only for its symptom.
+        const rows = g.T.LEVELS[9].rows;
+        a.ne(rows[0].indexOf("S"), -1, "level 10's top row should still be silver-and-wall");
+        for (let c = 0; c < rows[0].length; c++) {
+          if (rows[0][c] !== "S") continue;
+          a.ne(rows[1][c], "#", `level 10: the silver at column ${c} has a wall directly under it`);
+        }
       },
     },
   ],

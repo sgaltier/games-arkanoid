@@ -155,7 +155,7 @@ module.exports = {
       fn(a) {
         const g = boot();
         g.el("btn-start").click(1);
-        g.T.startLevel(g.T.LEVELS.length - 1);
+        g.T.startLevel(g.T.CONFIG.progression.totalLevels - 1);
         g.key("Space");
         clearBricks(g);
         g.frame();
@@ -205,7 +205,7 @@ module.exports = {
       fn(a) {
         const g = boot();
         g.el("btn-start").click(1);
-        g.T.startLevel(g.T.LEVELS.length - 1);
+        g.T.startLevel(g.T.CONFIG.progression.totalLevels - 1);
         g.key("Space");
         clearBricks(g);
         g.frame();
