@@ -23,7 +23,8 @@ moves. Do not reuse these numbers for new review findings. Numbers missing below
 plus silver (2 hp) and indestructible walls; 8 power-ups (`widen`, `narrow`, `slow`, `fast`,
 `multi`, `life`, `sticky`, `laser`); a within-level difficulty ramp; a combo score multiplier;
 floating score pop-ups; particle bursts; a 10-entry local hall of fame; FR/EN localisation;
-mute, pause, and `prefers-reduced-motion` support.
+a combo-reactive music bed with a voice per brick type (#59); mute, pause, and
+`prefers-reduced-motion` support.
 
 ---
 

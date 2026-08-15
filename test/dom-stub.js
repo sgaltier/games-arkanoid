@@ -114,6 +114,14 @@ function boot(opts) {
 
   const registry = [];
 
+  // Every note the game scheduled, in order — see the AudioContext stub below.
+  // Sound is only observable as the notes queued for it, and since #59 that is
+  // a real feature surface (per-type brick voices, the combo ladder, the music
+  // bed) rather than incidental blips.
+  const notes = [];
+  const AUDIO_EPOCH = 1000; // handle.clock's starting value; see handle.clock
+  function audioNow() { return (handle.clock - AUDIO_EPOCH) / 1000; }
+
   function makeEl(tag, attrs) {
     const el = {
       tagName: tag,
@@ -254,13 +262,52 @@ function boot(opts) {
       // shows up as silence rather than passing by accident.
       const actx = {
         state: "suspended",
-        currentTime: 0,
+        // The game schedules against actx.currentTime, so the audio clock has
+        // to track the fake frame clock. A context frozen at 0 would let #59's
+        // scheduler queue its first notes and then wait forever for a moment
+        // that never arrives.
+        get currentTime() { return audioNow(); },
         destination: {},
-        createOscillator: () => ({ frequency: {}, connect() {}, start() {}, stop() {} }),
-        createGain: () => ({
-          gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {} },
-          connect() {},
-        }),
+        createGain() {
+          const node = {
+            _peak: 0,
+            gain: {
+              value: 0,
+              setValueAtTime(v) { node._peak = Math.max(node._peak, v); node.gain.value = v; },
+              linearRampToValueAtTime(v) { node._peak = Math.max(node._peak, v); },
+              exponentialRampToValueAtTime() {},
+            },
+            connect() {},
+          };
+          return node;
+        },
+        createOscillator() {
+          const osc = {
+            type: "square",
+            frequency: {
+              value: 0,
+              setValueAtTime(v) { osc.frequency.value = v; },
+              exponentialRampToValueAtTime(v) { osc._slide = v; },
+              linearRampToValueAtTime(v) { osc._slide = v; },
+            },
+            detune: { value: 0, setValueAtTime(v) { osc.detune.value = v; } },
+            connect(dest) { osc._gain = dest; },
+            // Recorded on start(), which is the moment the note is committed:
+            // pitch, timbre and gain are all set by then.
+            start(at) {
+              notes.push({
+                freq: osc.frequency.value,
+                slide: osc._slide || 0,
+                type: osc.type,
+                detune: osc.detune.value,
+                at: at === undefined ? actx.currentTime : at,
+                vol: osc._gain ? osc._gain._peak : 0,
+              });
+            },
+            stop() {},
+          };
+          return osc;
+        },
         resume() { actx.state = "running"; counters.audioResumes++; },
       };
       return actx;
@@ -332,6 +379,9 @@ function boot(opts) {
     // Every fetch the game made, in order: { url, init, body }. body is the
     // parsed request JSON, so a test can assert what was submitted.
     apiCalls,
+    // Every note scheduled, in order: { freq, slide, type, detune, at, vol }.
+    // Never reset — take a length before the action under test and slice.
+    notes,
     // The API paths are promise-chained, so their effects land a few microtasks
     // after the call that triggered them. Await this before asserting on
     // anything the network was supposed to change.

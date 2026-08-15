@@ -115,7 +115,9 @@ continues), `frame()`, `key(code)`, `hold`/`release`, `mouseMove(x)`, `touch(typ
 `fireWin(type)`, `fireDoc(type)`, `fireMedia(query, matches)`, `el(id)`, `byKey(i18nKey)`, `langButton(lang)`,
 `shownOverlays()`, `apiCalls` (every fetch made, with the parsed request body), `settle()` (flushes
 the API promise chain — await it before asserting on anything the network was meant to change),
-and `counters` for per-frame budgets.
+`notes` (every note the game scheduled: `{ freq, slide, type, detune, at, vol }` — sound is only
+observable as what it queues, which since #59 is a feature surface), and `counters` for per-frame
+budgets.
 
 ### Three traps worth knowing about
 

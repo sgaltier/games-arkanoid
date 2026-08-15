@@ -1774,5 +1774,181 @@ module.exports = {
         a.eq(rolls, 0, "painting a shaking frame must not touch the RNG stream");
       },
     },
+
+    // -----------------------------------------------------------------------
+    // #59 — music bed, per-type brick voices, combo pitch ladder
+    //
+    // Sound is only observable as the notes the game queues, which the stub
+    // records (g.notes). Two facts make the assertions below readable: the bed
+    // only plays while the phase is "playing", and at a broken combo it is the
+    // bass alone — triangle notes below the level's root, which for level 0 is
+    // 220 Hz. So "notes above 220 Hz" is exactly the sound effects, and
+    // "triangle notes above 220 Hz" exactly the brick voice under test.
+    // -----------------------------------------------------------------------
+    {
+      name: "#59a — the music bed runs during play and stops when the game does",
+      fn(a) {
+        const g = boot();
+        g.run(1);
+        a.empty(g.notes, "the start screen must be silent — nothing has been played yet");
+
+        g.start();
+        // Park the ball on the paddle: every note from here is the bed itself,
+        // with no brick hits mixed in.
+        g.T.state.balls.forEach((b) => { b.attached = true; });
+        const before = g.notes.length;
+        g.run(2);
+        a.gt(g.notes.length - before, 3, "the bed should have queued notes during play");
+
+        g.key("KeyP");
+        const paused = g.notes.length;
+        g.run(2);
+        a.eq(g.notes.length, paused, "a paused game must not go on playing music");
+
+        g.key("KeyP");
+        g.run(2);
+        a.gt(g.notes.length, paused, "and resuming must bring it back");
+      },
+    },
+    {
+      name: "#59b — voices join as the combo climbs, and leave once it breaks",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.balls.forEach((b) => { b.attached = true; });
+        const over = (seconds) => {
+          const before = g.notes.length;
+          g.run(seconds);
+          return g.notes.length - before;
+        };
+
+        g.T.state.combo = 0;
+        const bare = over(2);
+        g.T.state.combo = 20; // past every threshold in CONFIG.music.voiceCombo
+        const full = over(2);
+        a.gt(full, bare * 2, `a long streak should thicken the arrangement (${bare} -> ${full})`);
+
+        // Voices leave slowly — a combo dies on every paddle touch, and an
+        // arrangement that dropped one each time would flicker.
+        g.T.state.combo = 0;
+        over(1);
+        a.gt(over(2), bare, "one paddle touch must not strip the arrangement instantly");
+        over(10);
+        a.lt(over(2), full, "but a streak that stays broken should thin back out");
+      },
+    },
+    {
+      name: "#59c — mute silences the music as well as the sound effects",
+      fn(a) {
+        const g = boot({ storage: { "neonbreak-muted": "1" } }).start();
+        g.runAlive(2);
+        a.empty(g.notes, "a muted game must not queue a single note");
+
+        g.el("btn-mute").click(1);
+        // Parked on the paddle, so the only thing left that can sound is the bed.
+        g.T.state.balls.forEach((b) => { b.attached = true; });
+        g.run(2);
+        a.gt(g.notes.length, 0, "unmuting mid-play should bring the music back");
+      },
+    },
+    {
+      name: "#59d — each brick type is struck in its own voice",
+      fn(a) {
+        const { g, at, blast } = gridLevel();
+        // Above the root is the brick; below it is the bass — see the note above.
+        const struck = (brick, type) => {
+          if (type) {
+            brick.type = type;
+            brick.hp = type === "#" ? Infinity : type === "S" ? 2 : 1;
+          }
+          g.T.state.combo = 0; // same rung of the ladder for every type
+          const from = g.notes.length;
+          blast(brick);
+          return g.notes.slice(from);
+        };
+        const above = (list) => list.filter((n) => n.freq > 220);
+
+        const cyan = above(struck(at(3, 0), "1"));
+        const lime = above(struck(at(3, 1), "4"));
+        a.eq(cyan.length, 1, "destroying a brick should sound one note");
+        a.eq(lime.length, 1);
+        a.ne(cyan[0].freq, lime[0].freq, "two brick types sounded at the same pitch");
+        a.ne(cyan[0].type, lime[0].type, "two brick types sounded in the same timbre");
+
+        // Silver rings rather than beeps: a second oscillator, detuned.
+        const silver = above(struck(at(3, 2), "S"));
+        a.eq(silver.length, 2, "silver should ring — two detuned oscillators");
+        a.ne(silver[1].detune, 0);
+
+        // A wall refuses: a low thud that slides down, and nothing bright.
+        const wall = struck(at(3, 3), "#");
+        a.empty(above(wall), "an indestructible wall must not sound like a hit");
+        a.ok(wall.some((n) => n.slide > 0 && n.slide < n.freq),
+          "the wall thud should slide downward");
+      },
+    },
+    {
+      name: "#59e — consecutive hits climb a pitch ladder, which then holds",
+      fn(a) {
+        const { g, at, blast } = gridLevel();
+        // Row 3 of level 0 is ten bricks of one type, so every difference in
+        // pitch below comes from the combo and nothing else.
+        const climb = [];
+        for (let c = 0; c < 10; c++) {
+          const from = g.notes.length;
+          blast(at(3, c));
+          const voice = g.notes.slice(from).filter((n) => n.type === "triangle" && n.freq > 220);
+          a.eq(voice.length, 1, `hit ${c + 1} should have sounded exactly once`);
+          climb.push(voice[0].freq);
+        }
+        a.eq(g.T.state.combo, 10, "the streak must not have been broken by a paddle touch");
+        for (let i = 1; i < climb.length; i++) {
+          a.gt(climb[i], climb[i - 1], `hit ${i + 1} did not climb above hit ${i}`);
+        }
+        a.lt(climb[climb.length - 1] / climb[0], 8,
+          "the ladder has to stop climbing somewhere, or a long streak leaves the audible range");
+
+        // And it does stop: row 2 is a second single-type row, so two hits at
+        // combos past the top of the ladder are comparable to each other.
+        const atCombo = (brick, combo) => {
+          g.T.state.combo = combo;
+          const from = g.notes.length;
+          blast(brick);
+          return g.notes.slice(from).filter((n) => n.type === "triangle" && n.freq > 220)[0].freq;
+        };
+        a.eq(atCombo(at(2, 1), 60), atCombo(at(2, 0), 30),
+          "past the top of the ladder the pitch should hold rather than keep rising");
+      },
+    },
+    {
+      name: "#59f — a long stall resyncs the bed instead of queuing every missed beat",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.balls.forEach((b) => { b.attached = true; });
+        g.run(1);
+        const before = g.notes.length;
+        g.clock += 30000; // 30s of audio clock with no frames — a backgrounded tab
+        g.frame();
+        a.lt(g.notes.length - before, 10,
+          "the scheduler caught up note by note; 30 seconds of bar would arrive at once");
+      },
+    },
+    {
+      name: "#59g — the music consumes no randomness",
+      fn(a) {
+        // Same hazard as #58f: rolling for a note would make what the game rolls
+        // — drop chances, mystery resolutions — depend on how long it played.
+        const g = boot().start();
+        g.T.state.balls.forEach((b) => { b.attached = true; });
+        const real = Math.random;
+        let rolls = 0;
+        Math.random = () => { rolls++; return real(); };
+        try {
+          g.run(3);
+        } finally {
+          Math.random = real;
+        }
+        a.eq(rolls, 0, "queuing the bed must not touch the RNG stream");
+      },
+    },
   ],
 };

@@ -9,7 +9,7 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 3 open findings.
+**Status:** 2 open findings.
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
 test → fix → move the finding's whole entry from this file to [done.md](done.md), prepending a
@@ -43,14 +43,6 @@ commitment.
 ---
 
 ## Feel, presentation, and audio
-
-### 59. Music and a richer sound bed (M)
-
-Audio today is `beep()` — bare oscillator tones. A layered synth loop that adds voices as the
-combo multiplier climbs, plus distinct sounds per brick type and a rising pitch ladder for
-consecutive hits, would do for the ear what the neon palette does for the eye. It stays
-dependency-free: everything needed is in the Web Audio API already in use. The existing mute
-toggle and its persisted state cover the opt-out.
 
 ### 60. Background parallax and per-level themes (S/M)
 

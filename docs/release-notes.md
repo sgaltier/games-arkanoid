@@ -29,12 +29,49 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #51 | ✅ Fixed — 2026-08-14 |
 | #52 | ✅ Fixed — 2026-08-14 |
 | #58 | ✅ Fixed — 2026-08-14 |
-| #41, #59, #60 | 🔲 Open |
+| #59 | ✅ Fixed — 2026-08-15 |
+| #41, #60 | 🔲 Open |
 
-47 of 50 findings fixed. See [todo.md](todo.md) for what's still open, and
+48 of 50 findings fixed. See [todo.md](todo.md) for what's still open, and
 [feature-ideas.md](feature-ideas.md) for proposals not yet promoted to the backlog.
 
 ---
+
+## 2026-08-15 — Music and a richer sound bed (#59)
+
+### Added
+
+**The game has a soundtrack now, and it listens to how you are playing.** A four-voice loop runs
+under the ball: a bass line always, and three more voices that join as a combo streak climbs and
+drift back out once it breaks. Play well and the arrangement fills in; lose the ball and it thins
+back to the bass.
+
+**Every brick type has its own voice.** A wall thuds and refuses, silver rings, a mystery brick
+sparkles upward as it resolves, an explosive drops through the floor of the mix. And consecutive
+hits climb a pitch ladder — a long streak is now audible as a rising run, not just a rising number.
+
+Each level plays in its own key, and the music, the brick voices and the ladder are all pitched
+from it, so a hit lands in tune with what is behind it.
+
+None of this is new UI or new files: it is still oscillators and the same Web Audio API the old
+blips used, and the existing mute button covers all of it.
+
+### Notes
+
+Frames decide *what* to play; the audio clock decides *when*. A note placed at frame time lands
+wherever the frame happened to fall — up to 16 ms off the beat at 60 Hz, which is audible — so the
+loop queues steps a fraction of a second ahead and lets WebAudio place them.
+
+A backgrounded tab leaves the audio clock tens of seconds ahead of the bar. The scheduler skips to
+now instead of catching up: playing every missed beat at once would be a burst, not music.
+
+The bed reads the game and writes none of it, and rolls no dice — the same discipline as #58's
+impact layer, for the same reason: a note chosen randomly would make what the game rolls depend on
+how long it had been playing.
+
+The test harness now records every note the game schedules, so the voices, the ladder and the mute
+behaviour are asserted against what would actually be heard rather than against a flag. Seven
+regression cases, each verified against the mutation that should break it.
 
 ## 2026-08-14 — Impact feedback (#58)
 
