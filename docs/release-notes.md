@@ -34,8 +34,10 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #41 | ✅ Fixed — 2026-08-15 |
 | #68 | ✅ Fixed — 2026-08-15 |
 | #69 | ✅ Fixed — 2026-08-15 |
+| #70 | 🔲 Open |
+| #71 | 🔲 Open |
 
-52 of 52 findings fixed. See [todo.md](todo.md) for what's still open, and
+52 of 54 findings fixed. See [todo.md](todo.md) for what's still open, and
 [feature-ideas.md](feature-ideas.md) for proposals not yet promoted to the backlog.
 
 ---
