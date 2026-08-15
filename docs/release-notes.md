@@ -33,11 +33,43 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #60 | ✅ Fixed — 2026-08-15 |
 | #41 | ✅ Fixed — 2026-08-15 |
 | #68 | ✅ Fixed — 2026-08-15 |
+| #69 | ✅ Fixed — 2026-08-15 |
 
-51 of 51 findings fixed. See [todo.md](todo.md) for what's still open, and
+52 of 52 findings fixed. See [todo.md](todo.md) for what's still open, and
 [feature-ideas.md](feature-ideas.md) for proposals not yet promoted to the backlog.
 
 ---
+
+## 2026-08-15 — A level-jump shortcut for testing (#69)
+
+### Added
+
+**Holding S, E and B together opens a "jump to level" prompt** — from the menu, mid-game, from the
+pause screen or from the hall of fame. Type a number between 1 and 100 and the game starts that
+level; from there the run carries on exactly as it normally would, level by level, all the way to
+the victory screen. `Enter` jumps, `Escape` backs out, and backing out mid-game leaves the game
+paused rather than dropping you straight back into a live ball.
+
+Since the campaign is 100 levels long, this is the difference between being able to look at level 84
+and having to play to it.
+
+### Notes
+
+**A run started this way cannot enter the hall of fame, and does not set the best score** — the
+prompt says so before you use it. The world leaderboard can never be reset and a level-90 brick is
+worth nearly twice a level-10 one, so jumping to the end would otherwise be the cheapest high score
+in the game. The flag is sticky: jumping once on level 3 keeps the whole run out, and only starting a
+fresh game clears it. Jumping from the menu starts a new run; jumping mid-game keeps the score and
+lives you already had.
+
+This is not a hidden mode. The game is a single file of JavaScript anyone can read, so the shortcut
+is a convenience for whoever is working on the game, not a secret and not a protected one.
+
+Fixing this turned up a real bug in the overlay code: only buttons released keyboard focus when an
+overlay closed, never text fields. It had never mattered, because the one existing text field always
+handed off to a screen with a button. The jump prompt hands off to the "ready" screen, which has
+none — so the field kept focus and swallowed the space bar, and the ball could not be launched from
+the keyboard. Five regression cases, each verified against the mutation that should break it.
 
 ## 2026-08-15 — Level 10 was unfinishable (#68)
 

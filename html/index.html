@@ -412,6 +412,24 @@ canvas {
 .name-input::placeholder { color: var(--text-dim); }
 .name-input:focus-visible { outline: 2px solid var(--neon-amber); outline-offset: 2px; border-color: var(--neon-cyan); }
 
+/* #69: the level-jump prompt. Two lines under the field — the range, and the
+   validation message when an entry is rejected — plus the disclosure that a
+   jumped run is out of the running for the hall of fame. Empty when there is
+   nothing to say, so the overlay does not jump around as the message appears. */
+.jump-error {
+  margin: 8px 0 0;
+  min-height: 1em;
+  font-size: 12px;
+  color: var(--danger);
+}
+.jump-warn {
+  margin: 10px 0 0;
+  font-size: 11px;
+  letter-spacing: .04em;
+  color: var(--text-dim);
+}
+.jump-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
+
 .hof-list {
   margin: 0;
   padding: 0;
@@ -583,7 +601,7 @@ canvas {
         <div class="vignette" aria-hidden="true"></div>
 
         <div class="overlay show" id="overlay-start" role="status" aria-live="polite" aria-hidden="false">
-          <p class="overlay-eyebrow" id="start-eyebrow">Niveau 1 / 10</p>
+          <p class="overlay-eyebrow" id="start-eyebrow">Niveau 1 / 100</p>
           <h2 class="overlay-title">Blokrush</h2>
           <p class="overlay-sub" data-i18n="start.sub">Détruisez toutes les briques pour passer au niveau suivant. Rattrapez les bonus qui tombent &mdash; évitez les malus.</p>
           <button class="btn" id="btn-start" type="button" data-i18n="start.btn">Lancer la partie</button>
@@ -592,7 +610,7 @@ canvas {
         </div>
 
         <div class="overlay" id="overlay-ready" role="status" aria-live="polite" aria-hidden="true">
-          <p class="overlay-eyebrow" id="ready-eyebrow">Niveau 1 / 10</p>
+          <p class="overlay-eyebrow" id="ready-eyebrow">Niveau 1 / 100</p>
           <h2 class="overlay-title" data-i18n="ready.title">Prêt ?</h2>
           <p class="overlay-sub" data-i18n="ready.sub">Bougez la raquette puis appuyez sur Espace, cliquez ou touchez l'écran pour lancer la balle.</p>
         </div>
@@ -645,6 +663,25 @@ canvas {
           <p class="hof-scope" id="hof-scope"></p>
           <ol class="hof-list" id="hof-list"></ol>
           <button class="btn" id="btn-hof-continue" type="button" data-i18n="halloffame.btn">Continuer</button>
+        </div>
+
+        <!-- #69: the developer level jump, reachable with S+E+B from any phase.
+             Not a secret — this is client-side JS anyone can read — so it says
+             plainly that a run started this way cannot enter the hall of fame. -->
+        <div class="overlay" id="overlay-leveljump" role="status" aria-live="polite" aria-hidden="true">
+          <p class="overlay-eyebrow" data-i18n="leveljump.eyebrow">Mode développeur</p>
+          <h2 class="overlay-title" data-i18n="leveljump.title">Aller à un niveau</h2>
+          <p class="overlay-sub" id="leveljump-sub">Entrez un numéro de niveau.</p>
+          <input class="name-input" id="leveljump-input" type="text" inputmode="numeric" maxlength="3"
+                 autocomplete="off"
+                 data-i18n-attr="placeholder:leveljump.placeholder|aria-label:leveljump.placeholder"
+                 placeholder="Niveau" aria-label="Niveau">
+          <p class="jump-error" id="leveljump-error"></p>
+          <div class="jump-actions">
+            <button class="btn" id="btn-leveljump-go" type="button" data-i18n="leveljump.btn">Y aller</button>
+            <button class="btn btn-ghost" id="btn-leveljump-cancel" type="button" data-i18n="leveljump.cancel">Annuler</button>
+          </div>
+          <p class="jump-warn" data-i18n="leveljump.warn">Une partie lancée ainsi est exclue du Hall of Fame.</p>
         </div>
       </div>
     </div>
@@ -1271,7 +1308,15 @@ canvas {
       "halloffame.btn": "Continuer",
       "halloffame.empty": "Aucun score enregistré pour l'instant.",
       "halloffame.world": "Classement mondial",
-      "halloffame.device": "Scores de cet appareil — classement mondial indisponible"
+      "halloffame.device": "Scores de cet appareil — classement mondial indisponible",
+      "leveljump.eyebrow": "Mode développeur",
+      "leveljump.title": "Aller à un niveau",
+      "leveljump.sub": "Entrez un numéro entre 1 et {total}.",
+      "leveljump.placeholder": "Niveau",
+      "leveljump.btn": "Y aller",
+      "leveljump.cancel": "Annuler",
+      "leveljump.error": "Niveau invalide : entrez un nombre entre 1 et {total}.",
+      "leveljump.warn": "Une partie lancée ainsi est exclue du Hall of Fame."
     },
     en: {
       "doc.title": "Blokrush — Arcade Brick Breaker",
@@ -1320,7 +1365,15 @@ canvas {
       "halloffame.btn": "Continue",
       "halloffame.empty": "No scores recorded yet.",
       "halloffame.world": "World ranking",
-      "halloffame.device": "This device's scores — world ranking unavailable"
+      "halloffame.device": "This device's scores — world ranking unavailable",
+      "leveljump.eyebrow": "Developer mode",
+      "leveljump.title": "Jump to a level",
+      "leveljump.sub": "Enter a number between 1 and {total}.",
+      "leveljump.placeholder": "Level",
+      "leveljump.btn": "Go",
+      "leveljump.cancel": "Cancel",
+      "leveljump.error": "Invalid level: enter a number between 1 and {total}.",
+      "leveljump.warn": "A run started this way cannot enter the Hall of Fame."
     }
   };
   var SUPPORTED_LANGS = ["fr", "en"];
@@ -1466,7 +1519,7 @@ canvas {
   }
 
   var state = {
-    phase: "start", // start | ready | playing | paused | levelclear | nameentry | halloffame | victory | gameover
+    phase: "start", // start | ready | playing | paused | levelclear | nameentry | halloffame | victory | gameover | leveljump
     levelIndex: 0,
     score: 0,
     best: loadBest(),
@@ -1505,6 +1558,15 @@ canvas {
     // "halloffame", read by the continue button alone.
     returnPhase: null,
     hofHighlight: null, // the entry submitHallOfFameName() just added, for renderHallOfFame()'s highlight
+    // #69: the developer level jump. jumpReturn is the phase to restore if the
+    // prompt is dismissed, jumpError whether the last entry was rejected (a
+    // flag rather than the rendered message, so switching language re-renders
+    // it like every other interpolated string). `jumped` marks the whole run:
+    // once set it stays set until newGame(), and it is what keeps a jumped run
+    // out of the hall of fame and off the persisted best score.
+    jumpReturn: null,
+    jumpError: false,
+    jumped: false,
     // #58: impact feedback, all of it presentation-only. `shake` is a camera
     // offset draw() applies, `hitStop` is how much longer the simulation stays
     // frozen, `paddleSquash` how much longer the paddle stays flattened.
@@ -1601,6 +1663,7 @@ canvas {
   function newGame() {
     state.score = 0;
     state.lives = 3;
+    state.jumped = false; // #69: a fresh run is eligible again
     // Refreshes the session token as well as the board, so the run about to
     // start is dated from now — see fetchGlobalBoard.
     fetchGlobalBoard();
@@ -1709,9 +1772,37 @@ canvas {
     var el = document.activeElement;
     return !!el && (el.tagName === "BUTTON" || el.tagName === "INPUT");
   }
+  // #69: narrower than isTypingTarget() on purpose. The level-jump chord only
+  // has to stand aside for text entry, not for a focused button — and every
+  // overlay focuses its own button (#26), so reusing isTypingTarget() here
+  // would mean the chord never fired from a menu at all.
+  function isTextEntryTarget() {
+    var el = document.activeElement;
+    return !!el && el.tagName === "INPUT";
+  }
 
   window.addEventListener("keydown", function (e) {
     state.keys[e.code] = true;
+    // #69: while the prompt is up it owns the keyboard — Enter submits, Escape
+    // dismisses, and nothing else in this handler (Space, P, the movement keys)
+    // gets a look in. Returning early does not stop the browser delivering the
+    // key to the focused field, since nothing below would have typed for it.
+    if (state.phase === "leveljump") {
+      if (e.code === "Enter") { e.preventDefault(); submitLevelJump(); }
+      else if (e.code === "Escape") { e.preventDefault(); cancelLevelJump(); }
+      return;
+    }
+    // The chord itself, fired by whichever of the three completes it rather
+    // than by any key pressed while they happen to be down — otherwise still
+    // holding them after a jump would re-open the prompt on the next keystroke.
+    // state.keys is already the set of held keys and is cleared on blur, so a
+    // chord broken by alt-tab cannot get stuck half-down.
+    if ((e.code === "KeyS" || e.code === "KeyE" || e.code === "KeyB") &&
+        state.keys.KeyS && state.keys.KeyE && state.keys.KeyB && !isTextEntryTarget()) {
+      e.preventDefault();
+      openLevelJump();
+      return;
+    }
     // Pressing a movement key hands paddle control back to the keyboard,
     // otherwise a stale mouse position would keep overriding it every frame.
     if (e.code === "ArrowLeft" || e.code === "ArrowRight" || e.code === "KeyA" || e.code === "KeyD") {
@@ -1847,10 +1938,63 @@ canvas {
   function resume() { setPhase("playing"); }
 
   // ---------------------------------------------------------------------
+  // Developer level jump (#69)
+  //   S+E+B from any phase opens a prompt for a level number and starts it.
+  //   Made a phase rather than a modal beside the phase machine so the
+  //   simulation stops while it is up (frame() only updates on playing/ready),
+  //   focus and aria-hidden are handled by showOverlay() like every other
+  //   overlay, and its text is ordinary data-i18n rather than a special case.
+  // ---------------------------------------------------------------------
+
+  // The phases that mean a run is actually under way, so a jump out of one
+  // keeps its score and lives. Everything else — the start screen, a finished
+  // run, the board opened on demand (#43) — has no run behind it, and jumping
+  // from there has to begin one the way newGame() does.
+  var RUN_PHASES = { ready: true, playing: true, paused: true, levelclear: true };
+
+  function openLevelJump() {
+    if (state.phase === "leveljump") return;
+    // Returning to "playing" would drop the player back into a live ball the
+    // instant the overlay closes — the same reason autoPause() exists.
+    state.jumpReturn = state.phase === "playing" ? "paused" : state.phase;
+    state.jumpError = false;
+    document.getElementById("leveljump-input").value = "";
+    setPhase("leveljump");
+  }
+
+  function cancelLevelJump() {
+    setPhase(state.jumpReturn || "start");
+  }
+
+  function submitLevelJump() {
+    var total = CONFIG.progression.totalLevels;
+    var raw = document.getElementById("leveljump-input").value.trim();
+    // Deliberately strict rather than parseInt: "12abc" and "1e3" are typos,
+    // not level numbers, and silently accepting a prefix is worse than saying no.
+    var n = /^\d+$/.test(raw) ? Number(raw) : NaN;
+    if (!(n >= 1 && n <= total)) {
+      state.jumpError = true;
+      renderDynamicText();
+      document.getElementById("leveljump-input").focus();
+      return;
+    }
+    state.jumpError = false;
+    if (!RUN_PHASES[state.jumpReturn]) {
+      state.score = 0;
+      state.lives = 3;
+      fetchGlobalBoard(); // refreshes the session token too — see newGame()
+    }
+    // Sticky for the rest of the run, cleared only by newGame(). A jump on
+    // level 3 still taints a score submitted at level 90.
+    state.jumped = true;
+    startLevel(n - 1);
+  }
+
+  // ---------------------------------------------------------------------
   // Overlays
   // ---------------------------------------------------------------------
   var overlays = {};
-  ["start", "ready", "pause", "levelclear", "victory", "gameover", "nameentry", "halloffame"]
+  ["start", "ready", "pause", "levelclear", "victory", "gameover", "nameentry", "halloffame", "leveljump"]
     .forEach(function (name) {
       overlays[name] = document.getElementById("overlay-" + name);
     });
@@ -1875,7 +2019,12 @@ canvas {
     nameentry: { overlay: "overlay-nameentry", button: "nameentry-input" },
     halloffame: { overlay: "overlay-halloffame", button: "btn-hof-continue" },
     victory: { overlay: "overlay-victory", button: "btn-restart-win" },
-    gameover: { overlay: "overlay-gameover", button: "btn-restart" }
+    gameover: { overlay: "overlay-gameover", button: "btn-restart" },
+    // #69: reachable from any phase above rather than from one of them, and it
+    // returns to whichever it interrupted — see openLevelJump/cancelLevelJump.
+    // Like "nameentry", its primary control is a text input rather than a
+    // button, which showOverlay() handles the same way.
+    leveljump: { overlay: "overlay-leveljump", button: "leveljump-input" }
   };
   // Every button id that's some phase's call-to-action button, as a lookup
   // set, derived from PHASE_OVERLAY rather than hand-duplicated. Used below
@@ -1902,11 +2051,15 @@ canvas {
     // overlay (#33): the deck's mute/pause buttons deliberately keep focus
     // after a keyboard activation (see #6/#23), and a level clearing or a
     // life being lost — events with nothing to do with those buttons —
-    // must not yank focus away from them. Never matches "nameentry"'s input
-    // (tagName check below is BUTTON-only, #42) — but that's moot anyway,
-    // since every phase nameentry can lead to focuses its own button next.
+    // must not yank focus away from them. Text inputs count too (#69): this
+    // used to be BUTTON-only, which was harmless while "nameentry" was the only
+    // input-bearing overlay, because every phase it leads to focuses its own
+    // button next. "leveljump" leads straight to "ready", which has no button of
+    // its own — so the jump field kept focus and went on swallowing Space, and
+    // the ball could not be launched from the keyboard at all.
     var focused = document.activeElement;
-    if (focused && focused.tagName === "BUTTON" && OVERLAY_BUTTON_IDS[focused.id]) {
+    if (focused && OVERLAY_BUTTON_IDS[focused.id] &&
+        (focused.tagName === "BUTTON" || focused.tagName === "INPUT")) {
       focused.blur();
     }
     if (id) {
@@ -1951,6 +2104,9 @@ canvas {
     document.getElementById("victory-best").textContent = t("best", { score: state.best });
     document.getElementById("gameover-score").textContent = t("score", { score: state.score });
     document.getElementById("gameover-best").textContent = t("best", { score: state.best });
+    document.getElementById("leveljump-sub").textContent = t("leveljump.sub", { total: total });
+    document.getElementById("leveljump-error").textContent =
+      state.jumpError ? t("leveljump.error", { total: total }) : "";
   }
 
   // The mute label has to track both the language and the on/off state, so it
@@ -2042,6 +2198,8 @@ canvas {
   document.getElementById("btn-restart").addEventListener("click", newGame);
   document.getElementById("btn-restart-win").addEventListener("click", newGame);
   document.getElementById("btn-nameentry-submit").addEventListener("click", submitHallOfFameName);
+  document.getElementById("btn-leveljump-go").addEventListener("click", submitLevelJump);
+  document.getElementById("btn-leveljump-cancel").addEventListener("click", cancelLevelJump);
   document.getElementById("btn-hof-continue").addEventListener("click", function () {
     setPhase(state.returnPhase);
   });
@@ -2667,6 +2825,10 @@ canvas {
   // over — closing the tab mid-run, including right after clearing a level,
   // should never lose a score that was already achieved.
   function maybeSaveBest() {
+    // #69: a run that skipped levels never sets the best score. Otherwise one
+    // jump to level 90 to test something would park an unbeatable number on
+    // the player's own board for good.
+    if (state.jumped) return;
     if (state.score > state.best) {
       state.best = state.score;
       saveBest(state.best);
@@ -2693,7 +2855,11 @@ canvas {
   function endGame(won) {
     maybeSaveBest();
     updateHud();
-    if (qualifiesForHallOfFame(state.score)) {
+    // #69: a jumped run plays normally but is never offered the board. The
+    // world board can never be reset (#67) and brick value saturates toward
+    // 20x (#41), so jumping straight to level 100 would otherwise be the
+    // cheapest high score in the game.
+    if (!state.jumped && qualifiesForHallOfFame(state.score)) {
       state.returnPhase = won ? "victory" : "gameover"; // read back by the continue button below
       setPhase("nameentry");
     } else {

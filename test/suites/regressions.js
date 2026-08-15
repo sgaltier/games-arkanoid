@@ -21,6 +21,24 @@ function clearBricks(g) {
   g.T.state.remainingBricks = 0;
 }
 
+// #69: press and release the level-jump chord. Releasing matters — the chord
+// fires on whichever of the three completes it, so leaving them held would let
+// the next keystroke look like a fresh chord.
+function chord(g) {
+  g.key("KeyS");
+  g.key("KeyE");
+  g.key("KeyB");
+  g.keyUp("KeyS");
+  g.keyUp("KeyE");
+  g.keyUp("KeyB");
+}
+
+// A board already full of higher scores, so ending a run goes straight to
+// gameover rather than detouring through nameentry (#42).
+const FULL_HOF = JSON.stringify(
+  Array.from({ length: 10 }, (_, i) => ({ name: "CPU", score: 999000 - i }))
+);
+
 // Destructible bricks in the level currently loaded that the ball can never
 // touch — a softlock, since remainingBricks then never falls to zero and the run
 // is dead with nothing left to hit (#41c for generated levels, #68 for authored
@@ -2323,6 +2341,175 @@ module.exports = {
           if (rows[0][c] !== "S") continue;
           a.ne(rows[1][c], "#", `level 10: the silver at column ${c} has a wall directly under it`);
         }
+      },
+    },
+
+    // -----------------------------------------------------------------------
+    // #69 — the developer level jump (S+E+B)
+    // -----------------------------------------------------------------------
+    {
+      name: "#69a — S+E+B opens the level prompt from any phase, but not while typing",
+      fn(a) {
+        // Every phase the chord has to answer from, and how to get there.
+        const reach = {
+          start: (g) => g,
+          ready: (g) => (g.el("btn-start").click(1), g),
+          playing: (g) => g.start(),
+          paused: (g) => (g.start(), g.T.togglePause(), g),
+          levelclear: (g) => {
+            g.start();
+            clearBricks(g);
+            g.frame();
+            return g;
+          },
+          halloffame: (g) => (g.el("btn-view-hof").click(1), g),
+          gameover: (g) => {
+            g.start();
+            g.T.state.lives = 1;
+            g.T.state.balls.length = 0;
+            g.frame();
+            return g;
+          },
+        };
+        for (const [phase, go] of Object.entries(reach)) {
+          const g = go(boot({ storage: { "neonbreak-hall-of-fame": FULL_HOF } }));
+          a.eq(g.T.state.phase, phase, `fixture for ${phase} did not land there`);
+          chord(g);
+          a.eq(g.T.state.phase, "leveljump", `the chord did not open the prompt from ${phase}`);
+          a.eq(g.shownOverlays()[0], "overlay-leveljump");
+          a.eq(g.doc.activeElement, g.el("leveljump-input"),
+            "the number field should be focused, like every overlay's primary control (#26)");
+        }
+
+        // The guard is deliberately narrower than isTypingTarget(): a focused
+        // BUTTON must not block the chord, or it would never fire from a menu
+        // at all, since every overlay focuses its own button.
+        const typing = boot().start();
+        typing.T.setPhase("nameentry");
+        a.eq(typing.doc.activeElement, typing.el("nameentry-input"));
+        chord(typing);
+        a.eq(typing.T.state.phase, "nameentry",
+          "typing SEB into the name field must enter a name, not fire the chord");
+      },
+    },
+    {
+      name: "#69b — a valid level number starts that level, an invalid one does not",
+      fn(a) {
+        const g = boot();
+        const total = g.T.CONFIG.progression.totalLevels;
+        for (const bad of ["", "  ", "0", "abc", "12abc", "1e2", "-3", "3.5", String(total + 1)]) {
+          chord(g);
+          g.el("leveljump-input").value = bad;
+          g.el("btn-leveljump-go").click(1);
+          a.eq(g.T.state.phase, "leveljump", `"${bad}" should have been rejected`);
+          a.ok(g.el("leveljump-error").textContent, `"${bad}" should have said why`);
+          g.el("btn-leveljump-cancel").click(1);
+        }
+
+        chord(g);
+        g.el("leveljump-input").value = "84";
+        g.el("btn-leveljump-go").click(1);
+        a.eq(g.T.state.phase, "ready", "a valid number should start the level");
+        a.eq(g.T.state.levelIndex, 83, "level 84 is index 83");
+        a.gt(g.T.state.bricks.length, 0, "and it should actually be built");
+
+        const last = boot();
+        chord(last);
+        last.el("leveljump-input").value = String(total);
+        last.key("Enter"); // Enter submits too, like the name field (#42)
+        a.eq(last.T.state.levelIndex, total - 1, "the last level must be reachable");
+      },
+    },
+    {
+      name: "#69c — cancelling restores the phase it interrupted, and never resumes play",
+      fn(a) {
+        const g = boot();
+        chord(g);
+        g.el("btn-leveljump-cancel").click(1);
+        a.eq(g.T.state.phase, "start", "cancelling from the menu should go back to the menu");
+
+        const p = boot().start();
+        a.eq(p.T.state.phase, "playing");
+        chord(p);
+        p.key("Escape"); // Escape dismisses as well as the cancel button
+        a.eq(p.T.state.phase, "paused",
+          "cancelling from play must pause, not drop the player back into a live ball");
+
+        const c = boot().start();
+        clearBricks(c);
+        c.frame();
+        a.eq(c.T.state.phase, "levelclear");
+        chord(c);
+        c.el("btn-leveljump-cancel").click(1);
+        a.eq(c.T.state.phase, "levelclear");
+      },
+    },
+    {
+      name: "#69d — a jumped-to level clears and advances like any other",
+      fn(a) {
+        const g = boot();
+        chord(g);
+        g.el("leveljump-input").value = "37";
+        g.el("btn-leveljump-go").click(1);
+        a.eq(g.T.state.phase, "ready");
+        // The jump field must not still hold focus here: "ready" has no button
+        // of its own, so a focused input would swallow Space via
+        // isTypingTarget() and the ball could never be launched.
+        a.ne(g.doc.activeElement, g.el("leveljump-input"),
+          "the jump field must release focus so Space can launch the ball");
+        g.key("Space");
+        a.eq(g.T.state.phase, "playing", "Space should launch after a jump");
+
+        clearBricks(g);
+        g.frame();
+        a.eq(g.T.state.phase, "levelclear");
+        g.el("btn-next").click(1);
+        a.eq(g.T.state.levelIndex, 37, "clearing level 37 should lead to level 38");
+        a.eq(g.T.state.phase, "ready");
+      },
+    },
+    {
+      name: "#69e — a jumped run reaches neither the hall of fame nor the best score",
+      fn(a) {
+        // Empty board and a positive score: without the jump this is exactly
+        // the case #42a says must detour through nameentry.
+        const g = boot();
+        chord(g);
+        g.el("leveljump-input").value = "90";
+        g.el("btn-leveljump-go").click(1);
+        g.key("Space");
+        g.T.state.score = 500000;
+        g.T.state.lives = 1;
+        g.T.state.balls.length = 0;
+        g.frame();
+        a.eq(g.T.state.phase, "gameover", "a jumped run must not be offered the board");
+        a.eq(g.T.state.best, 0, "and must not set the best score either");
+        a.not(g.store["neonbreak-best-score"], "nothing should have been persisted");
+
+        // Sticky for the whole run: a jump on an early level still taints a
+        // score submitted much later.
+        const early = boot();
+        chord(early);
+        early.el("leveljump-input").value = "2";
+        early.el("btn-leveljump-go").click(1);
+        early.key("Space");
+        early.T.startLevel(50); // played on from there
+        early.key("Space");     // startLevel leaves it "ready", where balls do not move
+        early.T.state.score = 1000;
+        early.T.state.lives = 1;
+        early.T.state.balls.length = 0;
+        early.frame();
+        a.eq(early.T.state.phase, "gameover", "the flag must survive later levels");
+
+        // And a fresh game clears it.
+        early.el("btn-restart").click(1);
+        a.eq(early.T.state.jumped, false, "starting a new run should make it eligible again");
+        early.key("Space");
+        early.T.state.score = 700;
+        early.T.state.lives = 1;
+        early.T.state.balls.length = 0;
+        early.frame();
+        a.eq(early.T.state.phase, "nameentry", "an ordinary run should still qualify");
       },
     },
   ],
