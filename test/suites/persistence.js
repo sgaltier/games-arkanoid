@@ -41,6 +41,7 @@ module.exports = {
         g.T.state.lives = 1;
         g.T.state.balls.length = 0;
         a.doesNotThrow(() => g.frame(), "writing the best score must not throw out of the loop");
+        g.runLossBeat(); // #71: the loss holds a beat before resolving
         // An unloadable hall-of-fame board is indistinguishable from an empty
         // one, so any positive score qualifies (#42) — this run detours
         // through "nameentry" first, exercising saveHallOfFame() against the
@@ -82,8 +83,7 @@ module.exports = {
         const first = boot().start();
         first.T.state.score = 2500;
         first.T.state.lives = 1;
-        first.T.state.balls.length = 0;
-        first.frame();
+        first.loseBall();
         a.eq(first.store["neonbreak-best-score"], "2500");
 
         const second = boot({ storage: first.store });
@@ -96,8 +96,7 @@ module.exports = {
         const first = boot().start();
         first.T.state.score = 42;
         first.T.state.lives = 1;
-        first.T.state.balls.length = 0;
-        first.frame();
+        first.loseBall();
         first.el("nameentry-input").value = "Rex";
         first.el("btn-nameentry-submit").click(1);
         a.eq(first.store["neonbreak-hall-of-fame"], JSON.stringify(first.T.state.hallOfFame),

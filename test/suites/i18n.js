@@ -241,8 +241,7 @@ module.exports = {
         const g = boot({ langs: ["fr-FR"], storage: { "neonbreak-hall-of-fame": fullHof } }).start();
         g.T.state.score = 77;
         g.T.state.lives = 1;
-        g.T.state.balls.length = 0;
-        g.frame();
+        g.loseBall();
         a.eq(g.T.state.phase, "gameover");
         a.eq(g.el("gameover-score").textContent, "Score : 77");
         g.langButton("en").click(1);

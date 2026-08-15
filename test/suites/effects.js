@@ -129,8 +129,7 @@ module.exports = {
         g.T.applyPowerup({ type: "fast" });
         a.ok(g.T.state.widthEffect && g.T.state.speedEffect);
 
-        g.T.state.balls.length = 0;
-        g.frame();
+        g.loseBall();
 
         a.not(g.T.state.widthEffect, "width effect should be cleared on a life loss");
         a.not(g.T.state.speedEffect, "speed effect should be cleared on a life loss");

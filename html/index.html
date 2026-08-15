@@ -1223,6 +1223,13 @@ canvas {
       shakeMax: 8,           // px; also how far drawBackground() bleeds past the play area
       explosionShake: { mag: 7, duration: 0.28 },
       lifeLostShake: { mag: 5, duration: 0.4 },
+      // #71: the beat the game holds after the ball drains off the bottom,
+      // before the next serve. Losing the ball used to transition in the same
+      // frame it happened, which left nowhere for the loss to land. Unlike the
+      // rest of this block it is *not* suppressed under prefers-reduced-motion:
+      // it is pacing, not motion, and the game's rhythm should not depend on
+      // that setting.
+      lifeLostBeat: 0.7,
       hitStop: 0.055,        // seconds of frozen simulation on a blast
       squashDuration: 0.13,  // seconds the paddle takes to spring back
       squashAmount: 0.4      // peak fraction of paddle height lost; half of it comes back as width
@@ -1519,7 +1526,7 @@ canvas {
   }
 
   var state = {
-    phase: "start", // start | ready | playing | paused | levelclear | nameentry | halloffame | victory | gameover | leveljump
+    phase: "start", // start | ready | playing | lifelost | paused | levelclear | nameentry | halloffame | victory | gameover | leveljump
     levelIndex: 0,
     score: 0,
     best: loadBest(),
@@ -1573,6 +1580,10 @@ canvas {
     shake: { mag: 0, remaining: 0, duration: 0 },
     hitStop: 0,
     paddleSquash: 0,
+    // #71: {remaining, ended} while the game holds a beat on a lost ball, null
+    // otherwise. `ended` is whether that was the last life, decided when the
+    // ball was lost rather than when the beat runs out.
+    lifeLost: null,
     // #60: the act's palette and its star field, both resolved once per level
     // by buildLevel(), and the drift the parallax is scrolled by — seconds of
     // real time, so every layer derives its own offset from the one number.
@@ -2010,6 +2021,9 @@ canvas {
     start: { overlay: "overlay-start", button: "btn-start" },
     ready: { overlay: "overlay-ready" },
     playing: null,
+    // #71: the beat after a ball is lost. Like "playing" it shows no overlay —
+    // the point is that the field stays visible while the burst plays out.
+    lifelost: null,
     paused: { overlay: "overlay-pause", button: "btn-resume" },
     levelclear: { overlay: "overlay-levelclear", button: "btn-next" },
     // #42: a hall-of-fame-qualifying score detours through these two before
@@ -2326,6 +2340,35 @@ canvas {
       slide: voice.slide ? noteFreq(semi + voice.slide) : 0,
       dur: voice.dur, type: voice.type, vol: voice.vol, detune: voice.detune
     });
+  }
+
+  // #71: the ball-loss sting — a short figure falling through the level's own
+  // scale, so it lands in tune with the bed that just stopped rather than beside
+  // it. That is most of the difference between a sting and a buzzer. Placed
+  // against the audio clock like #59's bar rather than fired as four beeps at
+  // frame time, which would put each note wherever its frame happened to fall.
+  var LOSS_STING = [
+    { semi: 12, dur: 0.14, type: "triangle", vol: 0.05 },
+    { semi: 7, dur: 0.14, type: "triangle", vol: 0.05 },
+    { semi: 3, dur: 0.18, type: "triangle", vol: 0.05 },
+    // The floor of the figure, and the only note that slides — a long sawtooth
+    // sagging a fifth under the others is what makes it read as a loss.
+    { semi: -12, dur: 0.6, type: "sawtooth", vol: 0.045, slide: -19 }
+  ];
+  var LOSS_STING_STEP = 0.1; // seconds between the notes above
+  function lifeLostTone() {
+    var ctxA = audioCtx(); // null when muted, which is also the whole guard
+    if (!ctxA) return;
+    var root = musicRoot();
+    for (var i = 0; i < LOSS_STING.length; i++) {
+      var n = LOSS_STING[i];
+      tone({
+        freq: noteFreq(root + n.semi),
+        slide: n.slide ? noteFreq(root + n.slide) : 0,
+        at: ctxA.currentTime + i * LOSS_STING_STEP,
+        dur: n.dur, type: n.type, vol: n.vol
+      });
+    }
   }
 
   // #59: the bed itself — four voices over a 16-step bar, as data rather than
@@ -2709,6 +2752,10 @@ canvas {
   function updateBalls(dt) {
     var pw = paddleWidth();
     var mult = ballSpeedMult();
+    // #71: where the last ball went out, for the burst. Falls back to the middle
+    // of the field for the case where the array was emptied by something other
+    // than a ball crossing the floor.
+    var lostAtX = GAME_W / 2;
 
     for (var bi = state.balls.length - 1; bi >= 0; bi--) {
       var ball = state.balls[bi];
@@ -2800,20 +2847,44 @@ canvas {
 
       // lost off bottom
       if (ball.y - ball.r > GAME_H) {
+        lostAtX = ball.x;
         state.balls.splice(bi, 1);
       }
     }
 
     if (state.balls.length === 0) {
-      loseLife();
+      loseLife(lostAtX);
     }
   }
 
-  function loseLife() {
+  function loseLife(x) {
     state.lives -= 1;
     shakeScreen(CONFIG.impact.lifeLostShake);
+    // #71: the ball coming apart, and the life going with it. Two colours
+    // because they say different things — white is the object that was
+    // destroyed, the way every brick burst is its own colour, and red is the
+    // life indicator that just went out, which is the part the player has to
+    // read. Pinned to the bottom edge rather than to the ball's own y: by now it
+    // is well past the floor, and a burst below the canvas is one nobody sees.
+    // burst() thins itself out under prefers-reduced-motion already.
+    burst(x, GAME_H - 2, "#ffffff", 18);
+    burst(x, GAME_H - 2, "#ff3b3b", 10);
+    lifeLostTone();
     updateHud();
-    if (state.lives <= 0) {
+    // Hold a beat before serving again or ending the run. Nothing simulates
+    // during it — frame() only runs the particle path outside "playing" — so
+    // this is pacing and presentation, never physics.
+    state.lifeLost = { remaining: CONFIG.impact.lifeLostBeat, ended: state.lives <= 0 };
+    setPhase("lifelost");
+  }
+
+  // The other half of loseLife(), reached when the beat runs out. `ended` was
+  // decided back when the ball was lost rather than here, so a life spent on the
+  // last ball still ends the run whatever touched state.lives in between.
+  function finishLifeLost() {
+    var ended = state.lifeLost && state.lifeLost.ended;
+    state.lifeLost = null;
+    if (ended) {
       endGame(false);
     } else {
       resetPaddleAndBall();
@@ -3321,8 +3392,18 @@ canvas {
     if (!reduceMotion) state.bgScroll += dt;
 
     if (!frozen) {
-      if (state.phase === "playing" || state.phase === "ready") {
+      // #71: the paddle keeps answering during the lost-ball beat. Freezing
+      // input for the better part of a second reads as a stall, and there is no
+      // ball for it to affect either way.
+      if (state.phase === "playing" || state.phase === "ready" || state.phase === "lifelost") {
         updatePaddle(dt);
+      }
+      // #71: spend the beat. Inside the !frozen block on purpose — a blast that
+      // took the last ball should finish its hit-stop before the beat starts
+      // running down, rather than the two overlapping and swallowing each other.
+      if (state.phase === "lifelost" && state.lifeLost) {
+        state.lifeLost.remaining -= dt;
+        if (state.lifeLost.remaining <= 0) finishLifeLost();
       }
       if (state.phase === "playing") {
         updateEffects(dt);

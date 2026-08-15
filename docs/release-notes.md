@@ -35,12 +35,41 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #68 | ✅ Fixed — 2026-08-15 |
 | #69 | ✅ Fixed — 2026-08-15 |
 | #70 | 🔲 Open |
-| #71 | 🔲 Open |
+| #71 | ✅ Fixed — 2026-08-15 |
 
-52 of 54 findings fixed. See [todo.md](todo.md) for what's still open, and
+53 of 54 findings fixed. See [todo.md](todo.md) for what's still open, and
 [feature-ideas.md](feature-ideas.md) for proposals not yet promoted to the backlog.
 
 ---
+
+## 2026-08-15 — Losing a ball finally lands (#71)
+
+### Added
+
+**Missing the ball is an event now.** It used to be a small screen rattle and nothing else — no
+particles, no sound, and the music simply stopped. The ball now bursts where it went out, white for
+the ball itself and red for the life that went with it, over a short falling four-note sting pitched
+in the level's own key so it lands in tune with the music that just cut out.
+
+**The game holds a beat before serving again**, about three quarters of a second. That is the part
+that made the rest possible: the loss used to resolve in the very frame it happened, so the ball
+vanished and the "Ready?" prompt was already up, leaving nowhere for any of this to happen. The same
+pause now precedes game over, which is the moment that deserves it most. The paddle still answers
+during it — freezing input for most of a second reads as a stall.
+
+### Notes
+
+Under "reduce motion" the burst thins out and the shake stays off, but **the pause itself is
+unchanged**. It is pacing rather than movement, and the game's rhythm should not depend on an
+accessibility setting.
+
+Nothing simulates during the pause — no ball, no scoring, no bricks moving — so this is presentation
+over an unchanged game, the same footing as the screen shake and the music. Mute covers the sting
+like every other sound.
+
+Four regression cases, each verified against the mutation that should break it, plus two new test
+helpers: a lost ball no longer resolving in one frame moved about thirty existing assertions, and
+that is better handled once in the harness than thirty times by hand.
 
 ## 2026-08-15 — A level-jump shortcut for testing (#69)
 

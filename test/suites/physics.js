@@ -187,10 +187,12 @@ module.exports = {
         const lost = place(g, { x: 240, y: g.T.GAME_H + 20, dx: 0, dy: 1, speed: 300 });
         const lives = g.T.state.lives;
         g.frame();
-        // The ball is removed, then loseLife() immediately serves a fresh one —
-        // so assert on identity and lives, not on the array length.
+        // The ball is removed, then loseLife() serves a fresh one once #71's
+        // beat has been spent — so assert on identity and lives, not on the
+        // array length.
         a.eq(g.T.state.balls.indexOf(lost), -1, "the lost ball should no longer be in play");
         a.eq(g.T.state.lives, lives - 1, "a life should have been deducted");
+        g.runLossBeat();
         a.eq(g.T.state.phase, "ready", "should be waiting to serve again");
       },
     },

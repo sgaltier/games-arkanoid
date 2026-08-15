@@ -33,6 +33,15 @@ function chord(g) {
   g.keyUp("KeyB");
 }
 
+// #71: how many frames the lost-ball beat actually takes, from a handle already
+// sitting in it. Counted rather than asserted against the config directly, so
+// the reduced-motion comparison is of real elapsed frames.
+function beatFrames(g) {
+  let n = 0;
+  while (g.T.state.phase === "lifelost" && n < 200) { g.frame(); n++; }
+  return n;
+}
+
 // A board already full of higher scores, so ending a run goes straight to
 // gameover rather than detouring through nameentry (#42).
 const FULL_HOF = JSON.stringify(
@@ -285,8 +294,7 @@ module.exports = {
           g.start();
           g.T.state.score = 10;
           g.T.state.lives = 1;
-          g.T.state.balls.length = 0;
-          g.frame();
+          g.loseBall();
         }, "saving the best score threw");
       },
     },
@@ -1094,8 +1102,7 @@ module.exports = {
         const g = boot().start(); // fresh boot: empty hall-of-fame board
         g.T.state.score = 50;
         g.T.state.lives = 1;
-        g.T.state.balls.length = 0;
-        g.frame();
+        g.loseBall();
         a.eq(g.T.state.phase, "nameentry", "an empty board should let any positive score in");
         a.eq(g.shownOverlays()[0], "overlay-nameentry");
         a.eq(g.doc.activeElement, g.el("nameentry-input"),
@@ -1107,8 +1114,7 @@ module.exports = {
       fn(a) {
         const g = boot().start();
         g.T.state.lives = 1;
-        g.T.state.balls.length = 0;
-        g.frame(); // state.score is still 0
+        g.loseBall(); // state.score is still 0
         a.eq(g.T.state.phase, "gameover", "0 points should go straight to gameover, not prompt for a name");
       },
     },
@@ -1122,15 +1128,13 @@ module.exports = {
         const tie = boot({ storage: { "neonbreak-hall-of-fame": full } }).start();
         tie.T.state.score = 91; // ties the lowest — must not qualify
         tie.T.state.lives = 1;
-        tie.T.state.balls.length = 0;
-        tie.frame();
+        tie.loseBall();
         a.eq(tie.T.state.phase, "gameover", "a tie with the lowest entry should not bump it");
 
         const beats = boot({ storage: { "neonbreak-hall-of-fame": full } }).start();
         beats.T.state.score = 92; // beats the lowest by one point
         beats.T.state.lives = 1;
-        beats.T.state.balls.length = 0;
-        beats.frame();
+        beats.loseBall();
         a.eq(beats.T.state.phase, "nameentry", "a score that beats the lowest entry should qualify");
       },
     },
@@ -1141,8 +1145,7 @@ module.exports = {
         const g = boot({ storage: { "neonbreak-hall-of-fame": seeded } }).start();
         g.T.state.score = 200;
         g.T.state.lives = 1;
-        g.T.state.balls.length = 0;
-        g.frame();
+        g.loseBall();
         a.eq(g.T.state.phase, "nameentry");
         g.el("nameentry-input").value = "Ada";
         g.el("btn-nameentry-submit").click(1);
@@ -1159,8 +1162,7 @@ module.exports = {
         const g = boot().start();
         g.T.state.score = 10;
         g.T.state.lives = 1;
-        g.T.state.balls.length = 0;
-        g.frame();
+        g.loseBall();
         a.eq(g.T.state.phase, "nameentry");
         // nameentry-input's .value is never set — mimics submitting with nothing typed.
         g.el("btn-nameentry-submit").click(1);
@@ -1174,8 +1176,7 @@ module.exports = {
         const g = boot().start();
         g.T.state.score = 10;
         g.T.state.lives = 1;
-        g.T.state.balls.length = 0;
-        g.frame();
+        g.loseBall();
         g.el("nameentry-input").value = '<img src=x onerror="alert(1)">';
         g.el("btn-nameentry-submit").click(1);
         const rendered = g.el("hof-list").innerHTML;
@@ -1207,8 +1208,7 @@ module.exports = {
         const g = boot().start();
         g.T.state.score = 10;
         g.T.state.lives = 1;
-        g.T.state.balls.length = 0;
-        g.frame();
+        g.loseBall();
         g.el("nameentry-input").focus();
         const ev = g.key("Space");
         a.not(ev.defaultPrevented, "Space should reach the input, not be swallowed for the ball/laser");
@@ -1220,8 +1220,7 @@ module.exports = {
         const g = boot().start();
         g.T.state.score = 10;
         g.T.state.lives = 1;
-        g.T.state.balls.length = 0;
-        g.frame();
+        g.loseBall();
         g.el("nameentry-input").value = "Zed";
         g.key("Enter");
         a.eq(g.T.state.phase, "halloffame", "Enter should submit the name, same as clicking Valider/Submit");
@@ -1237,8 +1236,7 @@ module.exports = {
         const g = boot({ storage: { "neonbreak-hall-of-fame": full } }).start();
         g.T.state.score = 500; // beats everything on the board
         g.T.state.lives = 1;
-        g.T.state.balls.length = 0;
-        g.frame();
+        g.loseBall();
         g.el("btn-nameentry-submit").click(1);
         a.eq(g.T.state.hallOfFame.length, g.T.CONFIG.hallOfFame.max, "the board should stay capped at max");
         a.eq(g.T.state.hallOfFame[0].score, 500, "the new top score should be first");
@@ -1292,8 +1290,7 @@ module.exports = {
         const g = boot().start(); // fresh boot: empty hall-of-fame board
         g.T.state.score = 10;
         g.T.state.lives = 1;
-        g.T.state.balls.length = 0;
-        g.frame();
+        g.loseBall();
         a.eq(g.T.state.phase, "nameentry");
         g.el("btn-nameentry-submit").click(1);
         a.eq(g.T.state.phase, "halloffame");
@@ -1341,8 +1338,7 @@ module.exports = {
         await g.settle();
         g.T.state.score = 700;
         g.T.state.lives = 1;
-        g.T.state.balls.length = 0;
-        g.frame();
+        g.loseBall();
         a.eq(g.T.state.phase, "nameentry");
         g.el("nameentry-input").value = "Ada";
         g.el("btn-nameentry-submit").click(1);
@@ -1361,8 +1357,7 @@ module.exports = {
         await g.settle();
         g.T.state.score = 500;
         g.T.state.lives = 1;
-        g.T.state.balls.length = 0;
-        g.frame();
+        g.loseBall();
         g.el("btn-nameentry-submit").click(1);
         await g.settle();
         a.eq(g.T.state.sessionToken, null, "the token should be cleared once spent");
@@ -1398,8 +1393,7 @@ module.exports = {
         await g.settle();
         g.T.state.score = 200; // between the two local entries, far below the world entry
         g.T.state.lives = 1;
-        g.T.state.balls.length = 0;
-        g.frame();
+        g.loseBall();
         g.el("nameentry-input").value = "Mid";
         g.el("btn-nameentry-submit").click(1);
         const local = g.T.state.hallOfFame.map((e) => e.score);
@@ -1413,8 +1407,7 @@ module.exports = {
         await g.settle();
         g.T.state.score = 250;
         g.T.state.lives = 1;
-        g.T.state.balls.length = 0;
-        g.frame();
+        g.loseBall();
         a.eq(g.T.state.phase, "nameentry", "qualification should fall back to the local board");
         g.el("nameentry-input").value = "Solo";
         g.el("btn-nameentry-submit").click(1);
@@ -1436,8 +1429,7 @@ module.exports = {
         await g.settle();
         g.T.state.score = 300;
         g.T.state.lives = 1;
-        g.T.state.balls.length = 0;
-        g.frame();
+        g.loseBall();
         g.el("nameentry-input").value = "Zoe";
         g.el("btn-nameentry-submit").click(1);
         await g.settle();
@@ -2366,8 +2358,7 @@ module.exports = {
           gameover: (g) => {
             g.start();
             g.T.state.lives = 1;
-            g.T.state.balls.length = 0;
-            g.frame();
+            g.loseBall();
             return g;
           },
         };
@@ -2480,8 +2471,7 @@ module.exports = {
         g.key("Space");
         g.T.state.score = 500000;
         g.T.state.lives = 1;
-        g.T.state.balls.length = 0;
-        g.frame();
+        g.loseBall();
         a.eq(g.T.state.phase, "gameover", "a jumped run must not be offered the board");
         a.eq(g.T.state.best, 0, "and must not set the best score either");
         a.not(g.store["neonbreak-best-score"], "nothing should have been persisted");
@@ -2497,8 +2487,7 @@ module.exports = {
         early.key("Space");     // startLevel leaves it "ready", where balls do not move
         early.T.state.score = 1000;
         early.T.state.lives = 1;
-        early.T.state.balls.length = 0;
-        early.frame();
+        early.loseBall();
         a.eq(early.T.state.phase, "gameover", "the flag must survive later levels");
 
         // And a fresh game clears it.
@@ -2507,9 +2496,152 @@ module.exports = {
         early.key("Space");
         early.T.state.score = 700;
         early.T.state.lives = 1;
-        early.T.state.balls.length = 0;
-        early.frame();
+        early.loseBall();
         a.eq(early.T.state.phase, "nameentry", "an ordinary run should still qualify");
+      },
+    },
+
+    // -----------------------------------------------------------------------
+    // #71 — the lost-ball beat: burst, sting, and time for both
+    // -----------------------------------------------------------------------
+    {
+      name: "#71a — a lost ball holds a beat before the next serve, and before game over",
+      fn(a) {
+        // Losing the ball used to resolve in the frame it happened — the ball
+        // vanished and the "Ready?" overlay was already up, leaving nowhere for
+        // the loss to land.
+        const g = boot().start();
+        const lives = g.T.state.lives;
+        g.T.state.balls.length = 0;
+        g.frame();
+        a.eq(g.T.state.phase, "lifelost", "the game should hold on the field, not serve immediately");
+        a.eq(g.T.state.lives, lives - 1, "the life is spent when the ball is lost, not when the beat ends");
+        a.empty(g.shownOverlays(), "no overlay during the beat — the point is to see the field");
+        // It has to be real elapsed time, not a phase the very next frame steps
+        // straight back out of: otherwise there is still nowhere for the burst
+        // and the sting to happen, which was the whole bug.
+        const spent = beatFrames(g);
+        a.gt(spent, 1, "the beat should span more than a single frame");
+        a.near(spent * 0.016, g.T.CONFIG.impact.lifeLostBeat, 0.05,
+          "and should last about as long as CONFIG.impact.lifeLostBeat says");
+        a.eq(g.T.state.phase, "ready", "and then serve");
+        a.eq(g.T.state.balls.length, 1, "with a fresh ball");
+
+        // The last life takes the same beat before the run ends.
+        const last = boot({ storage: { "neonbreak-hall-of-fame": FULL_HOF } }).start();
+        last.T.state.lives = 1;
+        last.T.state.balls.length = 0;
+        last.frame();
+        a.eq(last.T.state.phase, "lifelost", "the run ending deserves the beat most of all");
+        last.runLossBeat();
+        a.eq(last.T.state.phase, "gameover");
+      },
+    },
+    {
+      name: "#71b — the loss bursts, and reduced motion changes the visuals but not the pacing",
+      fn(a) {
+        const g = boot().start();
+        const ball = g.T.state.balls[0];
+        ball.attached = false;
+        ball.x = 123;
+        ball.y = g.T.GAME_H + 30; // past the floor
+        g.T.state.particles.length = 0;
+        g.frame();
+        a.gt(g.T.state.particles.length, 0, "losing the ball should burst");
+        // Spawned mid-frame, so they have a frame of drift on them by now — a
+        // few px of slack, not an exact position. The bug this guards against is
+        // bursting at the ball's real y, which is 30px below the canvas.
+        for (const p of g.T.state.particles) {
+          a.near(p.x, 123, 5, "the burst should be at the ball's last x");
+          a.near(p.y, g.T.GAME_H, 10, "and on the floor, not below it where nobody sees it");
+        }
+        // Captured before spending the beat — particles outlive neither.
+        const fullBurst = g.T.state.particles.length;
+        const beat = g.T.state.lifeLost.remaining;
+        const frames = beatFrames(g);
+
+        // #58's rule: the feedback layer switches off, the game does not change.
+        // The burst thins out and the shake is suppressed — but the beat is
+        // pacing, not motion, so it must last exactly as long either way.
+        const rm = boot({ reducedMotion: true }).start();
+        rm.T.state.particles.length = 0;
+        rm.T.state.balls.length = 0;
+        rm.frame();
+        a.gt(rm.T.state.particles.length, 0, "reduced motion thins the burst, it does not remove it");
+        a.lt(rm.T.state.particles.length, fullBurst, "and it should be thinner");
+        a.eq(rm.T.state.shake.remaining, 0, "the shake stays suppressed (#58)");
+        a.near(rm.T.state.lifeLost.remaining, beat, 1e-9, "the beat must not depend on the setting");
+        a.eq(beatFrames(rm), frames, "and neither must how long it actually takes");
+      },
+    },
+    {
+      name: "#71c — the loss plays a descending sting in the level's key, and nothing when muted",
+      fn(a) {
+        // updateMusic() queues the bed before updateBalls() loses the ball, so
+        // the sting is whatever was scheduled last in the frame.
+        const stingOf = (level) => {
+          const g = boot();
+          g.el("btn-start").click(1);
+          g.T.startLevel(level);
+          g.key("Space");
+          g.notes.length = 0;
+          g.T.state.balls.length = 0;
+          g.frame();
+          return g.notes.slice(-4);
+        };
+
+        const one = stingOf(0);
+        a.eq(one.length, 4, "the sting should be four notes");
+        for (let i = 1; i < one.length; i++) {
+          a.lt(one[i].freq, one[i - 1].freq, "the figure has to fall — that is what makes it a loss");
+          a.near(one[i].at - one[i - 1].at, one[1].at - one[0].at, 1e-6,
+            "and be evenly spaced, placed against the audio clock rather than by frames");
+        }
+
+        // Pitched from musicRoot() like everything else in #59, so it lands in
+        // the level's key: a different level is the same figure transposed.
+        const two = stingOf(1);
+        const ratio = two[0].freq / one[0].freq;
+        a.ne(Math.round(ratio * 1000), 1000, "a different level should be a different key");
+        for (let i = 0; i < one.length; i++) {
+          a.near(two[i].freq / one[i].freq, ratio, 1e-6,
+            "every note should shift by the same interval — a transposition, not a new tune");
+        }
+
+        const muted = boot({ storage: { "neonbreak-muted": "1" } }).start();
+        muted.notes.length = 0;
+        muted.T.state.balls.length = 0;
+        muted.frame();
+        a.empty(muted.notes, "mute has to cover the sting like everything else");
+      },
+    },
+    {
+      name: "#71d — nothing simulates during the beat, but the paddle still answers",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.balls.length = 0;
+        g.frame();
+        a.eq(g.T.state.phase, "lifelost");
+
+        const score = g.T.state.score;
+        const remaining = g.T.state.remainingBricks;
+        const alive = g.T.state.bricks.filter((b) => b.alive).length;
+        g.T.state.drops.push({ x: 100, y: 100, def: g.T.POWERUPS[0] });
+        const dropY = g.T.state.drops[0].y;
+
+        g.frame();
+        a.eq(g.T.state.balls.length, 0, "no ball is in play during the beat");
+        a.eq(g.T.state.score, score, "nothing scores");
+        a.eq(g.T.state.remainingBricks, remaining, "no brick state moves");
+        a.eq(g.T.state.bricks.filter((b) => b.alive).length, alive);
+        a.eq(g.T.state.drops[0].y, dropY, "and drops hold still");
+
+        // The paddle is the exception: freezing input for most of a second
+        // reads as a stall, and there is no ball for it to affect.
+        const before = g.T.state.paddle.x;
+        g.mouseMove(before + 80);
+        g.frame();
+        a.ne(g.T.state.paddle.x, before, "the paddle should still track during the beat");
       },
     },
   ],

@@ -221,8 +221,7 @@ module.exports = {
         const g = boot({ storage: { "neonbreak-hall-of-fame": FULL_HOF } }).start();
         g.T.state.score = 1234;
         g.T.state.lives = 1;
-        g.T.state.balls.length = 0;
-        g.frame();
+        g.loseBall();
         a.eq(g.T.state.phase, "gameover");
         a.eq(g.T.state.best, 1234, "the best score should have been updated");
         a.eq(g.store["neonbreak-best-score"], "1234", "and persisted");
@@ -239,8 +238,7 @@ module.exports = {
         g.start();
         g.T.state.score = 10;
         g.T.state.lives = 1;
-        g.T.state.balls.length = 0;
-        g.frame();
+        g.loseBall();
         a.eq(g.T.state.best, 5000, "the best score should not have been lowered");
       },
     },

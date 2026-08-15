@@ -507,6 +507,24 @@ function boot(opts) {
       this.key("Space");
       return this;
     },
+
+    // #71: a lost ball no longer resolves in the frame it happens — the game
+    // holds a beat for the burst and the sting before serving again or ending
+    // the run. Tests that care about where the loss *lands* rather than about
+    // the beat itself use this to spend it. Bounded rather than a while loop so
+    // a bug that never leaves "lifelost" fails the test instead of hanging it.
+    runLossBeat(step) {
+      for (let i = 0; i < 200 && T.state.phase === "lifelost"; i++) this.frame(step);
+      return this;
+    },
+    // The whole "drain the ball and see where we end up" gesture, which is how
+    // most tests end a run: empty the field, let the frame notice, spend the
+    // beat. Leaves the game wherever the loss actually led.
+    loseBall() {
+      T.state.balls.length = 0;
+      this.frame();
+      return this.runLossBeat();
+    },
   };
 
   // Prime state.lastTime. Harmless: the phase is still "start", so this frame

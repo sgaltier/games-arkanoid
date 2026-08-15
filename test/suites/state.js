@@ -167,8 +167,7 @@ module.exports = {
       fn(a) {
         const g = boot().start();
         const before = g.T.state.lives;
-        g.T.state.balls.length = 0;
-        g.frame();
+        g.loseBall();
         a.eq(g.T.state.lives, before - 1, "should have lost exactly one life");
         assertPhase(a, g, "ready");
       },
@@ -178,8 +177,7 @@ module.exports = {
       fn(a) {
         const g = boot().start();
         g.T.state.lives = 1;
-        g.T.state.balls.length = 0;
-        g.frame();
+        g.loseBall();
         assertPhase(a, g, "gameover");
       },
     },
@@ -190,8 +188,7 @@ module.exports = {
         g.T.state.score = 500;
         g.T.state.levelIndex = 2;
         g.T.state.lives = 1;
-        g.T.state.balls.length = 0;
-        g.frame();
+        g.loseBall();
         assertPhase(a, g, "gameover");
         g.el("btn-restart").click(1);
         assertPhase(a, g, "ready");
