@@ -9,7 +9,7 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 2 open findings.
+**Status:** 1 open finding.
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
 test → fix → move the finding's whole entry from this file to [done.md](done.md), prepending a
@@ -39,15 +39,5 @@ solvable, brick-adjacency layouts that don't trap the ball.
 
 Not attempted; flagged here as a possible follow-up if endless play is wanted later, not as a
 commitment.
-
----
-
-## Feel, presentation, and audio
-
-### 60. Background parallax and per-level themes (S/M)
-
-Each level currently draws the same background. Giving levels (or groups of levels) a distinct
-palette and a slow parallax starfield or grid would make progress visible in the environment rather
-than only in the HUD counter, which is how *Shatter* and *Wizorb* sell their act structure.
 
 ---

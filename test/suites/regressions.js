@@ -1950,5 +1950,97 @@ module.exports = {
         a.eq(rolls, 0, "queuing the bed must not touch the RNG stream");
       },
     },
+
+    // -----------------------------------------------------------------------
+    // #60 — per-act palettes and the parallax field
+    // -----------------------------------------------------------------------
+    {
+      name: "#60a — each act has its own palette, and the level picks it",
+      fn(a) {
+        const g = boot();
+        const themes = [];
+        for (let i = 0; i < g.T.LEVELS.length; i++) {
+          g.T.startLevel(i);
+          themes.push(g.T.state.theme);
+        }
+        themes.forEach((t, i) => {
+          a.ok(t && t.top && t.bottom && t.grid && t.horizon && t.star,
+            `level ${i + 1} has an incomplete palette`);
+        });
+        a.eq(themes[0], themes[1], "levels in the same act should share a palette");
+        a.ne(themes[1], themes[2], "a new act should not look like the one before it");
+        const distinct = new Set(themes.map((t) => t.top));
+        a.gte(distinct.size, 4,
+          `only ${distinct.size} distinct skies across ${themes.length} levels — progress has to be visible`);
+      },
+    },
+    {
+      name: "#60b — the field drifts with time, and holds still under prefers-reduced-motion",
+      fn(a) {
+        const g = boot().start();
+        const before = g.T.state.bgScroll;
+        g.runAlive(1);
+        a.gt(g.T.state.bgScroll, before, "the parallax should drift while the game runs");
+
+        const still = boot({ reducedMotion: true }).start();
+        still.runAlive(1);
+        a.eq(still.T.state.bgScroll, 0, "reduced motion must hold the field still");
+        a.ok(still.T.state.theme.top, "but the act should keep its palette — that part is not motion");
+
+        // And it follows the OS setting changing mid-session, as #25 and #58d do.
+        const live = boot().start();
+        live.runAlive(0.5);
+        live.fireMedia("(prefers-reduced-motion: reduce)", true);
+        const held = live.T.state.bgScroll;
+        live.runAlive(1);
+        a.eq(live.T.state.bgScroll, held, "turning reduced motion on should stop the drift at once");
+      },
+    },
+    {
+      name: "#60c — a level's star field is the same every time it is entered",
+      fn(a) {
+        const g = boot();
+        g.T.startLevel(3);
+        const third = JSON.stringify(g.T.state.stars);
+        g.T.startLevel(1);
+        const first = JSON.stringify(g.T.state.stars);
+        g.T.startLevel(3);
+        a.eq(JSON.stringify(g.T.state.stars), third,
+          "re-entering a level laid out a different field, which reads as a glitch rather than a retry");
+        a.ne(first, third, "two levels should not share the same field");
+
+        // Same field under a different RNG seed: it is derived from the level,
+        // not drawn from the stream the rest of the game rolls against.
+        const other = boot({ seed: 4242 });
+        other.T.startLevel(3);
+        a.eq(JSON.stringify(other.T.state.stars), third, "the field must not depend on the RNG stream");
+
+        g.T.state.stars.forEach((layer, l) => {
+          a.gt(layer.length, 0, `star layer ${l} is empty`);
+          layer.forEach((s) => {
+            a.ok(s.x >= 0 && s.x <= g.T.GAME_W && s.y >= 0 && s.y <= g.T.GAME_H,
+              `a star fell outside the field at ${s.x},${s.y}`);
+          });
+        });
+      },
+    },
+    {
+      name: "#60d — building and painting the field consumes no randomness",
+      fn(a) {
+        // Same hazard as #58f and #59g: a background that rolls would make what
+        // the game rolls depend on how long it had been on screen.
+        const g = boot();
+        const real = Math.random;
+        let rolls = 0;
+        Math.random = () => { rolls++; return real(); };
+        try {
+          g.T.startLevel(4); // a new act: new palette, new field
+          g.frame();
+        } finally {
+          Math.random = real;
+        }
+        a.eq(rolls, 0, "entering a level and painting it must not touch the RNG stream");
+      },
+    },
   ],
 };

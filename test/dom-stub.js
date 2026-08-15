@@ -99,8 +99,16 @@ function boot(opts) {
     },
   };
 
-  // Canvas context: every method call and property write is counted.
-  const ctx = new Proxy({}, {
+  // Canvas context: every method call and property write is counted. The bare
+  // proxy answers every method with a counted no-op returning undefined, which
+  // is wrong for the handful that hand back an object the caller goes on to
+  // use — those are defined on the target instead.
+  const ctx = new Proxy({
+    createLinearGradient() {
+      counters.canvasOps++;
+      return { addColorStop() { counters.canvasOps++; } };
+    },
+  }, {
     get(target, key) {
       if (key in target) return target[key];
       return function () { counters.canvasOps++; };

@@ -30,12 +30,41 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #52 | ✅ Fixed — 2026-08-14 |
 | #58 | ✅ Fixed — 2026-08-14 |
 | #59 | ✅ Fixed — 2026-08-15 |
-| #41, #60 | 🔲 Open |
+| #60 | ✅ Fixed — 2026-08-15 |
+| #41 | 🔲 Open |
 
-48 of 50 findings fixed. See [todo.md](todo.md) for what's still open, and
+49 of 50 findings fixed. See [todo.md](todo.md) for what's still open, and
 [feature-ideas.md](feature-ideas.md) for proposals not yet promoted to the backlog.
 
 ---
+
+## 2026-08-15 — Per-act backdrops and parallax (#60)
+
+### Added
+
+**The background is no longer the same board every level.** The ten levels are grouped into five
+acts of two, each with its own sky: violet night, teal abyss, ember, ice field, crimson void. Two
+levels in, the field you are playing over has changed — progress you can see without reading the
+HUD.
+
+**A parallax star field drifts behind the play area**, three layers deep, with a slow horizon grid
+scrolling over them. Nearer layers move faster, which is what gives the field depth rather than
+just texture.
+
+Brick colours are untouched, on purpose: a brick's colour is what tells you its type, so it is the
+one thing that should never shift with the decor.
+
+### Notes
+
+Under `prefers-reduced-motion` the drift stops and the palette stays — an act still looks like its
+own act, it just holds still — and it follows the setting being changed mid-session.
+
+The star field is generated from the level number rather than rolled, so a level looks the same
+every time you enter it. Rolling for it would also have put the paint into the same random stream
+drop chances come out of, which is the trap the screen shake (#58) and the music (#59) already
+avoid.
+
+Four regression cases, each verified against the mutation that should break it.
 
 ## 2026-08-15 — Music and a richer sound bed (#59)
 

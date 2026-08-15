@@ -778,6 +778,67 @@ canvas {
     "?": { fill: "#3d4463", glow: "rgba(120,130,180,.55)" }
   };
 
+  // ---------------------------------------------------------------------
+  // Themes and parallax (#60)
+  //   Two levels per act, so the field changes five times over a run and
+  //   progress reads in the environment rather than only in the HUD counter.
+  //   Brick colours are deliberately *not* themed: a brick's colour is its type
+  //   (#49/#51/#52), and re-tinting it per act would make the one thing the
+  //   player must read at a glance the one thing that keeps moving.
+  //   `star` is an rgb triple, so each parallax layer can pick its own alpha.
+  // ---------------------------------------------------------------------
+  var THEMES = [
+    // I — violet night
+    { top: "#12042e", bottom: "#05010e", grid: "rgba(45,226,230,0.05)",
+      horizon: "rgba(176,108,255,0.07)", star: "224,214,255" },
+    // II — teal abyss
+    { top: "#02202a", bottom: "#02080c", grid: "rgba(45,226,230,0.06)",
+      horizon: "rgba(45,226,230,0.07)", star: "205,245,255" },
+    // III — ember
+    { top: "#2a0a06", bottom: "#0c0302", grid: "rgba(255,182,39,0.05)",
+      horizon: "rgba(255,92,26,0.07)", star: "255,231,199" },
+    // IV — ice field
+    { top: "#061a33", bottom: "#02060f", grid: "rgba(157,255,30,0.045)",
+      horizon: "rgba(120,200,255,0.07)", star: "214,240,255" },
+    // V — crimson void
+    { top: "#2b0316", bottom: "#0b0106", grid: "rgba(255,46,136,0.06)",
+      horizon: "rgba(255,46,136,0.08)", star: "255,214,231" }
+  ];
+  var THEME_LEVELS = 2; // levels per act
+  function themeFor(levelIndex) {
+    return THEMES[Math.floor(levelIndex / THEME_LEVELS) % THEMES.length];
+  }
+
+  // Star layers, far to near: the nearer a layer, the faster it drifts and the
+  // brighter it sits — that difference *is* the parallax.
+  var STAR_LAYERS = [
+    { count: 26, speed: 5, size: 1, alpha: 0.22 },
+    { count: 16, speed: 13, size: 1.5, alpha: 0.4 },
+    { count: 8, speed: 28, size: 2, alpha: 0.65 }
+  ];
+
+  // Grouped by layer, because drawParallax() then sets one fill style per layer
+  // rather than one per star.
+  //
+  // Deterministic, and deliberately not Math.random(): a level has to look the
+  // same every time it is entered, or a retry reads as a glitch — and rolling
+  // for the field would put the paint into the same RNG stream drop chances and
+  // mystery bricks come out of, which is the hazard #58f and #59g pin down for
+  // the shake and the music.
+  function buildStars(levelIndex) {
+    var seed = (levelIndex + 1) * 7919;
+    function next() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+    var layers = [];
+    for (var l = 0; l < STAR_LAYERS.length; l++) {
+      var pts = [];
+      for (var i = 0; i < STAR_LAYERS[l].count; i++) {
+        pts.push({ x: next() * GAME_W, y: next() * GAME_H });
+      }
+      layers.push(pts);
+    }
+    return layers;
+  }
+
   var COLS = 10;
   var BRICK_MARGIN = 3;
   var FIELD_PAD = 10;
@@ -1230,6 +1291,12 @@ canvas {
     shake: { mag: 0, remaining: 0, duration: 0 },
     hitStop: 0,
     paddleSquash: 0,
+    // #60: the act's palette and its star field, both resolved once per level
+    // by buildLevel(), and the drift the parallax is scrolled by — seconds of
+    // real time, so every layer derives its own offset from the one number.
+    theme: themeFor(0),
+    stars: buildStars(0),
+    bgScroll: 0,
     lastTime: 0,
     baseBallSpeed: 250
   };
@@ -1276,6 +1343,8 @@ canvas {
     state.remainingBricks = remaining;
     state.bricksDestroyed = 0;
     state.difficultyMult = 1;
+    state.theme = themeFor(idx);
+    state.stars = buildStars(idx);
   }
 
   function resetPaddleAndBall() {
@@ -2582,16 +2651,53 @@ canvas {
   // ---------------------------------------------------------------------
   // Draw
   // ---------------------------------------------------------------------
+  // #60: rebuilt only when the act changes — createLinearGradient allocates,
+  // and the sky is the same for the whole of it.
+  var skyGradient = null;
+  var skyGradientTheme = null;
+  function skyFor(theme, b) {
+    if (skyGradient && skyGradientTheme === theme) return skyGradient;
+    skyGradient = ctx.createLinearGradient(0, -b, 0, GAME_H + b);
+    skyGradient.addColorStop(0, theme.top);
+    skyGradient.addColorStop(1, theme.bottom);
+    skyGradientTheme = theme;
+    return skyGradient;
+  }
+
+  // Stars first and horizon lines over them: the lines read as the near layer,
+  // which is the order the depth has to stack in. Every offset comes from
+  // state.bgScroll, so the layers can never drift apart from each other.
+  function drawParallax(theme, b) {
+    var span = GAME_H + b * 2;
+    for (var l = 0; l < state.stars.length; l++) {
+      var layer = STAR_LAYERS[l];
+      var pts = state.stars[l];
+      ctx.fillStyle = "rgba(" + theme.star + "," + layer.alpha + ")";
+      for (var i = 0; i < pts.length; i++) {
+        ctx.fillRect(pts[i].x, (pts[i].y + state.bgScroll * layer.speed) % span - b,
+          layer.size, layer.size);
+      }
+    }
+    ctx.strokeStyle = theme.horizon;
+    ctx.lineWidth = 1;
+    var pitch = 60;
+    for (var y = -b + (state.bgScroll * 18) % pitch; y < GAME_H + b; y += pitch) {
+      ctx.beginPath(); ctx.moveTo(-b, y); ctx.lineTo(GAME_W + b, y); ctx.stroke();
+    }
+  }
+
   function drawBackground() {
     // Bleeds past the play area by the largest shake the game can produce
     // (#58): the whole scene is drawn translated while the screen shakes, and
     // an exactly sized fill would leave a strip of the previous frame standing
     // along whichever edge the offset moved away from.
     var b = CONFIG.impact.shakeMax;
+    var theme = state.theme;
     ctx.clearRect(-b, -b, GAME_W + b * 2, GAME_H + b * 2);
-    ctx.fillStyle = "#05010e";
+    ctx.fillStyle = skyFor(theme, b);
     ctx.fillRect(-b, -b, GAME_W + b * 2, GAME_H + b * 2);
-    ctx.strokeStyle = "rgba(45,226,230,0.05)";
+    drawParallax(theme, b);
+    ctx.strokeStyle = theme.grid;
     ctx.lineWidth = 1;
     for (var x = 0; x < GAME_W; x += 24) {
       ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, GAME_H); ctx.stroke();
@@ -2815,6 +2921,11 @@ canvas {
     // clock, which keeps running whatever the simulation does. Skipping it for
     // a few frames would put a hole in the bar.
     updateMusic(dt);
+    // #60: the parallax drift, on the same footing — presentation that runs on
+    // real time whatever the simulation is doing, and stops dead under
+    // prefers-reduced-motion (the drift, not the palette: an act still looks
+    // like its own act, it simply holds still).
+    if (!reduceMotion) state.bgScroll += dt;
 
     if (!frozen) {
       if (state.phase === "playing" || state.phase === "ready") {
