@@ -17,7 +17,7 @@ capability (things merely *absent*).
 **Numbering:** entries reserve numbers **44–66** in the shared sequence used by
 [todo.md](todo.md) and [done.md](done.md), so an idea promoted from here keeps its number when it
 moves. Do not reuse these numbers for new review findings. Numbers missing below (#49, #51, #52,
-#58, #59, #60) have already been promoted into [todo.md](todo.md).
+#58, #59, #60, #65) have already been promoted into [todo.md](todo.md).
 
 **What already exists** (so nothing below duplicates it): a 100-level campaign — 10 hand-authored
 levels and 90 generated deterministically from the level number (#41); 4 brick colours
@@ -167,14 +167,6 @@ decision, not an accident.
 ---
 
 ## E. Competition and replayability
-
-### 65. Achievements (S/M)
-
-A set of named, persisted goals — clear a level without losing the ball, hit a 10× combo, finish a
-level using only the laser, clear the game without a single bad power-up. Achievements are the
-standard way to give a short game a long tail, and they compose with almost every other item in
-this document. They need a small event-emitting layer inside the existing update functions, plus a
-display surface, plus new strings in every language table.
 
 ### 66. Ghost replay of the best run (M)
 
