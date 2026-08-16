@@ -27,23 +27,23 @@ re-anchoring discipline applies here as in `done.md`.
 
 #59 shipped a music bed and it works, but it wears out fast. The reason is arithmetic rather than
 taste: the bed is **one 16-step bar looped forever**. `MUSIC_STEPS` is 16
-([2378](../html/index.html#L2378)) and `updateMusic()` advances `music.step` modulo it
-([2424–2440](../html/index.html#L2424-L2440)), so at `CONFIG.music.tempo` 132 a step is
+([2426](../html/index.html#L2426)) and `updateMusic()` advances `music.step` modulo it
+([2472–2488](../html/index.html#L2472-L2488)), so at `CONFIG.music.tempo` 132 a step is
 `60 / 132 / 4` = 0.114 s and the whole loop is **1.8 seconds long**. A single level is minutes of the
 same two seconds, and #41 made a full run a hundred levels.
 
 Nothing else varies enough to cover for that:
 
-- **The material never changes.** `MUSIC_VOICES` ([2379–2357](../html/index.html#L2379-L2357)) is
+- **The material never changes.** `MUSIC_VOICES` ([2427–2437](../html/index.html#L2427-L2437)) is
   four fixed voices with fixed `steps` arrays. What combo buys is *which voices sound*
-  (`nextIntensity`, [2411–2373](../html/index.html#L2411-L2373)) — four states of the same bar, not
+  (`nextIntensity`, [2459–2466](../html/index.html#L2459-L2466)) — four states of the same bar, not
   four different bars.
 - **Per-level variation is transposition only.** `musicRoot()` picks a root from ten keys by
-  `state.levelIndex % 10` ([2304–2305](../html/index.html#L2304-L2305)), so level 11 is level 1 again
+  `state.levelIndex % 10` ([2352–2353](../html/index.html#L2352-L2353)), so level 11 is level 1 again
   in the same key, and a 100-level run cycles those ten keys ten times.
 - **One scale and one tempo for the entire game** — `MUSIC_SCALE` is a single minor pentatonic
-  ([2303](../html/index.html#L2303)) and `tempo` is one number in `CONFIG.music`
-  ([1206–1212](../html/index.html#L1206-L1212)).
+  ([2351](../html/index.html#L2351)) and `tempo` is one number in `CONFIG.music`
+  ([1231–1237](../html/index.html#L1231-L1237)).
 - **There is no percussion at all.** Four pitched voices carry both the harmony and the pulse, which
   is why the pulse has to be so regular.
 
@@ -55,12 +55,12 @@ inside the current bar. Roughly in order of value for effort:
 
 - **A multi-bar phrase.** Give the loop a bar dimension — a 4- or 8-bar form where a voice's pattern
   is selected per bar, with the last bar carrying a fill. `scheduleStep()`
-  ([2395–2409](../html/index.html#L2395-L2409)) already takes the step index and asks each voice
+  ([2443–2457](../html/index.html#L2443-L2457)) already takes the step index and asks each voice
   whether it plays; extending that to `(bar, step)` is a small change to a data table rather than to
   the scheduler.
 - **Percussion.** A noise-based kick and hat would carry the groove and let the melodic voices thin
   out, which is what stops a loop sounding like a loop. `tone()` is oscillator-only today
-  ([2266–2292](../html/index.html#L2266-L2292)), so this needs a short noise buffer — the one piece
+  ([2314–2340](../html/index.html#L2314-L2340)), so this needs a short noise buffer — the one piece
   of genuinely new audio machinery here.
 - **Material per act, not just a new key per level.** #60 already groups levels into acts with their
   own palette. Tying scale, tempo and voice types to the act would make the score turn over when the
@@ -81,7 +81,7 @@ inside the current bar. Roughly in order of value for effort:
   simulation, and the existing mute button must keep covering all of it.
 
 Also worth watching: `scheduleStep()` creates a gain node and an oscillator per note
-([2275–2288](../html/index.html#L2275-L2288)), so a denser arrangement is more allocation per bar. It
+([2323–2336](../html/index.html#L2323-L2336)), so a denser arrangement is more allocation per bar. It
 is queued in `lookahead` batches rather than per frame, so this is not a per-frame cost, but a
 percussion voice on every step is 16 more nodes a bar than the current busiest voice.
 

@@ -36,11 +36,42 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #69 | ✅ Fixed — 2026-08-15 |
 | #70 | 🔲 Open |
 | #71 | ✅ Fixed — 2026-08-15 |
+| #72, #73 | ✅ Fixed — 2026-08-16 |
 
-53 of 54 findings fixed. See [todo.md](todo.md) for what's still open, and
+55 of 56 findings fixed. See [todo.md](todo.md) for what's still open, and
 [feature-ideas.md](feature-ideas.md) for proposals not yet promoted to the backlog.
 
 ---
+
+## 2026-08-16 — The end screens explain themselves (#72, #73)
+
+### Fixed
+
+**A run that used the level jump now says so when it ends.** Jumping to a level has always taken the
+run out of the hall of fame — otherwise skipping to level 90, where bricks are worth twenty times
+what they are at the start, would be the cheapest high score in the game. What it did not do was
+mention it. The only notice was a line of small grey text on the jump prompt, read once and several
+minutes before it mattered, so the end of the run looked exactly like the leaderboard being broken.
+That is how it was reported.
+
+The victory and game-over screens now carry the reason, and say that playing again gives an eligible
+run — the exclusion has always been per run, not permanent. The warning on the jump prompt itself is
+no longer the quietest thing on the overlay.
+
+### Added
+
+**A "high scores" button on both end screens.** The board used to be reachable only from the start
+screen, so checking where a run landed cost a restart — which replaced the score you wanted to
+compare against. The new button sits beside "Play again" and returns to the screen you came from.
+Restart stays the default action on both screens.
+
+It is also the only way a jumped run can reach the board at all, since it never gets the
+name-entry detour.
+
+### Notes
+
+Six regression cases, each confirmed failing before the fix. The rule itself is unchanged: a jumped
+run still sets neither the world board nor the local best score.
 
 ## 2026-08-15 — Losing a ball finally lands (#71)
 

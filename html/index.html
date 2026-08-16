@@ -370,6 +370,18 @@ canvas {
   color: var(--neon-cyan);
 }
 
+/* #72: the end-of-run notice that a level jump (#69) kept this score out of the
+   hall of fame. renderDynamicText() empties it on an ordinary run, so it must
+   take no room at all when it says nothing. */
+.run-flag {
+  margin: 0;
+  max-width: 34ch;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--neon-amber);
+}
+.run-flag:empty { display: none; }
+
 .btn {
   margin-top: 6px;
   padding: 11px 26px;
@@ -422,11 +434,16 @@ canvas {
   font-size: 12px;
   color: var(--danger);
 }
+/* Deliberately the same amber as .run-flag rather than the dim grey it used to
+   be (#72): this is the one place the exclusion is stated before it bites, so it
+   must not be the quietest thing on the overlay. */
 .jump-warn {
   margin: 10px 0 0;
-  font-size: 11px;
+  max-width: 34ch;
+  font-size: 12.5px;
+  line-height: 1.45;
   letter-spacing: .04em;
-  color: var(--text-dim);
+  color: var(--neon-amber);
 }
 .jump-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
 
@@ -606,7 +623,7 @@ canvas {
           <p class="overlay-sub" data-i18n="start.sub">Détruisez toutes les briques pour passer au niveau suivant. Rattrapez les bonus qui tombent &mdash; évitez les malus.</p>
           <button class="btn" id="btn-start" type="button" data-i18n="start.btn">Lancer la partie</button>
           <!-- #43: opens the hall of fame (#42) on demand, before playing. -->
-          <button class="btn btn-ghost" id="btn-view-hof" type="button" data-i18n="start.viewHof">Tableau des scores</button>
+          <button class="btn btn-ghost" id="btn-view-hof" type="button" data-i18n="hof.view">Tableau des scores</button>
         </div>
 
         <div class="overlay" id="overlay-ready" role="status" aria-live="polite" aria-hidden="true">
@@ -633,7 +650,13 @@ canvas {
           <h2 class="overlay-title" data-i18n="victory.title">Cabinet vaincu !</h2>
           <p class="overlay-score" id="victory-score">Score final : 0</p>
           <p class="overlay-sub" id="victory-best">Meilleur score : 0</p>
+          <!-- #72: filled by renderDynamicText() only when the run used the
+               level jump, and empty otherwise. -->
+          <p class="run-flag" id="victory-jumped"></p>
           <button class="btn" id="btn-restart-win" type="button" data-i18n="victory.btn">Rejouer</button>
+          <!-- #73: secondary route to the board from the screen where the run
+               just ended — and the only one a jumped run ever gets. -->
+          <button class="btn btn-ghost" id="btn-view-hof-win" type="button" data-i18n="hof.view">Tableau des scores</button>
         </div>
 
         <div class="overlay" id="overlay-gameover" role="status" aria-live="polite" aria-hidden="true">
@@ -641,7 +664,9 @@ canvas {
           <h2 class="overlay-title" data-i18n="gameover.title">Balle perdue</h2>
           <p class="overlay-score" id="gameover-score">Score : 0</p>
           <p class="overlay-sub" id="gameover-best">Meilleur score : 0</p>
+          <p class="run-flag" id="gameover-jumped"></p>
           <button class="btn" id="btn-restart" type="button" data-i18n="gameover.btn">Rejouer</button>
+          <button class="btn btn-ghost" id="btn-view-hof-over" type="button" data-i18n="hof.view">Tableau des scores</button>
         </div>
 
         <!-- #42: a run that ends with a hall-of-fame-qualifying score detours
@@ -1279,7 +1304,7 @@ canvas {
       "canvas.label": "Zone de jeu Blokrush",
       "start.sub": "Détruisez toutes les briques pour passer au niveau suivant. Rattrapez les bonus qui tombent — évitez les malus.",
       "start.btn": "Lancer la partie",
-      "start.viewHof": "Tableau des scores",
+      "hof.view": "Tableau des scores",
       "ready.title": "Prêt ?",
       "ready.sub": "Bougez la raquette puis appuyez sur Espace, cliquez ou touchez l'écran pour lancer la balle.",
       "pause.eyebrow": "Pause",
@@ -1294,6 +1319,7 @@ canvas {
       "gameover.eyebrow": "Game Over",
       "gameover.title": "Balle perdue",
       "gameover.btn": "Rejouer",
+      "run.jumped": "Partie exclue du Hall of Fame — saut de niveau utilisé. Rejouez pour une partie éligible.",
       "level.of": "Niveau {n} / {total}",
       "score": "Score : {score}",
       "score.final": "Score final : {score}",
@@ -1336,7 +1362,7 @@ canvas {
       "canvas.label": "Blokrush play area",
       "start.sub": "Destroy every brick to reach the next level. Catch the power-ups as they fall — dodge the bad ones.",
       "start.btn": "Start game",
-      "start.viewHof": "High scores",
+      "hof.view": "High scores",
       "ready.title": "Ready?",
       "ready.sub": "Move the paddle, then press Space, click or tap the screen to launch the ball.",
       "pause.eyebrow": "Paused",
@@ -1351,6 +1377,7 @@ canvas {
       "gameover.eyebrow": "Game Over",
       "gameover.title": "Ball lost",
       "gameover.btn": "Play again",
+      "run.jumped": "Run excluded from the Hall of Fame — level jump used. Play again for an eligible run.",
       "level.of": "Level {n} / {total}",
       "score": "Score: {score}",
       "score.final": "Final score: {score}",
@@ -2118,6 +2145,13 @@ canvas {
     document.getElementById("victory-best").textContent = t("best", { score: state.best });
     document.getElementById("gameover-score").textContent = t("score", { score: state.score });
     document.getElementById("gameover-best").textContent = t("best", { score: state.best });
+    // #72: the run-level disclosure, on both screens a run can end on — a jumped
+    // run that clears level 100 reaches victory, not gameover. Empty otherwise,
+    // and newGame() clearing state.jumped is what makes it disappear again, which
+    // is the point: the exclusion is per run, not for good.
+    var jumpFlag = state.jumped ? t("run.jumped") : "";
+    document.getElementById("victory-jumped").textContent = jumpFlag;
+    document.getElementById("gameover-jumped").textContent = jumpFlag;
     document.getElementById("leveljump-sub").textContent = t("leveljump.sub", { total: total });
     document.getElementById("leveljump-error").textContent =
       state.jumpError ? t("leveljump.error", { total: total }) : "";
@@ -2188,11 +2222,19 @@ canvas {
 
   document.getElementById("btn-start").addEventListener("click", function () { newGame(); });
   // #43: opens the board on demand — a pure view, unlike every other route
-  // into "halloffame", so no score/lives reset and no newGame() call.
-  document.getElementById("btn-view-hof").addEventListener("click", function () {
-    state.returnPhase = "start";
+  // into "halloffame", so no score/lives reset and no newGame() call. #73 gave
+  // the two end screens the same control, hence the shared helper: `from` is
+  // what btn-hof-continue reads back, and an entry point that forgets to set it
+  // sends setPhase(null). Re-rendering first is not decoration either — the run
+  // that just ended may have changed the board, and the world list can have been
+  // swapped in underneath it (#67).
+  function viewHallOfFame(from) {
+    state.returnPhase = from;
     renderHallOfFame();
     setPhase("halloffame");
+  }
+  document.getElementById("btn-view-hof").addEventListener("click", function () {
+    viewHallOfFame("start");
   });
   document.getElementById("btn-resume").addEventListener("click", resume);
   // The deck buttons stay on screen, so a mouse click would leave one focused and
@@ -2211,6 +2253,12 @@ canvas {
   });
   document.getElementById("btn-restart").addEventListener("click", newGame);
   document.getElementById("btn-restart-win").addEventListener("click", newGame);
+  document.getElementById("btn-view-hof-over").addEventListener("click", function () {
+    viewHallOfFame("gameover");
+  });
+  document.getElementById("btn-view-hof-win").addEventListener("click", function () {
+    viewHallOfFame("victory");
+  });
   document.getElementById("btn-nameentry-submit").addEventListener("click", submitHallOfFameName);
   document.getElementById("btn-leveljump-go").addEventListener("click", submitLevelJump);
   document.getElementById("btn-leveljump-cancel").addEventListener("click", cancelLevelJump);

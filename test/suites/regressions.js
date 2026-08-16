@@ -2644,5 +2644,145 @@ module.exports = {
         a.ne(g.T.state.paddle.x, before, "the paddle should still track during the beat");
       },
     },
+
+    // -----------------------------------------------------------------------
+    // #72 — a jumped run is told why it was disqualified
+    // -----------------------------------------------------------------------
+    {
+      name: "#72a — a jumped run's gameover screen carries the explanation, an ordinary one's does not",
+      fn(a) {
+        // The bug as reported was "entering a name does not display the hall of
+        // fame": #69's exclusion firing with nothing on screen to say so.
+        const jumped = boot();
+        chord(jumped);
+        jumped.el("leveljump-input").value = "90";
+        jumped.el("btn-leveljump-go").click(1);
+        jumped.key("Space");
+        jumped.T.state.score = 30;
+        jumped.T.state.lives = 1;
+        jumped.loseBall();
+        a.eq(jumped.T.state.phase, "gameover");
+        a.eq(jumped.el("gameover-jumped").textContent, jumped.T.t("run.jumped"),
+          "the screen where the exclusion bites must say the exclusion happened");
+
+        // Same score, same ending, no jump — and nothing to explain. FULL_HOF
+        // keeps it off the nameentry detour so both runs end on gameover.
+        const plain = boot({ storage: { "neonbreak-hall-of-fame": FULL_HOF } }).start();
+        plain.T.state.score = 30;
+        plain.T.state.lives = 1;
+        plain.loseBall();
+        a.eq(plain.T.state.phase, "gameover");
+        a.eq(plain.el("gameover-jumped").textContent, "",
+          "an ordinary run must not be told it was excluded");
+      },
+    },
+    {
+      name: "#72b — the same line reaches victory, which a jumped run can still finish on",
+      fn(a) {
+        const total = boot().T.CONFIG.progression.totalLevels;
+
+        const jumped = boot();
+        chord(jumped);
+        jumped.el("leveljump-input").value = String(total);
+        jumped.el("btn-leveljump-go").click(1);
+        jumped.key("Space");
+        clearBricks(jumped);
+        jumped.frame();
+        a.eq(jumped.T.state.phase, "victory", "clearing the last level ends on victory, not gameover");
+        a.eq(jumped.el("victory-jumped").textContent, jumped.T.t("run.jumped"),
+          "victory needs the line too — gameover alone would miss every jumped run that finishes");
+
+        const plain = boot().start();
+        plain.T.startLevel(total - 1);
+        plain.key("Space");
+        clearBricks(plain);
+        plain.frame();
+        a.eq(plain.T.state.phase, "victory");
+        a.eq(plain.el("victory-jumped").textContent, "");
+      },
+    },
+    {
+      name: "#72c — restarting clears it, because the exclusion is per run and not for good",
+      fn(a) {
+        const g = boot();
+        chord(g);
+        g.el("leveljump-input").value = "90";
+        g.el("btn-leveljump-go").click(1);
+        g.key("Space");
+        g.T.state.lives = 1;
+        g.loseBall();
+        a.ne(g.el("gameover-jumped").textContent, "");
+
+        g.el("btn-restart").click(1);
+        a.eq(g.T.state.jumped, false);
+        a.eq(g.el("gameover-jumped").textContent, "",
+          "a player who thinks they have permanently broken their game stops playing");
+        g.key("Space");
+        g.T.state.score = 700;
+        g.T.state.lives = 1;
+        g.loseBall();
+        a.eq(g.T.state.phase, "nameentry", "and the next run really is eligible again");
+      },
+    },
+
+    // -----------------------------------------------------------------------
+    // #73 — the board is reachable from the screens a run ends on
+    // -----------------------------------------------------------------------
+    {
+      name: "#73a — from gameover the board opens and continue comes back to gameover",
+      fn(a) {
+        const g = boot({ storage: { "neonbreak-hall-of-fame": FULL_HOF } }).start();
+        g.T.state.score = 30;
+        g.T.state.lives = 1;
+        g.loseBall();
+        a.eq(g.T.state.phase, "gameover");
+        // Checking the board used to cost a restart, which replaced the score
+        // you wanted to compare against.
+        a.eq(g.doc.activeElement, g.el("btn-restart"), "restart stays the overlay's call to action (#26)");
+
+        g.el("btn-view-hof-over").click(1);
+        a.eq(g.T.state.phase, "halloffame");
+        a.includes(g.el("hof-list").innerHTML, "CPU", "the board should have been rendered, not left stale");
+        g.el("btn-hof-continue").click(1);
+        a.eq(g.T.state.phase, "gameover", "continue must return to the run that just ended, not to start");
+      },
+    },
+    {
+      name: "#73b — the same from victory",
+      fn(a) {
+        const g = boot({ storage: { "neonbreak-hall-of-fame": FULL_HOF } }).start();
+        g.T.startLevel(g.T.CONFIG.progression.totalLevels - 1);
+        g.key("Space");
+        clearBricks(g);
+        g.frame();
+        a.eq(g.T.state.phase, "victory");
+        a.eq(g.doc.activeElement, g.el("btn-restart-win"));
+
+        g.el("btn-view-hof-win").click(1);
+        a.eq(g.T.state.phase, "halloffame");
+        g.el("btn-hof-continue").click(1);
+        a.eq(g.T.state.phase, "victory");
+      },
+    },
+    {
+      name: "#73c — a qualifying run that already detoured through the board still routes back",
+      fn(a) {
+        // endGame() sets returnPhase for the detour; the button has to set it
+        // again rather than trust what is left over from that.
+        const g = boot().start();
+        g.T.state.score = 10;
+        g.T.state.lives = 1;
+        g.loseBall();
+        a.eq(g.T.state.phase, "nameentry");
+        g.el("btn-nameentry-submit").click(1);
+        g.el("btn-hof-continue").click(1);
+        a.eq(g.T.state.phase, "gameover");
+
+        g.el("btn-view-hof-over").click(1);
+        a.eq(g.T.state.phase, "halloffame");
+        g.el("btn-hof-continue").click(1);
+        a.eq(g.T.state.phase, "gameover", "the second visit must not fall back to a stale returnPhase");
+      },
+    },
   ],
 };
