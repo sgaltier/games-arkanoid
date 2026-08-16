@@ -37,6 +37,10 @@ const SEAM = [
   // "the same bar does not come back round for eight of them" is not a
   // statement a test can make.
   "MUSIC_STEPS", "MUSIC_BARS",
+  // #65: the roster, so `#65e` can hold it against both string tables. Its ids
+  // are also what the persisted file contains, which is the other thing worth
+  // being able to assert directly.
+  "ACHIEVEMENTS",
 ];
 
 const TAIL = "})();";

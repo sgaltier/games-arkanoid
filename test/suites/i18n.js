@@ -68,6 +68,11 @@ module.exports = {
         const { STRINGS, SUPPORTED_LANGS } = boot().T;
         const called = new Set();
         for (const m of SCRIPT.matchAll(/\bt\(\s*"([^"]+)"/g)) called.add(m[1]);
+        // #65 introduced the first composed keys — t("ach." + id + ".name") —
+        // where the literal the scan sees is a prefix and not a key at all.
+        // Those are covered instead by `#65e`, which checks the whole roster
+        // against both tables; a prefix here would just be a false positive.
+        called.forEach((k) => { if (k.endsWith(".")) called.delete(k); });
         a.gt(called.size, 0, "no t() calls found");
         const unknown = [...called].filter((k) => !(k in STRINGS[SUPPORTED_LANGS[0]]));
         a.empty(unknown, `code references unknown keys: ${unknown.join(", ")}`);

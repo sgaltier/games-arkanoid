@@ -112,6 +112,11 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .title { animation: none; }
+  /* #65: the unlock banner still appears — it carries information, and #58's
+     rule is that the feedback layer can be switched off without the game
+     changing, not that it can be switched off without being told anything. It
+     is the slide that goes, not the banner. */
+  .ach-toast, .ach-toast.show { transition: none; transform: translate(-50%, 0); }
 }
 
 .tagline {
@@ -496,6 +501,81 @@ canvas {
   color: var(--text-dim);
 }
 
+/* ---------- achievements (#65) ---------- */
+.ach-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  width: min(320px, 100%);
+  max-height: 46%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+  /* The overlay lets clicks fall through to the canvas; a list long enough to
+     scroll has to take them back or it cannot be scrolled. */
+  pointer-events: auto;
+}
+.ach-entry {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  color: var(--text-dim);
+}
+.ach-entry.ach-got { color: var(--text-primary); background: rgba(255, 182, 39, .1); }
+.ach-mark { color: var(--steel); font-size: 13px; }
+.ach-entry.ach-got .ach-mark { color: var(--neon-amber); }
+.ach-body { display: flex; flex-direction: column; gap: 1px; }
+.ach-name { font-family: var(--font-mono); font-size: 12.5px; letter-spacing: .04em; }
+/* A locked row still reads its condition — a goal nobody can read is not a goal. */
+.ach-desc { font-size: 11.5px; line-height: 1.35; color: var(--text-dim); }
+
+/* How many the run just unlocked, on the two end screens. Sits where .run-flag
+   does and behaves the same way: empty means gone, not a blank line. */
+.run-unlocked {
+  margin: 0;
+  max-width: 34ch;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--neon-lime);
+}
+.run-unlocked:empty { display: none; }
+
+/* The unlock banner. Stacked above the overlays (see the markup) and never
+   interactive, so it must not take pointer events back from the canvas. */
+.ach-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 14%;
+  transform: translate(-50%, 8px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--neon-amber);
+  background: rgba(5, 1, 14, .9);
+  box-shadow: 0 0 18px rgba(255, 182, 39, .25);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .2s ease, transform .2s ease;
+  pointer-events: none;
+  z-index: 2;
+}
+.ach-toast.show { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
+.ach-toast-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--neon-amber);
+}
+.ach-toast-name { font-family: var(--font-mono); font-size: 13px; color: var(--text-primary); }
+
 /* ---------- deck ---------- */
 .deck {
   display: flex;
@@ -617,6 +697,16 @@ canvas {
         <div class="scanlines" aria-hidden="true"></div>
         <div class="vignette" aria-hidden="true"></div>
 
+        <!-- #65: the unlock banner. A DOM element rather than something painted
+             on the canvas, and stacked above the overlays: most of the roster
+             lands at a level clear or at the end of a run, where a canvas
+             banner would be behind the panel covering the field. aria-live
+             means it is announced as well as seen. -->
+        <div class="ach-toast" id="ach-toast" role="status" aria-live="polite" aria-hidden="true">
+          <span class="ach-toast-label" data-i18n="achievements.unlocked">Succès débloqué</span>
+          <span class="ach-toast-name" id="ach-toast-name"></span>
+        </div>
+
         <div class="overlay show" id="overlay-start" role="status" aria-live="polite" aria-hidden="false">
           <p class="overlay-eyebrow" id="start-eyebrow">Niveau 1 / 100</p>
           <h2 class="overlay-title">Blokrush</h2>
@@ -624,6 +714,8 @@ canvas {
           <button class="btn" id="btn-start" type="button" data-i18n="start.btn">Lancer la partie</button>
           <!-- #43: opens the hall of fame (#42) on demand, before playing. -->
           <button class="btn btn-ghost" id="btn-view-hof" type="button" data-i18n="hof.view">Tableau des scores</button>
+          <!-- #65: the only route to the roster before a run has been played. -->
+          <button class="btn btn-ghost" id="btn-view-ach" type="button" data-i18n="ach.view">Succès</button>
         </div>
 
         <div class="overlay" id="overlay-ready" role="status" aria-live="polite" aria-hidden="true">
@@ -653,10 +745,13 @@ canvas {
           <!-- #72: filled by renderDynamicText() only when the run used the
                level jump, and empty otherwise. -->
           <p class="run-flag" id="victory-jumped"></p>
+          <!-- #65: how many the run unlocked; empty when it unlocked none. -->
+          <p class="run-unlocked" id="victory-unlocked"></p>
           <button class="btn" id="btn-restart-win" type="button" data-i18n="victory.btn">Rejouer</button>
           <!-- #73: secondary route to the board from the screen where the run
                just ended — and the only one a jumped run ever gets. -->
           <button class="btn btn-ghost" id="btn-view-hof-win" type="button" data-i18n="hof.view">Tableau des scores</button>
+          <button class="btn btn-ghost" id="btn-view-ach-win" type="button" data-i18n="ach.view">Succès</button>
         </div>
 
         <div class="overlay" id="overlay-gameover" role="status" aria-live="polite" aria-hidden="true">
@@ -665,8 +760,10 @@ canvas {
           <p class="overlay-score" id="gameover-score">Score : 0</p>
           <p class="overlay-sub" id="gameover-best">Meilleur score : 0</p>
           <p class="run-flag" id="gameover-jumped"></p>
+          <p class="run-unlocked" id="gameover-unlocked"></p>
           <button class="btn" id="btn-restart" type="button" data-i18n="gameover.btn">Rejouer</button>
           <button class="btn btn-ghost" id="btn-view-hof-over" type="button" data-i18n="hof.view">Tableau des scores</button>
+          <button class="btn btn-ghost" id="btn-view-ach-over" type="button" data-i18n="ach.view">Succès</button>
         </div>
 
         <!-- #42: a run that ends with a hall-of-fame-qualifying score detours
@@ -688,6 +785,17 @@ canvas {
           <p class="hof-scope" id="hof-scope"></p>
           <ol class="hof-list" id="hof-list"></ol>
           <button class="btn" id="btn-hof-continue" type="button" data-i18n="halloffame.btn">Continuer</button>
+        </div>
+
+        <!-- #65: the roster. A pure view like the board above — every route in
+             sets state.returnPhase, and the continue button reads it back. -->
+        <div class="overlay" id="overlay-achievements" role="status" aria-live="polite" aria-hidden="true">
+          <p class="overlay-eyebrow" data-i18n="achievements.eyebrow">Succès</p>
+          <h2 class="overlay-title" data-i18n="achievements.title">Tableau des succès</h2>
+          <p class="hof-scope" id="ach-progress"></p>
+          <p class="run-flag" id="ach-jumped"></p>
+          <ol class="ach-list" id="ach-list"></ol>
+          <button class="btn" id="btn-ach-continue" type="button" data-i18n="achievements.btn">Continuer</button>
         </div>
 
         <!-- #69: the developer level jump, reachable with S+E+B from any phase.
@@ -1242,6 +1350,12 @@ canvas {
       rise: 40,  // px/s the "+N" pop-up drifts upward
       life: 0.7  // seconds before it fully fades
     },
+    // #65: the roster and its thresholds live in ACHIEVEMENTS — they are the
+    // feature rather than a tuning knob — so the only number here is how long
+    // an unlock stays on screen.
+    achievements: {
+      toastLife: 3 // seconds an unlock banner holds before the next one shows
+    },
     // #58: the sub-100ms feedback layer — a camera shake on a blast, a few
     // frames of frozen time with it, and a paddle squash on contact. All of it
     // is presentation: nothing here is read by collision, scoring or timing, so
@@ -1352,7 +1466,55 @@ canvas {
       "leveljump.btn": "Y aller",
       "leveljump.cancel": "Annuler",
       "leveljump.error": "Niveau invalide : entrez un nombre entre 1 et {total}.",
-      "leveljump.warn": "Une partie lancée ainsi est exclue du Hall of Fame."
+      "leveljump.warn": "Une partie lancée ainsi est exclue du Hall of Fame.",
+      "ach.view": "Succès",
+      "achievements.eyebrow": "Progression",
+      "achievements.title": "Succès",
+      "achievements.btn": "Continuer",
+      "achievements.progress": "{n} / {total} débloqués",
+      "achievements.unlocked": "Succès débloqué",
+      "achievements.run": "Succès débloqués cette partie : {n}",
+      "achievements.jumped": "Partie exclue — saut de niveau utilisé : aucun succès ne peut être débloqué.",
+      "ach.firstCrack.name": "Première brèche",
+      "ach.firstCrack.desc": "Détruisez votre première brique.",
+      "ach.warmCabinet.name": "Machine chaude",
+      "ach.warmCabinet.desc": "Terminez le niveau 10.",
+      "ach.fullHouse.name": "Le plein",
+      "ach.fullHouse.desc": "Ayez le nombre maximum de vies en même temps.",
+      "ach.untouchedTen.name": "Dix d'affilée",
+      "ach.untouchedTen.desc": "Un combo de 10 sans toucher la raquette.",
+      "ach.untouchedTwentyFive.name": "Vingt-cinq d'affilée",
+      "ach.untouchedTwentyFive.desc": "Un combo de 25 sans toucher la raquette.",
+      "ach.cleanSheet.name": "Sans accroc",
+      "ach.cleanSheet.desc": "Terminez un niveau sans perdre de balle.",
+      "ach.ironTen.name": "Dix de fer",
+      "ach.ironTen.desc": "Terminez dix niveaux d'affilée sans perdre de balle.",
+      "ach.blitz.name": "Éclair",
+      "ach.blitz.desc": "Terminez un niveau en moins de 45 secondes de jeu.",
+      "ach.chainReaction.name": "Réaction en chaîne",
+      "ach.chainReaction.desc": "Six briques dans une seule explosion.",
+      "ach.sharpshooter.name": "Tireur d'élite",
+      "ach.sharpshooter.desc": "Détruisez 25 briques au laser en une partie.",
+      "ach.threeAtOnce.name": "Trois balles",
+      "ach.threeAtOnce.desc": "Ayez trois balles en jeu en même temps.",
+      "ach.whackABrick.name": "Retour à l'envoyeur",
+      "ach.whackABrick.desc": "Détruisez une brique régénérante après son retour.",
+      "ach.curiosity.name": "Curiosité",
+      "ach.curiosity.desc": "Révélez 25 briques mystère en une partie.",
+      "ach.silverService.name": "Service argenté",
+      "ach.silverService.desc": "Détruisez 50 briques argentées en une partie.",
+      "ach.discerning.name": "Œil sélectif",
+      "ach.discerning.desc": "Terminez cinq niveaux d'affilée sans attraper de malus.",
+      "ach.immortalised.name": "Immortalisé",
+      "ach.immortalised.desc": "Entrez au Hall of Fame.",
+      "ach.worldClass.name": "Niveau mondial",
+      "ach.worldClass.desc": "Entrez au classement mondial.",
+      "ach.sixFigures.name": "Six chiffres",
+      "ach.sixFigures.desc": "Terminez une partie avec 100 000 points ou plus.",
+      "ach.cabinetBeaten.name": "Machine vaincue",
+      "ach.cabinetBeaten.desc": "Terminez la campagne.",
+      "ach.untouchable.name": "Intouchable",
+      "ach.untouchable.desc": "Terminez la campagne sans perdre une seule balle."
     },
     en: {
       "doc.title": "Blokrush — Arcade Brick Breaker",
@@ -1410,7 +1572,55 @@ canvas {
       "leveljump.btn": "Go",
       "leveljump.cancel": "Cancel",
       "leveljump.error": "Invalid level: enter a number between 1 and {total}.",
-      "leveljump.warn": "A run started this way cannot enter the Hall of Fame."
+      "leveljump.warn": "A run started this way cannot enter the Hall of Fame.",
+      "ach.view": "Achievements",
+      "achievements.eyebrow": "Progress",
+      "achievements.title": "Achievements",
+      "achievements.btn": "Continue",
+      "achievements.progress": "{n} / {total} unlocked",
+      "achievements.unlocked": "Achievement unlocked",
+      "achievements.run": "Unlocked this run: {n}",
+      "achievements.jumped": "Run excluded — level jump used: nothing can unlock.",
+      "ach.firstCrack.name": "First Crack",
+      "ach.firstCrack.desc": "Destroy your first brick.",
+      "ach.warmCabinet.name": "Warm Cabinet",
+      "ach.warmCabinet.desc": "Clear level 10.",
+      "ach.fullHouse.name": "Full House",
+      "ach.fullHouse.desc": "Hold the maximum number of lives at once.",
+      "ach.untouchedTen.name": "Untouched Ten",
+      "ach.untouchedTen.desc": "A combo of 10 without touching the paddle.",
+      "ach.untouchedTwentyFive.name": "Untouched Twenty-Five",
+      "ach.untouchedTwentyFive.desc": "A combo of 25 without touching the paddle.",
+      "ach.cleanSheet.name": "Clean Sheet",
+      "ach.cleanSheet.desc": "Clear a level without losing a ball.",
+      "ach.ironTen.name": "Iron Ten",
+      "ach.ironTen.desc": "Clear ten levels in a row without losing a ball.",
+      "ach.blitz.name": "Blitz",
+      "ach.blitz.desc": "Clear a level in under 45 seconds of play.",
+      "ach.chainReaction.name": "Chain Reaction",
+      "ach.chainReaction.desc": "Six bricks in a single explosion.",
+      "ach.sharpshooter.name": "Sharpshooter",
+      "ach.sharpshooter.desc": "Destroy 25 bricks with the laser in one run.",
+      "ach.threeAtOnce.name": "Three at Once",
+      "ach.threeAtOnce.desc": "Have three balls in play at the same time.",
+      "ach.whackABrick.name": "Whack-a-Brick",
+      "ach.whackABrick.desc": "Destroy a regenerating brick after it has come back.",
+      "ach.curiosity.name": "Curiosity",
+      "ach.curiosity.desc": "Reveal 25 mystery bricks in one run.",
+      "ach.silverService.name": "Silver Service",
+      "ach.silverService.desc": "Destroy 50 silver bricks in one run.",
+      "ach.discerning.name": "Discerning",
+      "ach.discerning.desc": "Clear five levels in a row without catching a bad power-up.",
+      "ach.immortalised.name": "Immortalised",
+      "ach.immortalised.desc": "Land on the hall of fame.",
+      "ach.worldClass.name": "World Class",
+      "ach.worldClass.desc": "Land on the world board.",
+      "ach.sixFigures.name": "Six Figures",
+      "ach.sixFigures.desc": "Finish a run with 100,000 points or more.",
+      "ach.cabinetBeaten.name": "Cabinet Beaten",
+      "ach.cabinetBeaten.desc": "Finish the campaign.",
+      "ach.untouchable.name": "Untouchable",
+      "ach.untouchable.desc": "Finish the campaign without losing a single ball."
     }
   };
   var SUPPORTED_LANGS = ["fr", "en"];
@@ -1441,12 +1651,101 @@ canvas {
   }
 
   // ---------------------------------------------------------------------
+  // Achievements (#65)
+  //   Twenty named goals, four tiers, each a pure predicate over `state`.
+  //   There is no event bus: every condition is either something state already
+  //   holds (the combo, the lives, the balls in play) or a counter kept in
+  //   state.achStats by the update function that owns the event. That is the
+  //   same shape as everything else cross-cutting in this file, and it means
+  //   checkAchievements() can run from the ordinary per-frame path rather than
+  //   from twenty call sites.
+  //
+  //   Two rules the whole feature hangs on:
+  //     - It is presentation. Nothing here awards points, lives or power-ups.
+  //       The moment one did, this would be a second scoring system and the
+  //       hall of fame would stop meaning one thing.
+  //     - `id` is what persists (see ACH_KEY). Renaming one orphans every
+  //       unlock already stored, exactly like renaming a localStorage key —
+  //       the display name lives in STRINGS, which is what to change instead.
+  //
+  //   The thresholds are inline rather than in CONFIG on purpose: they are not
+  //   tuning knobs, they *are* the roster.
+  // ---------------------------------------------------------------------
+  var ACHIEVEMENTS = [
+    // I — arrive on their own. These exist so a player meets the system before
+    // going looking for a list.
+    { id: "firstCrack", tier: 1, when: function (s) { return s.achStats.bricks >= 1; } },
+    { id: "warmCabinet", tier: 1, when: function (s) { return s.achStats.levelsCleared >= 10; } },
+    { id: "fullHouse", tier: 1, when: function (s) { return s.lives >= s.maxLives; } },
+
+    // II — skill. The ones worth aiming at.
+    { id: "untouchedTen", tier: 2, when: function (s) { return s.combo >= 10; } },
+    { id: "untouchedTwentyFive", tier: 2, when: function (s) { return s.combo >= 25; } },
+    { id: "cleanSheet", tier: 2, when: function (s) { return s.achStats.cleanStreak >= 1; } },
+    { id: "ironTen", tier: 2, when: function (s) { return s.achStats.cleanStreak >= 10; } },
+    { id: "blitz", tier: 2, when: function (s) { return s.achStats.blitz; } },
+
+    // III — the toys. Every one of these names a mechanic a player can finish
+    // the whole campaign without ever noticing.
+    { id: "chainReaction", tier: 3, when: function (s) { return s.achStats.bestCascade >= 6; } },
+    { id: "sharpshooter", tier: 3, when: function (s) { return s.achStats.laserKills >= 25; } },
+    { id: "threeAtOnce", tier: 3, when: function (s) { return s.balls.length >= 3; } },
+    { id: "whackABrick", tier: 3, when: function (s) { return s.achStats.regenRevenge; } },
+    { id: "curiosity", tier: 3, when: function (s) { return s.achStats.mysteries >= 25; } },
+    { id: "silverService", tier: 3, when: function (s) { return s.achStats.silvers >= 50; } },
+    { id: "discerning", tier: 3, when: function (s) { return s.achStats.cleanPowerStreak >= 5; } },
+
+    // IV — the long tail. The last one may never be earned by anybody, which is
+    // the point of having it.
+    { id: "immortalised", tier: 4, when: function (s) { return s.achStats.onBoard; } },
+    { id: "worldClass", tier: 4, when: function (s) { return s.achStats.onWorldBoard; } },
+    { id: "sixFigures", tier: 4, when: function (s) { return s.achStats.ended && s.score >= 100000; } },
+    { id: "cabinetBeaten", tier: 4, when: function (s) { return s.achStats.won; } },
+    { id: "untouchable", tier: 4, when: function (s) { return s.achStats.won && s.achStats.ballsLost === 0; } }
+  ];
+  var BLITZ_SECONDS = 45; // "Blitz": a level cleared in under this much *play* time
+
+  // Everything the roster reads that state does not already hold. All of it is
+  // per run and none of it is persisted (see ACH_KEY): the only thing that
+  // outlives a run is the set of ids already unlocked.
+  function freshAchStats() {
+    return {
+      // per run
+      bricks: 0,
+      levelsCleared: 0,
+      laserKills: 0,
+      mysteries: 0,
+      silvers: 0,
+      ballsLost: 0,
+      bestCascade: 0,
+      cleanStreak: 0,       // levels cleared in a row without losing a ball
+      cleanPowerStreak: 0,  // ...without catching a bad power-up
+      regenRevenge: false,
+      blitz: false,
+      onBoard: false,
+      onWorldBoard: false,
+      ended: false,
+      won: false,
+      unlocked: 0,          // how many this run unlocked, for the end screens
+      // per level, reset by startLevel()
+      levelTime: 0,
+      levelLosses: 0,
+      levelBadPickups: 0,
+      // explode() bookkeeping: a cascade can nest, so "how big was that blast"
+      // is only known once the outermost one unwinds.
+      cascadeDepth: 0,
+      cascadeKills: 0
+    };
+  }
+
+  // ---------------------------------------------------------------------
   // Game state
   // ---------------------------------------------------------------------
   var BEST_KEY = "neonbreak-best-score";
   var LANG_KEY = "neonbreak-lang";
   var MUTED_KEY = "neonbreak-muted";
   var HOF_KEY = "neonbreak-hall-of-fame";
+  var ACH_KEY = "neonbreak-achievements";
 
   // Touching localStorage can throw outright — Safari private browsing, blocked
   // site data, some sandboxed file:// contexts. Since these are read while
@@ -1492,6 +1791,32 @@ canvas {
     }
   }
   function saveHallOfFame(list) { storageSet(HOF_KEY, JSON.stringify(list)); }
+
+  // #65: the unlocked set — an array of ids and nothing else, which is what
+  // keeps lifetime counters off the roster. Same hazard as the board above, and
+  // one more of its own: an id that is no longer in ACHIEVEMENTS is dropped on
+  // load, so retiring an achievement cannot leave a row nothing can render.
+  function loadAchievements() {
+    var raw = storageGet(ACH_KEY);
+    if (!raw) return [];
+    try {
+      var list = JSON.parse(raw);
+      if (!Array.isArray(list)) return [];
+      return list.filter(function (id) {
+        return typeof id === "string" && achievementById(id) !== null;
+      });
+    } catch (e) {
+      return [];
+    }
+  }
+  function saveAchievements(list) { storageSet(ACH_KEY, JSON.stringify(list)); }
+
+  function achievementById(id) {
+    for (var i = 0; i < ACHIEVEMENTS.length; i++) {
+      if (ACHIEVEMENTS[i].id === id) return ACHIEVEMENTS[i];
+    }
+    return null;
+  }
 
   // ---------------------------------------------------------------------
   // Global hall of fame (#67)
@@ -1542,6 +1867,16 @@ canvas {
     }).then(function (data) {
       if (data && Array.isArray(data.scores)) {
         state.globalScores = data.scores;
+        // #65: "World Class" is landing on the world board, not merely being
+        // accepted by it — the server returns the top N, so a score the server
+        // stored but that did not make the list is genuinely not on it.
+        var landed = data.scores.some(function (e) {
+          return e && e.name === name && e.score === score;
+        });
+        if (landed) {
+          state.achStats.onWorldBoard = true;
+          checkAchievements();
+        }
         renderHallOfFame();
       }
       return data;
@@ -1583,6 +1918,12 @@ canvas {
     muted: loadMuted(),
     lang: loadLang(),
     hallOfFame: loadHallOfFame(), // [{name, score}, ...], sorted desc, capped — see #42
+    // #65: ids already unlocked, which is the only thing that survives a run;
+    // achStats is everything the roster's predicates read and is thrown away
+    // with the run; achToasts is a queue, not a stack of overlapping banners.
+    achievements: loadAchievements(),
+    achStats: freshAchStats(),
+    achToasts: [],
     // #67: the world board, or null when the API has not answered. null is the
     // signal to fall back to hallOfFame above, so it must stay null rather than
     // becoming [] on failure — an empty array is a legitimately empty world board.
@@ -1697,6 +2038,10 @@ canvas {
     state.levelIndex = idx;
     buildLevel(idx);
     resetPaddleAndBall();
+    // #65: the per-level half of achStats. The run-level counters survive.
+    state.achStats.levelTime = 0;
+    state.achStats.levelLosses = 0;
+    state.achStats.levelBadPickups = 0;
     setPhase("ready");
     updateHud();
   }
@@ -1705,6 +2050,10 @@ canvas {
     state.score = 0;
     state.lives = 3;
     state.jumped = false; // #69: a fresh run is eligible again
+    // #65: every counter the roster reads is per run. The unlocked set is not
+    // touched — that is the one thing that outlives a run.
+    state.achStats = freshAchStats();
+    state.achToasts.length = 0;
     // Refreshes the session token as well as the board, so the run about to
     // start is dated from now — see fetchGlobalBoard.
     fetchGlobalBoard();
@@ -2034,11 +2383,8 @@ canvas {
   // ---------------------------------------------------------------------
   // Overlays
   // ---------------------------------------------------------------------
+  // Populated from PHASE_OVERLAY below, once it exists — see the note there.
   var overlays = {};
-  ["start", "ready", "pause", "levelclear", "victory", "gameover", "nameentry", "halloffame", "leveljump"]
-    .forEach(function (name) {
-      overlays[name] = document.getElementById("overlay-" + name);
-    });
   // The single source of truth for which overlay a phase shows and which
   // button on it gets focus — see #26 for the focus half, #36 for why this
   // is one map instead of two. "playing" shows no overlay; "ready" shows one
@@ -2062,6 +2408,9 @@ canvas {
     // .focus() on whatever id it's given, so that works the same way.
     nameentry: { overlay: "overlay-nameentry", button: "nameentry-input" },
     halloffame: { overlay: "overlay-halloffame", button: "btn-hof-continue" },
+    // #65: reached the same way "halloffame" is — a pure view that returns to
+    // whichever phase opened it, never a step in the run.
+    achievements: { overlay: "overlay-achievements", button: "btn-ach-continue" },
     victory: { overlay: "overlay-victory", button: "btn-restart-win" },
     gameover: { overlay: "overlay-gameover", button: "btn-restart" },
     // #69: reachable from any phase above rather than from one of them, and it
@@ -2070,6 +2419,17 @@ canvas {
     // button, which showOverlay() handles the same way.
     leveljump: { overlay: "overlay-leveljump", button: "leveljump-input" }
   };
+  // Every overlay showOverlay() is responsible for hiding, derived from
+  // PHASE_OVERLAY rather than listed a second time by hand. It *was* a second
+  // hand-written list, one entry short of this one, which is how #65 shipped an
+  // achievements panel that could be opened and never closed: showOverlay()
+  // added `show` to it by id but the hide loop had never heard of it. A map
+  // claiming to be the single source of truth has to be the only source.
+  Object.keys(PHASE_OVERLAY).forEach(function (p) {
+    var entry = PHASE_OVERLAY[p];
+    if (entry && entry.overlay) overlays[entry.overlay] = document.getElementById(entry.overlay);
+  });
+
   // Every button id that's some phase's call-to-action button, as a lookup
   // set, derived from PHASE_OVERLAY rather than hand-duplicated. Used below
   // (#33) to tell an overlay's own button apart from the deck's mute/pause
@@ -2155,6 +2515,17 @@ canvas {
     var jumpFlag = state.jumped ? t("run.jumped") : "";
     document.getElementById("victory-jumped").textContent = jumpFlag;
     document.getElementById("gameover-jumped").textContent = jumpFlag;
+    // #65: how many this run unlocked, on the two screens a run ends on — the
+    // banner during play cannot be seen behind an overlay, so an unlock earned
+    // by the last brick would otherwise go unmentioned.
+    var unlocked = state.achStats.unlocked;
+    var unlockedText = unlocked ? t("achievements.run", { n: unlocked }) : "";
+    document.getElementById("victory-unlocked").textContent = unlockedText;
+    document.getElementById("gameover-unlocked").textContent = unlockedText;
+    // The banner's own text is re-read here so a mid-game language switch
+    // re-renders whatever is currently on screen, like everything else above.
+    achToastLast = null;
+    renderAchToast();
     document.getElementById("leveljump-sub").textContent = t("leveljump.sub", { total: total });
     document.getElementById("leveljump-error").textContent =
       state.jumpError ? t("leveljump.error", { total: total }) : "";
@@ -2219,6 +2590,7 @@ canvas {
     renderPauseButton();
     renderDynamicText();
     renderHallOfFame(); // re-renders the empty-board message; entries themselves hold no language
+    renderAchievements(); // #65: unlike board entries, every row here is a translated string
     updateHud();
     saveLang(state.lang);
   }
@@ -2236,8 +2608,17 @@ canvas {
     renderHallOfFame();
     setPhase("halloffame");
   }
+  // #65: the same shape, and the same obligation to set returnPhase.
+  function viewAchievements(from) {
+    state.returnPhase = from;
+    renderAchievements();
+    setPhase("achievements");
+  }
   document.getElementById("btn-view-hof").addEventListener("click", function () {
     viewHallOfFame("start");
+  });
+  document.getElementById("btn-view-ach").addEventListener("click", function () {
+    viewAchievements("start");
   });
   document.getElementById("btn-resume").addEventListener("click", resume);
   // The deck buttons stay on screen, so a mouse click would leave one focused and
@@ -2261,6 +2642,15 @@ canvas {
   });
   document.getElementById("btn-view-hof-win").addEventListener("click", function () {
     viewHallOfFame("victory");
+  });
+  document.getElementById("btn-view-ach-over").addEventListener("click", function () {
+    viewAchievements("gameover");
+  });
+  document.getElementById("btn-view-ach-win").addEventListener("click", function () {
+    viewAchievements("victory");
+  });
+  document.getElementById("btn-ach-continue").addEventListener("click", function () {
+    setPhase(state.returnPhase);
   });
   document.getElementById("btn-nameentry-submit").addEventListener("click", submitHallOfFameName);
   document.getElementById("btn-leveljump-go").addEventListener("click", submitLevelJump);
@@ -2712,6 +3102,7 @@ canvas {
   }
 
   function applyPowerup(p) {
+    if (!p.good) state.achStats.levelBadPickups += 1; // #65: "Discerning"
     if (p.type === "widen") {
       state.widthEffect = { mult: CONFIG.effects.widen.mult, remaining: CONFIG.effects.widen.duration };
       beep(880, 0.12, "triangle");
@@ -2794,6 +3185,9 @@ canvas {
       }
       if (hit) {
         brickHit(hit);
+        // #65: "Sharpshooter" counts what the bolt itself finished off. A bolt
+        // that sets off an explosive does not get credit for the cascade.
+        if (!hit.alive) state.achStats.laserKills += 1;
         state.lasers.splice(i, 1);
       }
     }
@@ -2830,6 +3224,12 @@ canvas {
   // clears `alive` before this runs, so a cascade can never come back to a
   // brick it already destroyed, and every brick dies at most once.
   function explode(brick) {
+    // #65: "Chain Reaction" is the size of the whole cascade, which is only
+    // known once the outermost blast unwinds — a nested explosive is already
+    // counted as a kill by the blast that set it off. The initiator counts
+    // itself: brickHit() cleared it just above, before depth went up.
+    if (state.achStats.cascadeDepth === 0) state.achStats.cascadeKills = 1;
+    state.achStats.cascadeDepth += 1;
     var cx = brick.x + brick.w / 2;
     var cy = brick.y + brick.h / 2;
     burst(cx, cy, BRICK_COLOR["X"].fill, 26);
@@ -2854,6 +3254,11 @@ canvas {
       // in this same loop may have been explosive and already taken this one out.
       if (neighbours[i].alive) brickHit(neighbours[i]);
     }
+    state.achStats.cascadeDepth -= 1;
+    if (state.achStats.cascadeDepth === 0 &&
+        state.achStats.cascadeKills > state.achStats.bestCascade) {
+      state.achStats.bestCascade = state.achStats.cascadeKills;
+    }
   }
 
   // #52: turn a "?" into a real type. Called at the top of brickHit(), so the
@@ -2872,6 +3277,7 @@ canvas {
       r -= MYSTERY_TYPES[i].weight;
       if (r <= 0) { type = MYSTERY_TYPES[i].type; break; }
     }
+    state.achStats.mysteries += 1; // #65: "Curiosity"
     brick.type = type;
     brick.hp = type === "#" ? Infinity : type === "S" ? 2 : 1;
     brick.regenLeft = type === "R" ? CONFIG.regen.max : 0;
@@ -2893,6 +3299,16 @@ canvas {
       brick.alive = false;
       state.remainingBricks -= 1;
       state.bricksDestroyed += 1;
+      // #65: the counters the roster reads. All of them are per run and none
+      // feed back into anything the game simulates. `Sc` is a silver that has
+      // already been cracked, so this is the hit that finishes one; regenLeft
+      // below its starting value means this brick has come back at least once.
+      state.achStats.bricks += 1;
+      if (brick.type === "Sc") state.achStats.silvers += 1;
+      if (brick.type === "R" && brick.regenLeft < CONFIG.regen.max) {
+        state.achStats.regenRevenge = true;
+      }
+      if (state.achStats.cascadeDepth > 0) state.achStats.cascadeKills += 1;
       if (state.bricksDestroyed % CONFIG.difficulty.brickMilestone === 0) {
         bumpDifficulty(CONFIG.difficulty.brickMilestoneMult);
       }
@@ -3067,6 +3483,10 @@ canvas {
 
   function loseLife(x) {
     state.lives -= 1;
+    // #65: "Untouchable" reads the run total; the per-level one is what breaks
+    // "Clean Sheet"/"Iron Ten" when the level is finally cleared.
+    state.achStats.ballsLost += 1;
+    state.achStats.levelLosses += 1;
     shakeScreen(CONFIG.impact.lifeLostShake);
     // #71: the ball coming apart, and the life going with it. Two colours
     // because they say different things — white is the object that was
@@ -3117,6 +3537,18 @@ canvas {
   function checkLevelClear() {
     if (state.remainingBricks <= 0) {
       maybeSaveBest();
+      // #65: the level's own verdict, settled before either branch below —
+      // the last level of the campaign ends the run, and "Iron Ten" and
+      // "Untouchable" both have to see it. A streak is judged on the level
+      // just finished rather than reset the moment a ball is lost, so one
+      // place decides it instead of two.
+      state.achStats.levelsCleared += 1;
+      state.achStats.cleanStreak = state.achStats.levelLosses === 0
+        ? state.achStats.cleanStreak + 1 : 0;
+      state.achStats.cleanPowerStreak = state.achStats.levelBadPickups === 0
+        ? state.achStats.cleanPowerStreak + 1 : 0;
+      if (state.achStats.levelTime < BLITZ_SECONDS) state.achStats.blitz = true;
+      checkAchievements();
       if (state.levelIndex >= CONFIG.progression.totalLevels - 1) {
         endGame(true);
       } else {
@@ -3134,6 +3566,12 @@ canvas {
   function endGame(won) {
     maybeSaveBest();
     updateHud();
+    // #65: the end-of-run achievements. Latched rather than read from the phase
+    // so a predicate stays a plain read of state, and checked here because
+    // nothing else runs after the run is over.
+    state.achStats.ended = true;
+    state.achStats.won = !!won;
+    checkAchievements();
     // #69: a jumped run plays normally but is never offered the board. The
     // world board can never be reset (#67) and brick value saturates toward
     // 20x (#41), so jumping straight to level 100 would otherwise be the
@@ -3202,6 +3640,8 @@ canvas {
     // but not this device's fuller one. The run still needs highlighting on the
     // list being shown, so fall back to a plain value to match against.
     state.hofHighlight = entry || { name: name, score: state.score };
+    state.achStats.onBoard = true; // #65: "Immortalised" — this path is only reached by a qualifying run
+    checkAchievements();
     input.value = "";
     renderHallOfFame();
     setPhase("halloffame");
@@ -3239,6 +3679,84 @@ canvas {
         '<span class="hof-name">' + escapeHtml(entry.name) + '</span>' +
         '<span class="hof-score">' + escapeHtml(String(entry.score)) + '</span>' +
         '</li>';
+    }).join("");
+  }
+
+  // ---------------------------------------------------------------------
+  // Achievements — the half that runs (#65)
+  //   The roster itself is up beside the persistence keys, because
+  //   loadAchievements() validates against it while `state` is being built.
+  // ---------------------------------------------------------------------
+
+  // Only ever adds. A predicate that stops being true later — a combo that
+  // breaks, a streak that ends — does not take an unlock back, which is what
+  // lets every condition be a plain read of state rather than a latch.
+  function checkAchievements() {
+    // #69/#72: a jumped run earns nothing, the same rule the board and the best
+    // score follow. The achievements screen says so, because a rule nobody is
+    // told about is indistinguishable from a bug — that was #72 exactly.
+    if (state.jumped) return;
+    for (var i = 0; i < ACHIEVEMENTS.length; i++) {
+      var a = ACHIEVEMENTS[i];
+      if (state.achievements.indexOf(a.id) !== -1) continue;
+      if (!a.when(state)) continue;
+      state.achievements.push(a.id);
+      state.achStats.unlocked += 1;
+      // A queue rather than overlapping banners: several can land in the same
+      // frame — a cascade that clears the level is three at once — and each
+      // one has to stay up long enough to be read.
+      state.achToasts.push({ id: a.id, age: 0, life: CONFIG.achievements.toastLife });
+      saveAchievements(state.achievements);
+    }
+  }
+
+  // Deliberately silent. An unlock almost always lands in the middle of the
+  // combo ladder (#59), which is the one sound the player is actually reading,
+  // and a sting competing with it costs more than it gives. The banner carries
+  // aria-live instead, so it is announced rather than merely seen.
+  function updateAchToasts(dt) {
+    if (!state.achToasts.length) return;
+    var front = state.achToasts[0];
+    front.age += dt;
+    if (front.age >= front.life) state.achToasts.shift();
+  }
+
+  var achToastEl = document.getElementById("ach-toast");
+  var achToastNameEl = document.getElementById("ach-toast-name");
+  var achToastLast = null;
+  // Same caching rule as the HUD (#15): an idle frame must not write to the
+  // DOM, so this only touches anything when the banner on screen changes.
+  function renderAchToast() {
+    var front = state.achToasts[0];
+    var id = front ? front.id : null;
+    if (id === achToastLast) return;
+    achToastLast = id;
+    if (id) {
+      achToastNameEl.textContent = t("ach." + id + ".name");
+      achToastEl.classList.add("show");
+      achToastEl.setAttribute("aria-hidden", "false");
+    } else {
+      achToastEl.classList.remove("show");
+      achToastEl.setAttribute("aria-hidden", "true");
+    }
+  }
+
+  // Locked rows show their condition rather than a row of question marks: a
+  // goal nobody can read is not a goal. Built through innerHTML with
+  // escapeHtml() for the same reason renderHallOfFame() is — see the note there.
+  function renderAchievements() {
+    document.getElementById("ach-progress").textContent =
+      t("achievements.progress", { n: state.achievements.length, total: ACHIEVEMENTS.length });
+    document.getElementById("ach-jumped").textContent =
+      state.jumped ? t("achievements.jumped") : "";
+    document.getElementById("ach-list").innerHTML = ACHIEVEMENTS.map(function (a) {
+      var got = state.achievements.indexOf(a.id) !== -1;
+      return '<li class="ach-entry' + (got ? " ach-got" : "") + '">' +
+        '<span class="ach-mark" aria-hidden="true">' + (got ? "&#9733;" : "&#9734;") + "</span>" +
+        '<span class="ach-body">' +
+          '<span class="ach-name">' + escapeHtml(t("ach." + a.id + ".name")) + "</span>" +
+          '<span class="ach-desc">' + escapeHtml(t("ach." + a.id + ".desc")) + "</span>" +
+        "</span></li>";
     }).join("");
   }
 
@@ -3598,6 +4116,10 @@ canvas {
     // prefers-reduced-motion (the drift, not the palette: an act still looks
     // like its own act, it simply holds still).
     if (!reduceMotion) state.bgScroll += dt;
+    // #65: the unlock banner ages on real time too — one earned on the last
+    // brick of a level has to finish being readable over the level-clear
+    // overlay, not freeze the moment the simulation stops.
+    updateAchToasts(dt);
 
     if (!frozen) {
       // #71: the paddle keeps answering during the lost-ball beat. Freezing
@@ -3621,14 +4143,17 @@ canvas {
         updateLasers(dt);
         updateParticles(dt);
         updateFloatingTexts(dt);
+        state.achStats.levelTime += dt; // #65: play time, so a pause never buys "Blitz"
         if (state.phase === "playing") checkLevelClear();
         updateHud();
+        checkAchievements();
       } else if (state.particles.length || state.floatingTexts.length) {
         updateParticles(dt);
         updateFloatingTexts(dt);
       }
     }
     renderEffectBars();
+    renderAchToast();
 
     draw();
     requestAnimationFrame(frame);

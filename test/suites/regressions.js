@@ -2140,6 +2140,197 @@ module.exports = {
     },
 
     // -----------------------------------------------------------------------
+    // #65 — achievements
+    // -----------------------------------------------------------------------
+    {
+      name: "#65a — an achievement unlocks once, not once a frame, and survives a reload",
+      fn(a) {
+        const { g, at, blast } = gridLevel();
+        a.empty(g.T.state.achievements, "a fresh install has unlocked nothing");
+
+        blast(at(3, 0));
+        a.includes(g.T.state.achievements, "firstCrack", "the first brick should unlock the first one");
+        a.eq(g.store["neonbreak-achievements"], JSON.stringify(["firstCrack"]),
+          "and it should have been written straight away, not at the end of the run");
+
+        // The check runs every frame; the unlock must not.
+        const toasts = g.T.state.achToasts.length;
+        g.T.state.balls.forEach((b) => { b.attached = true; });
+        g.run(1);
+        a.eq(g.T.state.achievements.filter((id) => id === "firstCrack").length, 1,
+          "a predicate that stays true must not unlock again on the next frame");
+        a.eq(g.T.state.achToasts.length, toasts, "nor queue a second banner");
+
+        const reloaded = boot({ storage: g.store });
+        a.includes(reloaded.T.state.achievements, "firstCrack", "it should still be unlocked next visit");
+      },
+    },
+    {
+      name: "#65b — a jumped run unlocks nothing, and the screen says why",
+      fn(a) {
+        const g = boot();
+        chord(g);
+        g.el("leveljump-input").value = "5";
+        g.el("btn-leveljump-go").click(1);
+        g.key("Space");
+        // Conditions that would unlock several at once on an ordinary run.
+        g.T.state.achStats.bricks = 100;
+        g.T.state.combo = 30;
+        g.T.state.lives = g.T.state.maxLives;
+        g.run(1);
+        a.empty(g.T.state.achievements, "#69's exclusion covers achievements too");
+        a.not(g.store["neonbreak-achievements"], "and nothing should have been persisted");
+
+        g.el("btn-view-ach").click(1);
+        a.eq(g.T.state.phase, "achievements");
+        a.eq(g.el("ach-jumped").textContent, g.T.t("achievements.jumped"),
+          "a silent exclusion is indistinguishable from a bug — that was #72");
+
+        // And an ordinary run in the same conditions does unlock.
+        const plain = boot().start();
+        plain.T.state.combo = 30;
+        plain.run(1);
+        a.includes(plain.T.state.achievements, "untouchedTen");
+      },
+    },
+    {
+      name: "#65c — storage of the wrong shape leaves an empty set rather than breaking the game",
+      fn(a) {
+        // Same hazard loadHallOfFame() guards: valid JSON that is not what we
+        // put there — a manual edit, another app sharing the origin.
+        a.empty(boot({ storage: { "neonbreak-achievements": '{"nope":1}' } }).T.state.achievements);
+        a.empty(boot({ storage: { "neonbreak-achievements": "not json at all" } }).T.state.achievements);
+        a.empty(boot({ storage: { "neonbreak-achievements": "[1,2,3]" } }).T.state.achievements,
+          "entries that are not strings are not ids");
+
+        // An id that is no longer in the roster is dropped, so retiring an
+        // achievement cannot leave a row nothing can render.
+        const g = boot({ storage: { "neonbreak-achievements": '["firstCrack","retiredLongAgo"]' } });
+        a.eq(g.T.state.achievements.join(","), "firstCrack");
+        g.el("btn-view-ach").click(1);
+        a.includes(g.el("ach-list").innerHTML, g.T.t("ach.firstCrack.name"));
+      },
+    },
+    {
+      name: "#65d — the layer is presentation: unlocking changes nothing the game simulates",
+      fn(a) {
+        // Same seed, same inputs, once with everything already unlocked (so
+        // nothing can fire) and once from scratch (so a dozen do).
+        const every = JSON.stringify(boot().T.ACHIEVEMENTS.map((x) => x.id));
+        const play = (storage) => {
+          const g = boot({ seed: 4242, storage: storage }).start();
+          g.runAlive(6);
+          return {
+            score: g.T.state.score,
+            bricks: g.T.state.remainingBricks,
+            drops: g.T.state.drops.length,
+            lives: g.T.state.lives,
+            ball: Math.round(g.T.state.balls.length && g.T.state.balls[0].x * 1000)
+          };
+        };
+        const unlocking = play({});
+        const quiet = play({ "neonbreak-achievements": every });
+        a.eq(JSON.stringify(unlocking), JSON.stringify(quiet),
+          "an unlock must not move the ball, the score, the drops or anything else");
+      },
+    },
+    {
+      name: "#65e — every achievement in the roster has a name and a condition in both languages",
+      fn(a) {
+        const { ACHIEVEMENTS, STRINGS, SUPPORTED_LANGS } = boot().T;
+        const missing = [];
+        ACHIEVEMENTS.forEach((ach) => {
+          SUPPORTED_LANGS.forEach((lang) => {
+            ["name", "desc"].forEach((part) => {
+              const key = "ach." + ach.id + "." + part;
+              if (!(key in STRINGS[lang])) missing.push(lang + ":" + key);
+            });
+          });
+        });
+        a.empty(missing, `roster entries with no string: ${missing.join(", ")}`);
+        a.gt(ACHIEVEMENTS.length, 0, "an empty roster would pass the above vacuously");
+        // Ids are what the persisted file holds, so a duplicate is a silent
+        // overwrite rather than a visible bug.
+        a.eq(new Set(ACHIEVEMENTS.map((x) => x.id)).size, ACHIEVEMENTS.length, "duplicate id in the roster");
+      },
+    },
+    {
+      name: "#65f — the roster is reachable from the end screens and returns to them",
+      fn(a) {
+        const g = boot({ storage: { "neonbreak-hall-of-fame": FULL_HOF } }).start();
+        g.T.state.score = 30;
+        g.T.state.lives = 1;
+        g.loseBall();
+        a.eq(g.T.state.phase, "gameover");
+        a.eq(g.doc.activeElement, g.el("btn-restart"), "restart stays the call to action (#26)");
+
+        g.el("btn-view-ach-over").click(1);
+        a.eq(g.T.state.phase, "achievements");
+        g.el("btn-ach-continue").click(1);
+        a.eq(g.T.state.phase, "gameover", "continue must return to the run that just ended");
+
+        // And from the start screen, where it is the only route in.
+        const menu = boot();
+        menu.el("btn-view-ach").click(1);
+        a.eq(menu.T.state.phase, "achievements");
+        menu.el("btn-ach-continue").click(1);
+        a.eq(menu.T.state.phase, "start");
+      },
+    },
+    {
+      name: "#65i — every overlay in PHASE_OVERLAY is one showOverlay() can hide again",
+      fn(a) {
+        // The achievements panel shipped able to open and never close:
+        // showOverlay() adds `show` by id, but the loop that clears it walked a
+        // second, hand-written list of overlays that had never heard of the new
+        // one. Asserting the phase alone did not see it — the phase changed, the
+        // panel just stayed on screen. So this walks every phase there is.
+        const g = boot();
+        const phases = Object.keys(g.T.PHASE_OVERLAY);
+        a.gt(phases.length, 5, "the map should cover the whole machine");
+        phases.forEach((phase) => {
+          const entry = g.T.PHASE_OVERLAY[phase];
+          g.T.setPhase(phase);
+          const shown = g.shownOverlays();
+          if (entry && entry.overlay) {
+            a.eq(shown.join(","), entry.overlay, `"${phase}" should show only its own overlay`);
+          } else {
+            a.empty(shown, `"${phase}" shows no overlay, so nothing should be left up`);
+          }
+        });
+      },
+    },
+    {
+      name: "#65g — several unlocking in one frame are queued, not collapsed into the last one",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.achStats.bricks = 1;      // firstCrack
+        g.T.state.combo = 30;               // untouchedTen + untouchedTwentyFive
+        g.frame();
+        a.eq(g.T.state.achToasts.length, 3, "three unlocked, so three banners are owed");
+        a.eq(g.el("ach-toast-name").textContent, g.T.t("ach.firstCrack.name"),
+          "the first one queued is the one on screen");
+
+        // The queue drains one at a time rather than overlapping.
+        g.run(g.T.CONFIG.achievements.toastLife + 0.1);
+        a.eq(g.T.state.achToasts.length, 2);
+        a.eq(g.el("ach-toast-name").textContent, g.T.t("ach.untouchedTen.name"));
+      },
+    },
+    {
+      name: "#65h — with storage unavailable, unlocks still happen; only remembering them fails",
+      fn(a) {
+        // Safari private browsing throws on every access. storageGet/storageSet
+        // swallow it, so the run should be unaffected apart from persistence.
+        const g = boot({ storageThrows: true }).start();
+        g.T.state.combo = 30;
+        g.frame();
+        a.includes(g.T.state.achievements, "untouchedTen", "the unlock itself must still happen");
+        a.gt(g.T.state.achToasts.length, 0, "and still be shown");
+      },
+    },
+
+    // -----------------------------------------------------------------------
     // #60 — per-act palettes and the parallax field
     // -----------------------------------------------------------------------
     {

@@ -37,12 +37,45 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #71 | ✅ Fixed — 2026-08-15 |
 | #72, #73 | ✅ Fixed — 2026-08-16 |
 | #70 | ✅ Fixed — 2026-08-16 |
-| #65 | 🔲 Open — promoted 2026-08-16 |
+| #65 | ✅ Fixed — 2026-08-16 |
 
-56 of 57 fixed; every *review finding* has shipped and the one item open is a promoted feature. See
-[todo.md](todo.md), and [feature-ideas.md](feature-ideas.md) for proposals not yet promoted to it.
+57 of 57 fixed — the backlog is empty. See [todo.md](todo.md), and
+[feature-ideas.md](feature-ideas.md) for proposals not yet promoted to it.
 
 ---
+
+## 2026-08-16 — Achievements (#65)
+
+### Added
+
+**Twenty achievements**, reachable from the start screen and from both end screens. They span the
+first minute of play to things nobody may ever manage: a combo of twenty-five without touching the
+paddle, ten levels in a row without losing a ball, six bricks in one explosion, the campaign finished
+without a single ball lost.
+
+A third of them exist to point at parts of the game a player can otherwise finish the whole campaign
+without noticing — that explosive bricks chain, that the purple ones come back, that mystery bricks
+turn into something, that the laser exists at all. Locked entries show what they want rather than a
+row of question marks.
+
+**Unlocks appear as a banner** while you play, and the two end screens say how many the run unlocked
+— a banner during play can't be seen from behind the game-over panel.
+
+### Notes
+
+They are **saved per browser**, like the best score and the local scoreboard: no accounts, and no
+sync between your phone and your laptop. Clearing site data clears them. That is a deliberate
+decision rather than an oversight — see the write-up in `done.md`.
+
+**A run started with the level-jump shortcut unlocks nothing**, the same rule that keeps it off the
+scoreboard, and the achievements screen says so rather than leaving it looking broken.
+
+Nothing here changes how the game plays: no achievement awards points, lives or power-ups, and a
+test asserts that an identical run produces an identical score, ball and brick state whether a dozen
+unlock or none do. Unlocks are silent on purpose — they usually land in the middle of the combo
+ladder, which is the sound you are actually listening to.
+
+Eight regression cases, each confirmed failing before the feature existed.
 
 ## 2026-08-16 — The music stops repeating itself (#70)
 
