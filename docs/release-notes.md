@@ -34,14 +34,48 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #41 | ✅ Fixed — 2026-08-15 |
 | #68 | ✅ Fixed — 2026-08-15 |
 | #69 | ✅ Fixed — 2026-08-15 |
-| #70 | 🔲 Open |
 | #71 | ✅ Fixed — 2026-08-15 |
 | #72, #73 | ✅ Fixed — 2026-08-16 |
+| #70 | ✅ Fixed — 2026-08-16 |
 
-55 of 56 findings fixed. See [todo.md](todo.md) for what's still open, and
-[feature-ideas.md](feature-ideas.md) for proposals not yet promoted to the backlog.
+56 of 56 findings fixed — the backlog is empty. See [todo.md](todo.md), and
+[feature-ideas.md](feature-ideas.md) for proposals not yet promoted to it.
 
 ---
+
+## 2026-08-16 — The music stops repeating itself (#70)
+
+### Changed
+
+**The music was a two-second loop.** Sixteen steps, played over and over for however many minutes a
+level lasts — and since the campaign is a hundred levels, that is a lot of the same two seconds. It
+is now a fifteen-second phrase: eight bars, each with its own rhythm for each instrument and its own
+chord, and a fill on the last bar that turns it back round.
+
+**There are drums.** A kick on every bar whatever you are doing, and a hi-hat that arrives with a
+streak — the first sound in the game that is noise rather than a tone. Having something else carry
+the beat is what lets the melodic parts drop out for a bar without the whole thing falling apart,
+which is most of what stops a loop sounding like a loop.
+
+**Each act has its own music.** The backdrop already changes every two levels; the score now changes
+with it — a different scale, a different tempo and different instruments, five acts before it comes
+back round. Previously the only thing that changed from level to level was the key, which across a
+level break is not something anyone can hear. The first act is exactly the music that was there
+before.
+
+The phrase also keeps its place across a lost ball or a level break, so dying repeatedly no longer
+means hearing the first bar over and over.
+
+### Notes
+
+Nothing about how the game plays has changed: the bed reads the score and the combo, writes nothing,
+and mute still covers all of it including the new percussion. It also still rolls no dice — the
+noise the hat is made of is generated from a fixed seed, for the same reason the screen shake and
+the starfield are: anything in the audio path drawing from the shared random stream would make
+power-up drops depend on how long the music had been playing.
+
+Four new regression cases, each confirmed failing against the old bed, on top of #59's seven, which
+pass unchanged.
 
 ## 2026-08-16 — The end screens explain themselves (#72, #73)
 

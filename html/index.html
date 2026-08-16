@@ -1228,6 +1228,9 @@ canvas {
     // `voiceDecay` how fast one leaves once the streak no longer earns it.
     // Leaving instantly would flicker the whole arrangement on and off, since a
     // combo dies on every paddle touch — several times a level, by design.
+    //
+    // Since #70 `tempo` is the *base*: each act scales it (see MUSIC_ACTS), so
+    // this stays the one number that moves the whole score.
     music: {
       tempo: 132,
       lookahead: 0.12,      // seconds of notes queued ahead of actx.currentTime
@@ -2343,23 +2346,99 @@ canvas {
     tone({ freq: freq, dur: dur, type: type, vol: vol });
   }
 
+  // #70: the one sound in the game that is not an oscillator. A hi-hat is
+  // filtered noise and there is no oscillator shape that stands in for one, so
+  // the percussion needed a buffer — the only genuinely new audio machinery
+  // here. Built once and reused: it is a fifth of a second of samples, and
+  // allocating that per hat would be a hat's worth of garbage every other step.
+  //
+  // Filled from seededRandom() rather than Math.random(), for the reason #59g
+  // pins down: a bed that drew from the shared stream would make drop chances
+  // and mystery resolutions depend on how long the music had been playing.
+  var noiseBuf = null;
+  function noiseBuffer(ctxA) {
+    if (noiseBuf) return noiseBuf;
+    var len = Math.floor(ctxA.sampleRate * 0.2);
+    var buf = ctxA.createBuffer(1, len, ctxA.sampleRate);
+    var data = buf.getChannelData(0);
+    var next = seededRandom(20260816);
+    for (var i = 0; i < len; i++) data[i] = next() * 2 - 1;
+    noiseBuf = buf;
+    return buf;
+  }
+
+  // The noise counterpart of tone(): one burst, band-limited by `freq` — high
+  // for a hat, low for a thud. Fails to silence the same way tone() does.
+  function noise(o) {
+    var ctxA = audioCtx();
+    if (!ctxA) return;
+    try {
+      var at = o.at === undefined ? ctxA.currentTime : o.at;
+      var dur = o.dur || 0.04;
+      var vol = o.vol === undefined ? 0.03 : o.vol;
+      if (vol <= 0) return;
+      var g = ctxA.createGain();
+      g.gain.setValueAtTime(vol, at);
+      g.gain.exponentialRampToValueAtTime(0.001, at + dur);
+      g.connect(ctxA.destination);
+      var filter = ctxA.createBiquadFilter();
+      filter.type = o.filter || "highpass";
+      filter.frequency.setValueAtTime(o.freq, at);
+      filter.connect(g);
+      var src = ctxA.createBufferSource();
+      src.buffer = noiseBuffer(ctxA);
+      src.connect(filter);
+      src.start(at);
+      src.stop(at + dur + 0.02);
+    } catch (e) { /* audio unavailable, ignore */ }
+  }
+
   // #59: the game plays in one key per level, and the music, the brick voices
   // and the combo ladder all pitch themselves from it — so a hit lands in tune
   // with the bed behind it rather than beside it. Semitones throughout,
   // relative to the level's root.
   function noteFreq(semi) { return 220 * Math.pow(2, semi / 12); }
-  var MUSIC_SCALE = [0, 3, 5, 7, 10];                 // minor pentatonic
   var MUSIC_KEYS = [0, 5, 3, 7, 2, 10, 8, 1, 6, 11];  // one root per level
   function musicRoot() { return MUSIC_KEYS[state.levelIndex % MUSIC_KEYS.length]; }
+
+  // #70: the material itself belongs to the act, not to the level. #60 already
+  // turns the backdrop over every THEME_LEVELS levels; the score now turns over
+  // with it — its scale, its tempo and the timbre of every voice. A key change
+  // across a level break is not something anyone hears; a different scale at a
+  // different tempo in different voices is.
+  //
+  // Every scale is five notes, so the combo ladder is the same length whichever
+  // act it climbs in. `types` is one entry per voice in MUSIC_VOICES, and
+  // `tempo` a multiplier over CONFIG.music.tempo, which stays the single knob
+  // that moves the whole score.
+  var MUSIC_ACTS = [
+    // I — minor pentatonic: the bed #59 shipped, unchanged.
+    { scale: [0, 3, 5, 7, 10], tempo: 1,    types: ["triangle", "square", "square", "sawtooth"] },
+    // II — major pentatonic, brighter and a little quicker.
+    { scale: [0, 2, 4, 7, 9],  tempo: 1.06, types: ["triangle", "sine", "square", "sine"] },
+    // III — a flat second: the dark act, and the one that leans back.
+    { scale: [0, 1, 5, 7, 8],  tempo: 0.94, types: ["sawtooth", "square", "square", "sawtooth"] },
+    // IV — suspended, with no third to be major or minor about.
+    { scale: [0, 2, 5, 7, 10], tempo: 1.12, types: ["triangle", "square", "sine", "square"] },
+    // V — the flat fifth, slowest and heaviest.
+    { scale: [0, 3, 6, 7, 10], tempo: 0.88, types: ["sawtooth", "sine", "square", "sawtooth"] }
+  ];
+  function musicAct() {
+    return MUSIC_ACTS[Math.floor(state.levelIndex / THEME_LEVELS) % MUSIC_ACTS.length];
+  }
+  function musicScale() { return musicAct().scale; }
+  function musicTempo() { return CONFIG.music.tempo * musicAct().tempo; }
 
   // The rising ladder: each brick destroyed without a paddle touch climbs a
   // step of the scale, wrapping into the next octave. It stops climbing after
   // two octaves — a streak long enough to run out of ladder is rare, and past
   // that the notes stop reading as notes.
-  var LADDER_MAX = MUSIC_SCALE.length * 2 - 1;
+  var MUSIC_SCALE_LEN = 5; // every act's scale is five notes — see MUSIC_ACTS
+  var LADDER_MAX = MUSIC_SCALE_LEN * 2 - 1;
   function ladderSemi(combo) {
+    var scale = musicScale();
     var step = clamp(combo - 1, 0, LADDER_MAX);
-    return MUSIC_SCALE[step % MUSIC_SCALE.length] + Math.floor(step / MUSIC_SCALE.length) * 12;
+    return scale[step % scale.length] + Math.floor(step / scale.length) * 12;
   }
 
   // A brick's type is the only thing that changes what a hit *does*, so it is
@@ -2423,34 +2502,111 @@ canvas {
   // as branches in the scheduler. `vol` is a fraction of CONFIG.music.gain and
   // `semi` turns a step into a pitch above the level's root. Only the bass is
   // unconditional; the rest are bought with combo.
-  var MUSIC_STEPS = 16;
+  //
+  // #70 gave that bar a second dimension, because one bar looped forever is
+  // 1.8 seconds and a level is minutes long. A voice no longer has one pattern
+  // but several, and `form` says which one it plays in each bar of the phrase —
+  // a tracker's order list. Eight bars of that is a ~15-second phrase, with the
+  // last bar of each voice as the fill that turns it over.
+  var MUSIC_STEPS = 16; // sixteenths in a bar
+  var MUSIC_BARS = 8;   // bars in the phrase
+  // Bar -> the degree of the act's scale that bar sits on. Every voice
+  // transposes with it, so this one line is the phrase's harmony.
+  var MUSIC_FORM = [0, 0, 3, 0, 2, 2, 4, 3];
+  function barSemi(bar) {
+    var scale = musicScale();
+    return scale[MUSIC_FORM[bar] % scale.length];
+  }
   var MUSIC_VOICES = [
-    { type: "triangle", dur: 0.2, vol: 1, steps: [0, 3, 6, 8, 11, 14],
+    // Bass — the only unconditional voice, and the one that spells the bar.
+    { dur: 0.2, vol: 1,
+      form: [0, 0, 0, 1, 0, 0, 0, 2],
+      patterns: [
+        [0, 3, 6, 8, 11, 14],
+        [0, 3, 6, 8, 11, 13, 14, 15],
+        [0, 2, 4, 6, 8, 10, 12, 14, 15]
+      ],
       semi: function (step) { return step === 8 ? -5 : -12; } },
-    { type: "square", dur: 0.12, vol: 0.6, steps: [4, 12],
-      semi: function (step) { return step === 4 ? 3 : 7; } },
-    { type: "square", dur: 0.07, vol: 0.45,
-      steps: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-      semi: function (step) { return MUSIC_SCALE[step % MUSIC_SCALE.length] + (step < 8 ? 0 : 12); } },
-    { type: "sawtooth", dur: 0.55, vol: 0.4, steps: [0, 10],
-      semi: function (step) { return step === 0 ? 19 : 22; } }
+    // Stabs.
+    { dur: 0.12, vol: 0.6,
+      form: [0, 1, 0, 1, 2, 1, 2, 3],
+      patterns: [[4, 12], [4, 12, 15], [2, 6, 10, 14], [0, 4, 8, 12]],
+      semi: function (step) { return step % 8 === 4 ? 3 : 7; } },
+    // The sixteenth line. It is the one that has to thin out from bar to bar,
+    // or the phrase is just the same sixteen notes eight times over.
+    { dur: 0.07, vol: 0.45,
+      form: [0, 0, 1, 0, 2, 1, 0, 2],
+      patterns: [
+        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+        [0, 2, 3, 5, 6, 8, 10, 11, 13, 14],
+        [1, 3, 5, 7, 9, 11, 13, 15]
+      ],
+      semi: function (step) {
+        var scale = musicScale();
+        return scale[step % scale.length] + (step < 8 ? 0 : 12);
+      } },
+    // Long swells over the top.
+    { dur: 0.55, vol: 0.4,
+      form: [0, 1, 0, 1, 0, 2, 0, 2],
+      patterns: [[0, 10], [6], [0, 8, 12]],
+      semi: function (step) { return step === 0 ? 19 : step === 10 ? 22 : 17; } }
   ];
+
+  // #70: the pulse, which four pitched voices used to have to carry between
+  // them — which is exactly why it had to be so regular. With a kick under it
+  // the melodic voices can drop out of a bar without the bed falling apart.
+  // `tier` is the intensity the drum joins at, on the same ladder as the voices
+  // above: the kick is unconditional, the hat is bought with the first combo.
+  var MUSIC_DRUMS = [
+    { tier: 0, vol: 0.9,
+      form: [0, 0, 0, 1, 0, 0, 0, 2],
+      patterns: [[0, 6, 10], [0, 6, 10, 14], [0, 4, 6, 10, 12, 14]],
+      hit: function (at, vol) {
+        // A kick is a pitch drop, so this one really is an oscillator.
+        tone({ freq: 110, slide: 38, at: at, dur: 0.16, type: "sine", vol: vol });
+      } },
+    { tier: 1, vol: 0.35,
+      form: [0, 0, 1, 0, 1, 0, 1, 2],
+      patterns: [
+        [2, 6, 10, 14],
+        [0, 2, 4, 6, 8, 10, 12, 14],
+        [0, 2, 4, 6, 8, 10, 12, 13, 14, 15]
+      ],
+      hit: function (at, vol) { noise({ freq: 7000, at: at, dur: 0.03, vol: vol }); } }
+  ];
+
   // Null whenever the bed is not running. { step, nextStepTime, intensity } —
   // intensity is a float in voices, so a voice arriving or leaving is a fade
   // rather than a switch.
   var music = null;
+  // Where the phrase itself has got to, kept outside `music` on purpose: the bed
+  // stops on every serve, every level break and every lost ball, and a phrase
+  // that restarted each time would leave a player who dies often hearing bar 1
+  // and nothing else. The step does restart, which puts the re-entry on a bar
+  // line rather than mid-bar.
+  var musicBar = 0;
 
-  function scheduleStep(step, at) {
-    for (var v = 0; v < MUSIC_VOICES.length; v++) {
+  function scheduleStep(bar, step, at) {
+    var trans = barSemi(bar);
+    var types = musicAct().types;
+    var v, level;
+    for (v = 0; v < MUSIC_VOICES.length; v++) {
       var voice = MUSIC_VOICES[v];
-      if (voice.steps.indexOf(step) === -1) continue;
-      var level = v === 0 ? 1 : clamp(music.intensity - (v - 1), 0, 1);
+      if (voice.patterns[voice.form[bar]].indexOf(step) === -1) continue;
+      level = v === 0 ? 1 : clamp(music.intensity - (v - 1), 0, 1);
       if (level <= 0.01) continue;
       tone({
-        freq: noteFreq(musicRoot() + voice.semi(step)),
-        at: at, dur: voice.dur, type: voice.type,
+        freq: noteFreq(musicRoot() + trans + voice.semi(step)),
+        at: at, dur: voice.dur, type: types[v],
         vol: voice.vol * level * CONFIG.music.gain
       });
+    }
+    for (v = 0; v < MUSIC_DRUMS.length; v++) {
+      var drum = MUSIC_DRUMS[v];
+      if (drum.patterns[drum.form[bar]].indexOf(step) === -1) continue;
+      level = drum.tier === 0 ? 1 : clamp(music.intensity - (drum.tier - 1), 0, 1);
+      if (level <= 0.01) continue;
+      drum.hit(at, drum.vol * level * CONFIG.music.gain);
     }
   }
 
@@ -2475,14 +2631,18 @@ canvas {
     try {
       if (!music) music = { step: 0, nextStepTime: ctxA.currentTime, intensity: 0 };
       music.intensity = nextIntensity(music.intensity, dt);
-      var stepDur = 60 / CONFIG.music.tempo / 4;
+      var stepDur = 60 / musicTempo() / 4;
       // A backgrounded tab (or any long stall) leaves the audio clock far ahead
       // of where the bed got to. Catching up step by step would queue every
       // missed note at once — a burst, not music — so skip to now instead.
       if (music.nextStepTime < ctxA.currentTime) music.nextStepTime = ctxA.currentTime;
       while (music.nextStepTime < ctxA.currentTime + CONFIG.music.lookahead) {
-        scheduleStep(music.step, music.nextStepTime);
-        music.step = (music.step + 1) % MUSIC_STEPS;
+        scheduleStep(musicBar, music.step, music.nextStepTime);
+        music.step += 1;
+        if (music.step >= MUSIC_STEPS) {
+          music.step = 0;
+          musicBar = (musicBar + 1) % MUSIC_BARS;
+        }
         music.nextStepTime += stepDur;
       }
     } catch (e) { music = null; }

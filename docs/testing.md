@@ -119,6 +119,11 @@ the API promise chain — await it before asserting on anything the network was 
 observable as what it queues, which since #59 is a feature surface), and `counters` for per-frame
 budgets.
 
+Since #70 a note can also be a burst of noise rather than an oscillator — the hi-hat. Those carry
+`type: "noise"`, a `filterFreq` (the band it was limited to) and `freq: 0`, deliberately: several
+suites isolate a sound effect as "the notes above 220 Hz", and a hat with a real frequency would
+land in the middle of every one of them.
+
 ### Three traps worth knowing about
 
 Both of these cost real debugging time and are commented in the source so they are not

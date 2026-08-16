@@ -32,6 +32,11 @@ const SEAM = [
   "applyPowerup", "paddleWidth", "ballSpeedMult", "circleRectCollide",
   "applyLanguage", "detectLang", "renderDynamicText", "t",
   "STRINGS", "SUPPORTED_LANGS", "DEFAULT_LANG", "handleLaunchOrResume", "PHASE_OVERLAY",
+  // #70: the phrase's shape. Deliberate rather than reflexive — the bed is only
+  // observable as the notes it queues, and without the bar these two define,
+  // "the same bar does not come back round for eight of them" is not a
+  // statement a test can make.
+  "MUSIC_STEPS", "MUSIC_BARS",
 ];
 
 const TAIL = "})();";
@@ -315,6 +320,51 @@ function boot(opts) {
             stop() {},
           };
           return osc;
+        },
+        // #70: the percussion is the one thing in the game that is not an
+        // oscillator, so the stub grew a buffer path to match. A noise burst is
+        // recorded like any other note, with `freq: 0` — it has no pitch, and
+        // the suites that isolate a sound effect as "notes above 220 Hz" would
+        // otherwise pick up every hi-hat.
+        sampleRate: 44100,
+        createBuffer(channels, length) {
+          return { length, getChannelData: () => new Float32Array(length) };
+        },
+        createBiquadFilter() {
+          const node = {
+            type: "lowpass",
+            frequency: { value: 0, setValueAtTime(v) { node.frequency.value = v; } },
+            Q: { value: 1, setValueAtTime(v) { node.Q.value = v; } },
+            connect(dest) { node._dest = dest; },
+          };
+          return node;
+        },
+        createBufferSource() {
+          const src = {
+            buffer: null,
+            connect(dest) { src._dest = dest; },
+            start(at) {
+              // Walk the chain to whichever node carries the envelope, so a
+              // muted or faded-out burst reports the volume it really got.
+              let node = src._dest;
+              let filterFreq = 0;
+              while (node && node._peak === undefined) {
+                if (node.frequency) filterFreq = node.frequency.value;
+                node = node._dest;
+              }
+              notes.push({
+                freq: 0,
+                filterFreq,
+                slide: 0,
+                type: "noise",
+                detune: 0,
+                at: at === undefined ? actx.currentTime : at,
+                vol: node ? node._peak : 0,
+              });
+            },
+            stop() {},
+          };
+          return src;
         },
         resume() { actx.state = "running"; counters.audioResumes++; },
       };

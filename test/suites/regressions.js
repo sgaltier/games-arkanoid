@@ -2021,6 +2021,125 @@ module.exports = {
     },
 
     // -----------------------------------------------------------------------
+    // #70 — the bed is a phrase with a pulse, and the material belongs to the act
+    //
+    // Level 0 is act I, which plays at the base tempo with the voices #59
+    // shipped — so the arithmetic below (a step is 60/tempo/4 seconds) holds
+    // exactly there, and only there.
+    // -----------------------------------------------------------------------
+    {
+      name: "#70a — the bed is a phrase, not one bar looped forever",
+      fn(a) {
+        const g = boot().start();
+        // Park the ball and buy the whole arrangement before the first frame,
+        // so every note from here belongs to the bed and the intensity never
+        // moves under the measurement.
+        g.T.state.balls.forEach((b) => { b.attached = true; });
+        g.T.state.combo = 20;
+
+        const stepDur = 60 / g.T.CONFIG.music.tempo / 4;
+        const barDur = stepDur * g.T.MUSIC_STEPS;
+        g.run(barDur * (g.T.MUSIC_BARS + 1) + 0.3);
+
+        // The bed starts on step 0 of bar 0, so the first note dates the phrase.
+        const t0 = g.notes[0].at;
+        const bar = (i) => g.notes
+          .filter((n) => n.at >= t0 + i * barDur - 1e-6 && n.at < t0 + (i + 1) * barDur - 1e-6)
+          .map((n) => Math.round((n.at - t0 - i * barDur) / stepDur) +
+                      ":" + n.type + ":" + Math.round(n.freq))
+          .join(" ");
+
+        const bars = [];
+        for (let i = 0; i < g.T.MUSIC_BARS; i++) bars.push(bar(i));
+        a.ok(bars.every((b) => b.length > 0), "every bar of the phrase should have sounded");
+        // The whole point of #70: at 132bpm one bar is 1.8 seconds, and a level
+        // is minutes long.
+        a.eq(new Set(bars).size, g.T.MUSIC_BARS,
+          `the phrase should not repeat inside itself (${new Set(bars).size} distinct bars)`);
+        a.eq(bar(g.T.MUSIC_BARS), bars[0], "and it must come back round rather than wander off");
+      },
+    },
+    {
+      name: "#70b — a kick carries the pulse whatever the combo, and the hat is bought with it",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.balls.forEach((b) => { b.attached = true; });
+        g.T.state.combo = 0;
+        g.run(8);
+
+        const kicks = g.notes.filter((n) => n.type === "sine" && n.freq < 220 && n.slide > 0);
+        a.gt(kicks.length, 8,
+          "the kick is unconditional — it is what lets the melodic voices thin out");
+        a.empty(g.notes.filter((n) => n.type === "noise"), "the hat has to be earned");
+
+        g.T.state.combo = 20;
+        const from = g.notes.length;
+        g.run(8);
+        const hats = g.notes.slice(from).filter((n) => n.type === "noise");
+        a.gt(hats.length, 8, "a streak should buy the hat");
+        a.gt(hats[0].filterFreq, 2000, "a hat is noise band-limited high, not a rumble");
+        a.gt(hats[0].vol, 0);
+      },
+    },
+    {
+      name: "#70c — the score turns over with the act, not with every level",
+      fn(a) {
+        const bedOf = (level) => {
+          const g = boot().start();
+          g.T.startLevel(level);
+          g.key("Space");
+          g.T.state.balls.forEach((b) => { b.attached = true; });
+          g.T.state.combo = 20;
+          g.notes.length = 0;
+          g.run(3);
+          return g.notes;
+        };
+        // One step is the closest two notes ever get, so the tempo is readable
+        // off the notes themselves without the test knowing the act's multiplier.
+        const stepMs = (notes) => {
+          const times = Array.from(new Set(notes.map((n) => n.at))).sort((x, y) => x - y);
+          let min = Infinity;
+          for (let i = 1; i < times.length; i++) min = Math.min(min, times[i] - times[i - 1]);
+          return Math.round(min * 1000);
+        };
+        const voices = (notes) => Array.from(new Set(notes.map((n) => n.type))).sort().join(",");
+
+        const one = bedOf(0);      // act I
+        const three = bedOf(4);    // act III — a different backdrop (#60)
+        a.ne(stepMs(one), stepMs(three), "a new act should not run at the same tempo");
+        a.ne(voices(one), voices(three), "nor in the same voices");
+
+        // Within an act the material holds: level 2 is level 1 in a new key, and
+        // a key change across a level break is not something anyone hears.
+        const oneAgain = bedOf(1);
+        a.eq(stepMs(oneAgain), stepMs(one));
+        a.eq(voices(oneAgain), voices(one));
+      },
+    },
+    {
+      name: "#70d — a longer phrase and a noise buffer still roll no dice",
+      fn(a) {
+        // #59g, extended to cover the two things #70 added: the phrase itself,
+        // and the sample buffer behind the hat — filled from seededRandom() for
+        // exactly this reason.
+        const g = boot().start();
+        g.T.state.balls.forEach((b) => { b.attached = true; });
+        g.T.state.combo = 20; // the hat included; the buffer is built on its first hit
+        const real = Math.random;
+        let rolls = 0;
+        Math.random = () => { rolls++; return real(); };
+        try {
+          g.run(20); // more than one full phrase
+        } finally {
+          Math.random = real;
+        }
+        a.gt(g.notes.filter((n) => n.type === "noise").length, 0,
+          "the run has to have reached the noise path for this to prove anything");
+        a.eq(rolls, 0, "queuing the bed must not touch the RNG stream");
+      },
+    },
+
+    // -----------------------------------------------------------------------
     // #60 — per-act palettes and the parallax field
     // -----------------------------------------------------------------------
     {
