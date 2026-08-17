@@ -978,7 +978,7 @@ module.exports = {
 
         g.T.applyPowerup({ type: "widen" });
         a.eq(widthBar.hidden, false, "the width bar should appear once widen is active");
-        a.eq(widthLabel.textContent, "W");
+        a.eq(widthLabel.textContent, g.T.t("powerup.widen"));
         const full = parseFloat(widthFill.style.width);
         a.near(full, 100, 1, "a freshly-applied effect should start at a full bar");
 
@@ -990,6 +990,36 @@ module.exports = {
         g.T.state.widthEffect = null;
         g.frame();
         a.eq(widthBar.hidden, true, "the bar should hide again once the effect ends");
+      },
+    },
+    {
+      name: "#78 — effect bars show the power-up's full name, not just a letter",
+      fn(a) {
+        const g = boot().start();
+        const widthLabel = g.el("bar-width-label");
+        const widthBar = g.el("bar-width");
+        const speedLabel = g.el("bar-speed-label");
+        const stickyLabel = g.el("bar-sticky-label");
+        const laserLabel = g.el("bar-laser-label");
+
+        g.T.applyPowerup({ type: "widen" });
+        a.eq(widthLabel.textContent, g.T.t("powerup.widen"),
+          "the width bar's on-bar text should name the active effect, not just its letter");
+        a.eq(widthBar.getAttribute("title"), g.T.t("powerup.widen"),
+          "the title should carry the same name, as a fallback for whatever the bar clips");
+        g.T.applyPowerup({ type: "narrow" });
+        a.eq(widthLabel.textContent, g.T.t("powerup.narrow"),
+          "the same bar should relabel itself when narrow takes over from widen");
+
+        g.T.applyPowerup({ type: "slow" });
+        a.eq(speedLabel.textContent, g.T.t("powerup.slow"));
+        g.T.applyPowerup({ type: "fast" });
+        a.eq(speedLabel.textContent, g.T.t("powerup.fast"));
+
+        g.T.applyPowerup({ type: "sticky" });
+        a.eq(stickyLabel.textContent, g.T.t("powerup.sticky"));
+        g.T.applyPowerup({ type: "laser" });
+        a.eq(laserLabel.textContent, g.T.t("powerup.laser"));
       },
     },
     {

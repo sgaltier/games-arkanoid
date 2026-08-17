@@ -245,10 +245,17 @@ body {
   transition: width .2s linear;
 }
 
+/* #78: the full power-up name, not just a letter — often wider than the bar,
+   so it clips with an ellipsis rather than overflowing into a neighbour; the
+   bar's `title` (set alongside this text) carries the untruncated name. */
 .effect-bar-label {
   position: relative;
   z-index: 1;
   display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding: 0 3px;
   text-align: center;
   font-family: var(--font-mono);
   font-size: 9px;
@@ -820,11 +827,11 @@ canvas {
       </div>
       <div class="effect-bar" id="bar-sticky" hidden>
         <div class="effect-bar-fill" id="bar-sticky-fill"></div>
-        <span class="effect-bar-label">St</span>
+        <span class="effect-bar-label" id="bar-sticky-label"></span>
       </div>
       <div class="effect-bar" id="bar-laser" hidden>
         <div class="effect-bar-fill" id="bar-laser-fill"></div>
-        <span class="effect-bar-label">L</span>
+        <span class="effect-bar-label" id="bar-laser-label"></span>
       </div>
     </div>
   </div>
@@ -1994,6 +2001,15 @@ canvas {
       "ach.untouchable.desc": "Terminez la campagne sans perdre une seule balle.",
       "ach.tenHeads.name": "Dix têtes",
       "ach.tenHeads.desc": "Battez les dix boss en une seule partie.",
+      // #78: full names for the effect bars (renderEffectBars()) — replaces the
+      // old single-letter labels; also set as each bar's `title`, as a fallback
+      // for whatever a narrow bar's ellipsis clips.
+      "powerup.widen": "Raquette élargie",
+      "powerup.narrow": "Raquette réduite",
+      "powerup.slow": "Balle ralentie",
+      "powerup.fast": "Balle accélérée",
+      "powerup.sticky": "Raquette collante",
+      "powerup.laser": "Laser",
       // #44: the boss roster's names, read only by drawBoss() via t() — not
       // wired to any data-i18n markup, since the fight is drawn on canvas.
       "boss.sentinel.name": "SENTINELLE",
@@ -2118,6 +2134,15 @@ canvas {
       "ach.untouchable.desc": "Finish the campaign without losing a single ball.",
       "ach.tenHeads.name": "Ten Heads",
       "ach.tenHeads.desc": "Beat all ten bosses in a single run.",
+      // #78: full names for the effect bars (renderEffectBars()) — replaces the
+      // old single-letter labels; also set as each bar's `title`, as a fallback
+      // for whatever a narrow bar's ellipsis clips.
+      "powerup.widen": "Paddle widened",
+      "powerup.narrow": "Paddle narrowed",
+      "powerup.slow": "Ball slowed",
+      "powerup.fast": "Ball sped up",
+      "powerup.sticky": "Sticky paddle",
+      "powerup.laser": "Laser",
       "boss.sentinel.name": "SENTINEL",
       "boss.salvo.name": "SALVO",
       "boss.carapace.name": "CARAPACE",
@@ -4731,12 +4756,16 @@ canvas {
   var barSpeedLabel = document.getElementById("bar-speed-label");
   var barSticky = document.getElementById("bar-sticky");
   var barStickyFill = document.getElementById("bar-sticky-fill");
+  var barStickyLabel = document.getElementById("bar-sticky-label");
   var barLaser = document.getElementById("bar-laser");
   var barLaserFill = document.getElementById("bar-laser-fill");
+  var barLaserLabel = document.getElementById("bar-laser-label");
 
-  // `effect` is the {remaining} object (or null); `duration`/`color`/`label`
-  // describe whichever specific powerup is currently behind it.
-  function updateEffectBar(barEl, fillEl, labelEl, effect, duration, color, label) {
+  // `effect` is the {remaining} object (or null); `duration`/`color`/`name`
+  // describe whichever specific powerup is currently behind it. #78: `name`
+  // is the power-up's whole name, not a letter — it's the on-bar text, and
+  // also the bar's `title` as a fallback for whatever the ellipsis clips.
+  function updateEffectBar(barEl, fillEl, labelEl, effect, duration, color, name) {
     if (!effect) {
       if (!barEl.hidden) barEl.hidden = true;
       return;
@@ -4744,7 +4773,8 @@ canvas {
     if (barEl.hidden) barEl.hidden = false;
     fillEl.style.background = color;
     fillEl.style.width = (Math.max(0, effect.remaining) / duration * 100) + "%";
-    if (labelEl && labelEl.textContent !== label) labelEl.textContent = label;
+    if (labelEl.textContent !== name) labelEl.textContent = name;
+    if (barEl.getAttribute("title") !== name) barEl.setAttribute("title", name);
   }
 
   function renderEffectBars() {
@@ -4752,18 +4782,18 @@ canvas {
     updateEffectBar(barWidth, barWidthFill, barWidthLabel, we,
       we && (we.mult > 1 ? CONFIG.effects.widen.duration : CONFIG.effects.narrow.duration),
       we && (we.mult > 1 ? "#9dff1e" : "#ff3b3b"),
-      we && (we.mult > 1 ? "W" : "N"));
+      we && (we.mult > 1 ? t("powerup.widen") : t("powerup.narrow")));
 
     var se = state.speedEffect;
     updateEffectBar(barSpeed, barSpeedFill, barSpeedLabel, se,
       se && (se.mult > 1 ? CONFIG.effects.fast.duration : CONFIG.effects.slow.duration),
       se && (se.mult > 1 ? "#ff7a3b" : "#2de2e6"),
-      se && (se.mult > 1 ? "F" : "S"));
+      se && (se.mult > 1 ? t("powerup.fast") : t("powerup.slow")));
 
-    updateEffectBar(barSticky, barStickyFill, null, state.stickyEffect,
-      CONFIG.effects.sticky.duration, "#c3cee0", "St");
-    updateEffectBar(barLaser, barLaserFill, null, state.laserEffect,
-      CONFIG.effects.laser.duration, "#ffe600", "L");
+    updateEffectBar(barSticky, barStickyFill, barStickyLabel, state.stickyEffect,
+      CONFIG.effects.sticky.duration, "#c3cee0", t("powerup.sticky"));
+    updateEffectBar(barLaser, barLaserFill, barLaserLabel, state.laserEffect,
+      CONFIG.effects.laser.duration, "#ffe600", t("powerup.laser"));
   }
   renderEffectBars();
 

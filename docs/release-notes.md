@@ -41,11 +41,30 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #44 | ✅ Fixed — 2026-08-17 |
 | #74 | ✅ Fixed — 2026-08-17 |
 | #75 | ✅ Fixed — 2026-08-17 |
-| #76, #77 | 🔲 Open — requested 2026-08-17 |
+| #78 | ✅ Fixed — 2026-08-17 |
+| #76, #77, #79 | 🔲 Open — requested 2026-08-17 |
 
-60 of 62 fixed; the two items open (#76, #77) were requested directly by the user rather than
+61 of 64 fixed; the three items open (#76, #77, #79) were requested directly by the user rather than
 surfaced by a review pass. See [todo.md](todo.md), and [feature-ideas.md](feature-ideas.md) for
 proposals not yet promoted to it.
+
+---
+
+## 2026-08-17 — Effect bars show the power-up's name, not just a letter (#78)
+
+### Fixed
+
+**The widen/narrow, slow/fast, sticky and laser timer bars now show the power-up's whole name**
+directly on the bar, not a bare `W`/`N`/`S`/`F`/`St`/`L`. Long names clip with an ellipsis on a
+narrow bar rather than spilling out of it; hovering or focusing a clipped bar reveals the full name
+via its `title`. Six new strings (`powerup.widen`/`narrow`/`slow`/`fast`/`sticky`/`laser`) were added
+to both language tables; `multi` and `life` have no timer bar, so they got no entry.
+
+### Notes
+
+`bar-sticky`/`bar-laser` used to hard-code their letter directly in the markup instead of going
+through a label element like width/speed did; both now route through one the same way, so all four
+bars reach their name through the same code path.
 
 ---
 
