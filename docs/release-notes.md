@@ -38,9 +38,10 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #72, #73 | ✅ Fixed — 2026-08-16 |
 | #70 | ✅ Fixed — 2026-08-16 |
 | #65 | ✅ Fixed — 2026-08-16 |
+| #44 | 🔲 Open — promoted 2026-08-17 |
 
-57 of 57 fixed — the backlog is empty. See [todo.md](todo.md), and
-[feature-ideas.md](feature-ideas.md) for proposals not yet promoted to it.
+57 of 58 fixed; every *review finding* has shipped and the one item open is a promoted feature. See
+[todo.md](todo.md), and [feature-ideas.md](feature-ideas.md) for proposals not yet promoted to it.
 
 ---
 

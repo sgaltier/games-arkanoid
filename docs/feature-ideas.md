@@ -16,8 +16,8 @@ capability (things merely *absent*).
 
 **Numbering:** entries reserve numbers **44–66** in the shared sequence used by
 [todo.md](todo.md) and [done.md](done.md), so an idea promoted from here keeps its number when it
-moves. Do not reuse these numbers for new review findings. Numbers missing below (#49, #51, #52,
-#58, #59, #60, #65) have already been promoted into [todo.md](todo.md).
+moves. Do not reuse these numbers for new review findings. Numbers missing below (#44, #49, #51,
+#52, #58, #59, #60, #65) have already been promoted into [todo.md](todo.md).
 
 **What already exists** (so nothing below duplicates it): a 100-level campaign — 10 hand-authored
 levels and 90 generated deterministically from the level number (#41); 4 brick colours
@@ -30,18 +30,6 @@ parallax star field (#60); mute, pause, and `prefers-reduced-motion` support.
 ---
 
 ## A. Content and progression
-
-### 44. Boss levels (L)
-
-Every polished breakout in the genre eventually stops handing you a static wall and gives you
-something that fights back — *Arkanoid*'s DOH, *Shatter*'s per-zone bosses, *Wizorb*'s monsters.
-A boss level would replace the brick grid with a single large entity that moves along the top of
-the field, absorbs a fixed number of ball hits, and periodically emits a hazard the player must
-dodge or destroy (a falling projectile, a spawned minion brick, a brief paddle-shrink beam). This
-is the largest item in this document because it needs new entity types, a new update/draw path,
-and a new sub-phase inside `playing` — but it is also the single biggest step up in perceived
-production value, and the current architecture (a `state` object with per-frame update/draw
-function pairs) accommodates a new entity kind cleanly.
 
 ### 45. Procedural levels past the authored 10 (M)
 
@@ -181,6 +169,6 @@ hall of fame feel like an opponent rather than a list.
 
 Of what remains in this file, the cheapest high-impact items are **#53 (fireball)** and **#54
 (safety net)** — both S, both touching code paths that already exist. **#56 (paddle spin)** is the
-one small-to-medium change most likely to raise the game's skill ceiling. If the point is depth
-rather than polish, **#44 (boss levels)** is the one item here that changes what kind of game this
-is.
+one small-to-medium change most likely to raise the game's skill ceiling. The item that changed what
+kind of game this is has left the file: **#44 (boss levels)** is now in [todo.md](todo.md), expanded
+into a ten-boss roster.
