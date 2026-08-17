@@ -21,8 +21,8 @@ re-anchoring discipline applies here as in `done.md`.
 
 ---
 
-Nothing is open. Every review finding raised so far has shipped, and so have both #44 (boss levels)
-and #74 (the boss-kill celebration built on top of it) — see [done.md](done.md).
-[feature-ideas.md](feature-ideas.md) still holds proposals not yet promoted.
+Nothing is open. Every review finding raised so far has shipped, and so has #44 (boss levels), the
+one feature that had been promoted here — see [done.md](done.md). [feature-ideas.md](feature-ideas.md)
+still holds proposals not yet promoted.
 
-New items go here, keeping the shared numbering: the next free number is **#75**.
+New items go here, keeping the shared numbering: the next free number is **#74**.

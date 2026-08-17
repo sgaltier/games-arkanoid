@@ -39,32 +39,9 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #70 | ✅ Fixed — 2026-08-16 |
 | #65 | ✅ Fixed — 2026-08-16 |
 | #44 | ✅ Fixed — 2026-08-17 |
-| #74 | ✅ Fixed — 2026-08-17 |
 
-59 of 59 fixed — the backlog is empty. See [todo.md](todo.md), and
+58 of 58 fixed — the backlog is empty. See [todo.md](todo.md), and
 [feature-ideas.md](feature-ideas.md) for proposals not yet promoted to it.
-
----
-
-## 2026-08-17 — A boss kill deserves more than a shake (#74)
-
-### Added
-
-**A boss explosion that scales with the boss.** Sentinel's death is a firecracker; Omega's tears the
-screen apart — a bigger, layered particle burst and a longer screen shake, both scaling with which
-of the ten bosses just went down.
-
-**A ~10-second victory fanfare**, playing once per boss defeated: a rising call played three times
-climbing an octave each time, a quick descending flourish, and a final chord that rings out with a
-couple of sparkling high notes over its tail. Pitched from whichever act's musical scale the level
-sits in, so it never clashes with the bed that was just playing.
-
-### Notes
-
-Presentation only, same rule as #58 and #65: nothing here changes a run's score, timing, or outcome.
-See `done.md` for how the fanfare's "pause the music or layer on top of it" design question resolved
-itself — the phase machine already stops the bed the instant a boss's level ends, before the fanfare
-even starts.
 
 ---
 
