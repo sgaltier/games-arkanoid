@@ -268,5 +268,51 @@ module.exports = {
         a.ok(slayer.when(g.T.state), "bossSlayer's condition should now read true");
       },
     },
+    {
+      name: "#74 — a bigger boss goes out with a bigger burst and a longer shake",
+      fn(a) {
+        const s = enterBoss(1); // Sentinel, defIdx 0
+        s.T.state.particles.length = 0;
+        finishBoss(s);
+        const sentinelParticles = s.T.state.particles.length;
+        const sentinelShakeDur = s.T.state.shake.duration;
+
+        const o = boot();
+        o.el("btn-start").click(1);
+        o.T.startLevel(o.T.CONFIG.progression.totalLevels - 1); // Omega, defIdx 9
+        o.key("Space");
+        for (let phase = 0; phase < 3; phase++) {
+          if (phase === 2) o.T.state.particles.length = 0; // isolate the final blow's own burst
+          finishBoss(o);
+          if (o.T.state.boss.transition) o.run(o.T.CONFIG.boss.roarDuration + 0.2);
+        }
+
+        a.gt(o.T.state.particles.length, sentinelParticles,
+          "Omega's defeat burst should be bigger than Sentinel's");
+        a.gt(o.T.state.shake.duration, sentinelShakeDur,
+          "Omega's defeat shake should last longer than Sentinel's");
+      },
+    },
+    {
+      name: "#74 — defeating a boss schedules a fanfare running close to ten seconds, silent when muted",
+      fn(a) {
+        const g = enterBoss(1);
+        g.notes.length = 0;
+        finishBoss(g);
+        a.gt(g.notes.length, 20,
+          "the fanfare alone is a few dozen notes; defeating a boss should queue at least that many");
+        const t0 = g.notes[0].at;
+        const lastAt = g.notes.reduce((m, n) => Math.max(m, n.at), 0);
+        const span = lastAt - t0;
+        a.gt(span, 8, "the fanfare should reach out to roughly ten seconds");
+        a.lt(span, 11, "and not run meaningfully past it");
+
+        const muted = enterBoss(1);
+        muted.T.state.muted = true;
+        muted.notes.length = 0;
+        finishBoss(muted);
+        a.empty(muted.notes, "a muted game must not queue a single note, fanfare included");
+      },
+    },
   ],
 };
