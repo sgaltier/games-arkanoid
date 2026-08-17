@@ -39,9 +39,67 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #70 | ✅ Fixed — 2026-08-16 |
 | #65 | ✅ Fixed — 2026-08-16 |
 | #44 | ✅ Fixed — 2026-08-17 |
+| #74 | ✅ Fixed — 2026-08-17 |
+| #75 | ✅ Fixed — 2026-08-17 |
+| #76, #77 | 🔲 Open — requested 2026-08-17 |
 
-58 of 58 fixed — the backlog is empty. See [todo.md](todo.md), and
-[feature-ideas.md](feature-ideas.md) for proposals not yet promoted to it.
+60 of 62 fixed; the two items open (#76, #77) were requested directly by the user rather than
+surfaced by a review pass. See [todo.md](todo.md), and [feature-ideas.md](feature-ideas.md) for
+proposals not yet promoted to it.
+
+---
+
+## 2026-08-17 — The power-up timer bars stay below the canvas at every width (#75)
+
+### Fixed
+
+**The effect-bars sidebar no longer floats beside the canvas on a normal-width window.** #37 had put
+the widen/narrow, slow/fast, sticky and laser countdown bars in an 84px column to the right of the
+canvas so a slot appearing or disappearing mid-rally couldn't shove the canvas — but on any desktop
+or tablet-width browser that read as a misplaced sidebar rather than a deliberate layout, and a phone
+was the only width that got the bars where a player would expect them, below the play field.
+
+The bars now sit below the canvas at every width, not just on a phone: a fixed, reserved row height
+(sized for the worst-case two-row wrap of all four bars) keeps #37's original guarantee — a timer
+slot toggling never moves the canvas — without needing a side column to do it. That also closes the
+narrow-viewport trade-off #37 had explicitly accepted: small phones no longer get a canvas-shift
+either, since the reserved height applies everywhere now instead of only above a breakpoint.
+
+### Notes
+
+CSS-only; `fitCanvas()` (#17) already re-derives the canvas's backing-store size from its displayed
+width every resize, so nothing in JS needed to change.
+
+---
+
+## 2026-08-17 — A boss kill deserves more than a shake (#74)
+
+### Added
+
+**The boss now visibly comes apart before the level clears.** A silent burst of escalating particle
+pulses — bigger and more frequent for a bigger boss — culminating in one big blast, then a fanfare,
+and only once the fanfare finishes does "level cleared" appear. The field holds still throughout: no
+paddle, no ball, nothing left to hit anyway.
+
+**A five-second victory fanfare**, playing once per boss defeated: a rising call played twice,
+climbing an octave, a quick descending flourish, and a final chord that rings out. Several
+instruments layer on the same beats — the melody doubled an octave down for weight, a harmony voice
+above it, and the same kick/hat percussion the ordinary music bed already uses — so it sounds like
+part of the score rather than a jingle dropped on top of it. Pitched from whichever act's musical
+scale the level sits in.
+
+### Fixed
+
+A first version of this shipped earlier the same day and was reverted within the hour: it scored the
+explosion, the fanfare, and the level-clear transition in parallel rather than in sequence, so
+"level cleared" appeared instantly and the fanfare played out behind it rather than before it. Caught
+in manual testing. This entry is the corrected, sequenced version.
+
+### Notes
+
+Presentation only, same rule as #58 and #65: the score, the kill bonus, and the achievement stats are
+all settled before the celebration starts, so a seeded fight's outcome never depends on whether the
+beat is watched in full.
 
 ---
 

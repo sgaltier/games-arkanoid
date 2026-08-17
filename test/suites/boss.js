@@ -41,13 +41,23 @@ function hitPart(g, part) {
 // simulated by the test. Polls briefly first in case the one remaining part
 // is mid-shield or mid-blink when picked, rather than assuming it is
 // hittable the instant it is chosen.
-function finishBoss(g) {
+//
+function landFinalHit(g) {
   const parts = g.T.state.boss.parts.filter((p) => p.alive);
   parts.slice(0, -1).forEach((p) => { p.hp = 0; p.alive = false; });
   const last = parts[parts.length - 1];
   last.hp = 1;
   for (let i = 0; i < 200 && !(last.alive && last.solid && last.vulnerable); i++) g.frame();
   hitPart(g, last);
+}
+
+// #74: a kill that reaches bossDefeated() no longer clears the level on the
+// same frame — it opens state.boss.deathBeat (explosion, then fanfare)
+// first. Fast-forward through that here too, so callers asserting the level
+// actually cleared don't each have to know about the beat.
+function finishBoss(g) {
+  landFinalHit(g);
+  for (let i = 0; i < 500 && g.T.state.boss.deathBeat; i++) g.frame();
 }
 
 function enterBoss(bossNumber) {
@@ -266,6 +276,98 @@ module.exports = {
         const { ACHIEVEMENTS } = g.T;
         const slayer = ACHIEVEMENTS.find((x) => x.id === "bossSlayer");
         a.ok(slayer.when(g.T.state), "bossSlayer's condition should now read true");
+      },
+    },
+    {
+      name: "#74 — the boss explodes silently, then the fanfare plays, then the level clears",
+      fn(a) {
+        const g = enterBoss(1);
+        landFinalHit(g);
+        a.eq(g.T.state.phase, "playing", "the level must not clear the instant the boss dies");
+        a.ok(g.T.state.boss.deathBeat, "a death beat should be running");
+        a.eq(g.T.state.boss.deathBeat.stage, "explode", "it should start with the silent explosion");
+        const notesAfterHit = g.notes.length; // the hit's own feedback beep, not the fanfare
+
+        g.frame(); g.frame(); g.frame(); // a little further into the explosion, still well under it
+        a.eq(g.T.state.boss.deathBeat.stage, "explode", "should still be exploding this soon after the kill");
+        a.eq(g.notes.length, notesAfterHit, "no fanfare notes should play during the silent explosion");
+
+        g.run(1.5); // comfortably past the explosion
+        a.eq(g.T.state.phase, "playing", "still not cleared — the fanfare is what plays next");
+        a.eq(g.T.state.boss.deathBeat.stage, "fanfare", "the explosion should have handed off to the fanfare");
+        a.gt(g.notes.length, notesAfterHit + 5, "the fanfare should have started playing");
+
+        g.run(6); // comfortably past the fanfare
+        a.not(g.T.state.boss.deathBeat, "the death beat should be over");
+        a.eq(g.T.state.phase, "levelclear", "the level should only clear once the fanfare finishes");
+      },
+    },
+    {
+      name: "#74 — nothing but the death beat runs while it is playing out",
+      fn(a) {
+        const g = enterBoss(1);
+        landFinalHit(g);
+        const ball = { ...g.T.state.balls[0] };
+        const paddleX = g.T.state.paddle.x;
+        g.T.state.pointerX = paddleX + 200; // would move the paddle if it were still listening
+        g.frame();
+        a.eq(g.T.state.paddle.x, paddleX, "the paddle must not move during the death beat");
+        a.eq(g.T.state.balls[0].x, ball.x, "the ball must not move during the death beat");
+        a.eq(g.T.state.balls[0].y, ball.y, "the ball must not move during the death beat");
+      },
+    },
+    {
+      name: "#74 — a bigger boss goes out with a bigger burst and a longer shake",
+      fn(a) {
+        // Runs the death beat's silent "explode" stage to its own end — the
+        // moment it hands off to "fanfare" is exactly when the big finishing
+        // blast (the part that scales with the boss) has just fired, and
+        // before any of it has had time to decay.
+        function explosionEffect(g) {
+          landFinalHit(g);
+          g.T.state.particles.length = 0; // clear the ordinary per-hit feedback burst
+          for (let i = 0; i < 200 && g.T.state.boss.deathBeat.stage === "explode"; i++) g.frame();
+          return { particles: g.T.state.particles.length, shakeDur: g.T.state.shake.duration };
+        }
+        const sentinel = explosionEffect(enterBoss(1)); // defIdx 0
+
+        const o = boot();
+        o.el("btn-start").click(1);
+        o.T.startLevel(o.T.CONFIG.progression.totalLevels - 1); // Omega, defIdx 9
+        o.key("Space");
+        for (let phase = 0; phase < 2; phase++) {
+          finishBoss(o); // phases 0/1 only transition — no death beat to fast-forward through
+          if (o.T.state.boss.transition) o.run(o.T.CONFIG.boss.roarDuration + 0.2);
+        }
+        const omega = explosionEffect(o);
+
+        a.gt(omega.particles, sentinel.particles, "Omega's defeat burst should be bigger than Sentinel's");
+        a.gt(omega.shakeDur, sentinel.shakeDur, "Omega's defeat shake should last longer than Sentinel's");
+      },
+    },
+    {
+      name: "#74 — the fanfare runs close to five seconds, layers several instruments, and is silent when muted",
+      fn(a) {
+        const g = enterBoss(1);
+        landFinalHit(g);
+        g.run(1.5); // past the silent explosion, into the fanfare
+        const fanfare = g.notes.slice(-40); // generously more than the fanfare's own note count
+        const t0 = Math.min(...fanfare.map((n) => n.at));
+        const lastAt = Math.max(...fanfare.map((n) => n.at));
+        const span = lastAt - t0;
+        a.gt(span, 3.5, "the fanfare should run a real length, not a blip");
+        a.lt(span, 6, "and stay close to the requested five seconds");
+
+        const types = new Set(fanfare.map((n) => n.type));
+        a.gte(types.size, 3, `the fanfare should layer several instrument voices, found only ${[...types]}`);
+        a.ok(fanfare.some((n) => n.type === "noise"), "the fanfare should include the kick/hat percussion");
+
+        const muted = enterBoss(1);
+        muted.T.state.muted = true;
+        landFinalHit(muted);
+        muted.notes.length = 0;
+        muted.run(1.5);
+        a.empty(muted.notes, "a muted game must not queue a single note, fanfare included");
       },
     },
   ],

@@ -210,22 +210,27 @@ body {
 /* #31: how long an active power-up has left. Each slot is toggled with the
    `hidden` attribute and resized via the fill's inline width — see
    renderEffectBars() — rather than created/destroyed, so there's nothing to
-   animate into existence, just a width transition. #37: the column itself
-   sits beside the screen (see .play-row) at a fixed width instead of above
-   it, so a slot appearing/hiding changes the column's own height only —
-   never the canvas's position, since the two are independent flex siblings.
-   .play-row falls back to stacking them above the screen, the pre-#37
-   layout, once there's no width to spare for a side column. */
+   animate into existence, just a width transition. #37 first kept a slot's
+   `hidden` toggle from moving the canvas by putting the bars in a side
+   column (a flex sibling of .screen-wrap) rather than a block above it, but
+   that read as a misplaced sidebar on any normal-width window (#75). #75
+   keeps the "canvas never moves" property a different way: the row sits
+   below the canvas at every width (see .play-row) with a fixed, reserved
+   `height` sized for the worst-case wrap of all four bars, so a slot coming
+   or going repaints inside that row without ever resizing it. */
 .effect-bars {
-  flex: 0 0 84px;
+  flex: 0 0 auto;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
   gap: 6px;
+  width: 100%;
+  height: 38px; /* 2 wrapped rows of .effect-bar (16px) + 1 gap, the worst case */
 }
 
 .effect-bar {
   position: relative;
-  flex: 0 0 auto;
+  flex: 1 1 90px;
   height: 16px;
   border-radius: 7px;
   overflow: hidden;
@@ -254,13 +259,12 @@ body {
 }
 
 /* ---------- screen ---------- */
-/* #37: the screen and the effect-bars sidebar are independent flex siblings,
-   so the sidebar's own height (which changes as timer slots come and go)
-   never affects the screen's — the canvas doesn't move. Below the narrow-
-   viewport breakpoint there's no room for a side column, so this collapses
-   back to the pre-#37 stacked layout instead (see the media query below). */
+/* #75: .effect-bars sits below .screen-wrap at every width — see the
+   comment on .effect-bars for how its reserved height keeps the canvas from
+   moving when a timer slot appears or hides. */
 .play-row {
   display: flex;
+  flex-direction: column;
   align-items: flex-start;
   gap: 10px;
 }
@@ -268,6 +272,7 @@ body {
 .screen-wrap {
   position: relative;
   flex: 1 1 auto;
+  width: 100%;
   min-width: 0;
   border-radius: 16px;
   padding: 10px;
@@ -636,24 +641,6 @@ canvas {
   .tagline { display: none; }
   .hud-label { letter-spacing: .06em; }
 }
-
-/* #37: below this there's no width to spare for the effect-bars side column
-   (the canvas would get uncomfortably small) without shrinking the canvas
-   more than is worth it, so fall back to the pre-#37 layout — bars stacked
-   above the screen, wrapping horizontally like the HUD does. That reintroduces
-   the canvas-shifts-when-a-timer-appears behaviour on small phones, which is
-   an accepted trade-off (see #37 in docs/done.md) rather than a full fix. */
-@media (max-width: 560px) {
-  .play-row { flex-direction: column; }
-  .effect-bars {
-    flex: 0 0 auto;
-    flex-direction: row;
-    flex-wrap: wrap;
-    width: 100%;
-  }
-  .effect-bar { flex: 1 1 90px; height: 14px; }
-  .effect-bar-label { line-height: 14px; }
-}
 </style>
 </head>
 <body>
@@ -687,9 +674,9 @@ canvas {
     </div>
   </div>
 
-  <!-- #37: the effect-bars sidebar is a flex sibling of screen-wrap (see
-       .play-row), not a sibling of the HUD above it, so a slot appearing or
-       hiding resizes only this column — never the canvas next to it. -->
+  <!-- #75: .effect-bars is a flex sibling of screen-wrap (see .play-row),
+       not a sibling of the HUD above it, so a slot appearing or hiding
+       resizes only this row — never the canvas above it. -->
   <div class="play-row">
     <div class="screen-wrap">
       <div class="screen">
@@ -3370,11 +3357,19 @@ canvas {
   // two octaves — a streak long enough to run out of ladder is rare, and past
   // that the notes stop reading as notes.
   var MUSIC_SCALE_LEN = 5; // every act's scale is five notes — see MUSIC_ACTS
+  // Turns a scale-degree step into a semitone offset from the root, wrapping
+  // into the next octave every `musicScale().length` steps. Factored out of
+  // ladderSemi() below so #74's fanfare can reuse the same math for steps
+  // that run past the combo ladder's cap (and negative ones, below the root).
+  function scaleSemi(step) {
+    var scale = musicScale();
+    var len = scale.length;
+    var idx = ((step % len) + len) % len;
+    return scale[idx] + Math.floor(step / len) * 12;
+  }
   var LADDER_MAX = MUSIC_SCALE_LEN * 2 - 1;
   function ladderSemi(combo) {
-    var scale = musicScale();
-    var step = clamp(combo - 1, 0, LADDER_MAX);
-    return scale[step % scale.length] + Math.floor(step / scale.length) * 12;
+    return scaleSemi(clamp(combo - 1, 0, LADDER_MAX));
   }
 
   // A brick's type is the only thing that changes what a hit *does*, so it is
@@ -3430,6 +3425,90 @@ canvas {
         slide: n.slide ? noteFreq(root + n.slide) : 0,
         at: ctxA.currentTime + i * LOSS_STING_STEP,
         dur: n.dur, type: n.type, vol: n.vol
+      });
+    }
+  }
+
+  // #74: the boss-kill fanfare — a ~5s figure scheduled once against the
+  // audio clock, once the death beat's silent explosion finishes (see
+  // updateBossDeathBeat()). LOSS_STING's opposite mood, aimed the other way:
+  // triumphant rather than a sting. Every melodic pitch is a scale STEP
+  // through scaleSemi(), not a fixed semitone, so it stays in tune with
+  // whichever act's scale the level sits in.
+  //
+  // Several instruments stack on the same beats rather than one flat melody:
+  // a sawtooth call on top, the same call doubled an octave down for weight,
+  // a triangle pad a third above for harmony, and the exact kick/hat
+  // recipes MUSIC_DRUMS already uses for the ordinary bed — so the fanfare
+  // sounds like it belongs to the same score rather than a separate jingle.
+  //
+  // Built rather than hand-listed for its repeating shape: a rising call
+  // played twice, an octave apart, each layered the same three ways, then a
+  // quick descending flourish, then a final four-note chord — with its own
+  // bass note, a kick and a cymbal-like crash under it — ringing out.
+  var BOSS_FANFARE = (function () {
+    var notes = [];
+    // One melodic hit, optionally doubled an octave down (weight) and/or
+    // echoed a third above (harmony) at the same instant.
+    function addMelody(at, step, dur, vol, withBass, withPad) {
+      notes.push({ at: at, step: step, dur: dur, type: "sawtooth", vol: vol });
+      if (withBass) {
+        notes.push({ at: at, step: step - MUSIC_SCALE_LEN, dur: dur * 1.3, type: "sawtooth", vol: vol * 0.6 });
+      }
+      if (withPad) {
+        notes.push({ at: at, step: step + 2, dur: dur * 1.6, type: "triangle", vol: vol * 0.45, detune: 8 });
+      }
+    }
+    function addKick(at, vol) { notes.push({ at: at, kind: "kick", vol: vol }); }
+    function addHat(at, vol) { notes.push({ at: at, kind: "hat", vol: vol }); }
+
+    var motif = [0, 2, 4, 7]; // a short rising call, in scale steps
+    var motifGap = 0.13;      // seconds between notes within one call
+    var barGap = 1.05;        // seconds between the two calls
+    for (var bar = 0; bar < 2; bar++) {
+      var t0 = bar * barGap;
+      var octave = bar * MUSIC_SCALE_LEN; // +len steps = +1 octave, see scaleSemi()
+      addKick(t0, 0.09);
+      for (var i = 0; i < motif.length; i++) {
+        var isLast = i === motif.length - 1;
+        addMelody(t0 + i * motifGap, motif[i] + octave, isLast ? 0.4 : 0.13, 0.075 - bar * 0.012, true, isLast);
+      }
+    }
+    var flourishStart = 2 * barGap + 0.25;
+    var run = [9, 7, 6, 4, 2, 0];
+    for (var j = 0; j < run.length; j++) {
+      notes.push({ at: flourishStart + j * 0.08, step: run[j], dur: 0.1, type: "square", vol: 0.05 });
+      if (j % 2 === 0) addHat(flourishStart + j * 0.08, 0.04);
+    }
+    var chordStart = flourishStart + run.length * 0.08 + 0.15;
+    [0, 4, 7, 9].forEach(function (step, i) {
+      notes.push({
+        at: chordStart, step: step, dur: 1.9,
+        type: i === 0 ? "sawtooth" : i === 1 ? "triangle" : "sine",
+        vol: 0.055 - i * 0.006, detune: i >= 2 ? 7 : 0
+      });
+    });
+    addMelody(chordStart, -MUSIC_SCALE_LEN, 1.9, 0.05, false, false); // the bass root under the chord
+    addKick(chordStart, 0.12);
+    addHat(chordStart, 0.08); // the crash
+    notes.push({ at: chordStart + 0.35, step: 11, dur: 0.35, type: "triangle", vol: 0.032 });
+    notes.push({ at: chordStart + 0.75, step: 14, dur: 0.4, type: "triangle", vol: 0.028 });
+    return notes;
+  })();
+  function bossFanfareTone() {
+    var ctxA = audioCtx(); // null when muted, which is also the whole guard
+    if (!ctxA) return;
+    var root = musicRoot();
+    for (var i = 0; i < BOSS_FANFARE.length; i++) {
+      var n = BOSS_FANFARE[i];
+      var at = ctxA.currentTime + n.at;
+      // The two percussion recipes are exactly MUSIC_DRUMS' kick and hat —
+      // same sound, so the fanfare reads as part of the same score.
+      if (n.kind === "kick") { tone({ freq: 110, slide: 38, at: at, dur: 0.16, type: "sine", vol: n.vol }); continue; }
+      if (n.kind === "hat") { noise({ freq: 7000, at: at, dur: 0.05, vol: n.vol }); continue; }
+      tone({
+        freq: noteFreq(root + scaleSemi(n.step)),
+        at: at, dur: n.dur, type: n.type, vol: n.vol, detune: n.detune
       });
     }
   }
@@ -3849,18 +3928,66 @@ canvas {
     }
   }
 
+  // #74: how long the boss visibly takes to come apart before the fanfare
+  // starts (silent — no music plays during it), and how long the fanfare
+  // itself holds the level-clear transition back once it does.
+  var BOSS_EXPLODE_DURATION = 0.9;
+  var BOSS_FANFARE_DURATION = 5.0;
+
   function bossDefeated() {
     var b = state.boss;
     var def = BOSSES[b.defIdx];
     b.dead = true;
     state.score += def.killBonus;
     spawnFloatingText(GAME_W / 2, GAME_H / 2, def.killBonus, 1);
-    shakeScreen({ mag: 8, duration: 0.5 });
-    freezeFrames();
+    // #74: the kill itself does not clear the level — it starts the death
+    // beat instead. updateBossDeathBeat() drives the explosion, then the
+    // fanfare, then finally calls checkLevelClear() once both are done; see
+    // the guard there and the branch frame() takes while this is set.
+    b.deathBeat = { stage: "explode", remaining: BOSS_EXPLODE_DURATION, pulseTimer: 0, pulseCount: 0 };
     // #65: "Boss Slayer"/"Flawless Victory"/"Ten Heads" — see ACHIEVEMENTS.
     state.achStats.bossesBeaten += 1;
     if (state.achStats.levelLosses === 0) state.achStats.flawlessBoss = true;
     updateHud();
+  }
+
+  // Drives state.boss.deathBeat once bossDefeated() has set it. "explode" is
+  // a silent burst of escalating particle pulses (bigger and more frequent
+  // for a bigger boss, via b.defIdx) with no fanfare yet; it ends in one big
+  // finishing blast, at which point the fanfare starts and "fanfare" simply
+  // holds until that finishes — then the level actually clears.
+  function updateBossDeathBeat(dt) {
+    var b = state.boss;
+    if (!b || !b.deathBeat) return;
+    var db = b.deathBeat;
+    var def = BOSSES[b.defIdx];
+    if (db.stage === "explode") {
+      db.pulseTimer -= dt;
+      if (db.pulseTimer <= 0) {
+        db.pulseTimer = 0.12;
+        db.pulseCount += 1;
+        var pulseN = 6 + db.pulseCount * 3 + b.defIdx;
+        burst(GAME_W / 2 + rand(-40, 40), GAME_H / 2 + rand(-30, 30), def.color, pulseN);
+        shakeScreen({ mag: 2 + db.pulseCount * 0.5, duration: 0.15 });
+      }
+      db.remaining -= dt;
+      if (db.remaining > 0) return;
+      // The finishing blast, scaled to the boss exactly as before — then the
+      // fanfare, and only the fanfare, plays from here on.
+      var n = 24 + b.defIdx * 6; // 24 (Sentinel) .. 78 (Omega)
+      burst(GAME_W / 2, GAME_H / 2, def.color, n);
+      burst(GAME_W / 2, GAME_H / 2, "#ffffff", Math.round(n / 2));
+      shakeScreen({ mag: 4 + b.defIdx * 0.5, duration: 0.35 + b.defIdx * 0.06 });
+      freezeFrames();
+      bossFanfareTone();
+      db.stage = "fanfare";
+      db.remaining = BOSS_FANFARE_DURATION;
+    } else {
+      db.remaining -= dt;
+      if (db.remaining > 0) return;
+      b.deathBeat = null;
+      checkLevelClear();
+    }
   }
 
   // A hazard aimed at the paddle: a falling shot, a fan of them, or (kind:
@@ -4328,9 +4455,12 @@ canvas {
   function checkLevelClear() {
     // #44: a boss level's remainingBricks is pinned at 0 (see buildLevel), so
     // the boss itself is what has to be checked instead — everything past
-    // this point is the same verdict either way.
+    // this point is the same verdict either way. #74: a dead boss still holds
+    // this back until its death beat (explosion, then fanfare) finishes —
+    // updateBossDeathBeat() is what calls this again once it does, so this
+    // guard is defensive rather than the only thing enforcing the order.
     if (state.boss) {
-      if (!state.boss.dead) return;
+      if (!state.boss.dead || state.boss.deathBeat) return;
     } else if (state.remainingBricks > 0) {
       return;
     }
@@ -4999,10 +5129,15 @@ canvas {
     updateAchToasts(dt);
 
     if (!frozen) {
+      // #74: a boss's death beat (explosion, then fanfare) holds the field
+      // still — no paddle, no ball, nothing left to hit anyway — the same way
+      // #71's lost-ball beat already does for the far shorter "ball just
+      // drained off the bottom" pause.
+      var inDeathBeat = !!(state.boss && state.boss.deathBeat);
       // #71: the paddle keeps answering during the lost-ball beat. Freezing
       // input for the better part of a second reads as a stall, and there is no
       // ball for it to affect either way.
-      if (state.phase === "playing" || state.phase === "ready" || state.phase === "lifelost") {
+      if ((state.phase === "playing" && !inDeathBeat) || state.phase === "ready" || state.phase === "lifelost") {
         updatePaddle(dt);
       }
       // #71: spend the beat. Inside the !frozen block on purpose — a blast that
@@ -5012,7 +5147,11 @@ canvas {
         state.lifeLost.remaining -= dt;
         if (state.lifeLost.remaining <= 0) finishLifeLost();
       }
-      if (state.phase === "playing") {
+      if (state.phase === "playing" && inDeathBeat) {
+        updateBossDeathBeat(dt);
+        updateParticles(dt);
+        updateFloatingTexts(dt);
+      } else if (state.phase === "playing") {
         updateEffects(dt);
         updateBricks(dt);
         updateBoss(dt); // #44: moved before updateBalls, so the ball collides with where it ends up this frame
