@@ -5,7 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 Blokrush — a bilingual (French/English) neon-arcade Breakout clone, a 100-level campaign ending in a
-`victory` screen (#41). The game itself (HTML + CSS + JS) is one self-contained file,
+`victory` screen (#41), with a boss fight at every level ending in 0 (#44). The game itself
+(HTML + CSS + JS) is one self-contained file,
 [html/index.html](html/index.html): no build step, no dependencies, no `package.json`. Open it
 directly in a browser (`file://` works) to play it.
 
@@ -89,14 +90,19 @@ nameservers to gain one static subdomain would put that at risk for no benefit.
 `index.html` is `<style>` + markup + a `<script>` containing one IIFE — the whole game is a
 closure with nothing exposed globally. Inside the IIFE, roughly top to bottom:
 
-- `LEVELS` — the 10 hand-authored levels as rows of characters (brick type per cell). Since #41 the
-  campaign is `CONFIG.progression.totalLevels` (100) long; `generateLevel(idx)` builds everything
-  past the table, seeded from the level index, and `levelDef(idx)` is the only thing that reads
-  either — never index `LEVELS` directly, and never use `LEVELS.length` as the campaign length.
-  Generated levels are flood-filled by `ensureReachable()` so no destructible brick can be walled
-  off; **authored ones are not**, and #68 was exactly that bug shipped — level 10 boxed five silvers
-  in behind walls and could never be cleared. Editing a row in `LEVELS` means re-running the suite:
-  `#68` is the guard.
+- `LEVELS` — the 9 hand-authored levels (1-9) as rows of characters (brick type per cell). Since #41
+  the campaign is `CONFIG.progression.totalLevels` (100) long; `generateLevel(idx)` builds everything
+  past the table other than a boss level, seeded from the level index, and `levelDef(idx)` is the
+  only thing that reads any of the three sources — never index `LEVELS` directly, and never use
+  `LEVELS.length` as the campaign length. Generated levels are flood-filled by `ensureReachable()` so
+  no destructible brick can be walled off; **authored ones are not**, and `#68` is the regression
+  test guarding it — editing a row in `LEVELS` means re-running the suite.
+- `BOSSES` — the ten boss fights (#44), one per level ending in 0 (`isBossLevel`/`bossDefIndex`
+  decide which). Each is one or more rectangular "parts" reusing brick/paddle collision, with a
+  `spawn`/`update`/`fire` triplet and optional `onPartDown`/`onDepleted` hooks; `state.boss` holds
+  the current fight and survives a lost ball (only its hazards — `state.bossShots`/`state.minions` —
+  clear per life). A boss level's arena bricks (built the same way as `LEVELS`' rows) never count
+  toward `remainingBricks`; `checkLevelClear()` reads `state.boss.dead` instead.
 - `POWERUPS` — weighted drop table (`widen`, `slow`, `multi`, `life` good; `narrow`, `fast` bad).
 - `STRINGS` / `SUPPORTED_LANGS` / `DEFAULT_LANG` — the i18n table and `t(key, params)` lookup.
 - `state` — the single mutable game-state object (phase, score, bricks, balls, paddle, active

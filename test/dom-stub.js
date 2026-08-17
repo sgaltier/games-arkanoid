@@ -41,6 +41,9 @@ const SEAM = [
   // are also what the persisted file contains, which is the other thing worth
   // being able to assert directly.
   "ACHIEVEMENTS",
+  // #44: the boss roster, so its ids can be held against both string tables
+  // the same way, and its arenas/hit counts asserted directly.
+  "BOSSES",
 ];
 
 const TAIL = "})();";

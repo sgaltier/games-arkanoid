@@ -38,10 +38,46 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #72, #73 | ✅ Fixed — 2026-08-16 |
 | #70 | ✅ Fixed — 2026-08-16 |
 | #65 | ✅ Fixed — 2026-08-16 |
-| #44 | 🔲 Open — promoted 2026-08-17 |
+| #44 | ✅ Fixed — 2026-08-17 |
 
-57 of 58 fixed; every *review finding* has shipped and the one item open is a promoted feature. See
-[todo.md](todo.md), and [feature-ideas.md](feature-ideas.md) for proposals not yet promoted to it.
+58 of 58 fixed — the backlog is empty. See [todo.md](todo.md), and
+[feature-ideas.md](feature-ideas.md) for proposals not yet promoted to it.
+
+---
+
+## 2026-08-17 — Ten boss levels (#44)
+
+### Added
+
+**Boss fights at levels 10, 20, … 100**, replacing the brick grid that used to sit there — Sentinel,
+Salvo, Carapace, Gemini, Aegis, The Hive, Phantom, Mirage, Leviathan, and Omega for the campaign's
+last level. Each adds exactly one new idea and keeps the ones before it: dodging a falling shot,
+opening a plated core's vulnerability window and keeping it open, splitting into two targets, a
+shielded rhythm that punishes standing still, a swarm of small minions the ball can also destroy, a
+boss that blinks and passes through the ball while faded, one that tracks the paddle instead of a
+fixed pattern, one that descends the arena as it takes damage, and a three-phase finale that
+recombines the previous nine.
+
+Beating one still awards the every-tenth-level extra life exactly as it always did, and the backdrop
+and music were already on their darkest, heaviest act at every one of those levels — nothing about
+the presentation had to learn what a boss is.
+
+### Changed
+
+**Level 10's hand-authored layout retired** — the `LEVELS` table now covers levels 1-9, with the
+generated campaign's difficulty curve re-anchored to skip boss levels rather than counting them as
+generated ones.
+
+### Added (achievements)
+
+Three new entries: beating your first boss, beating one without losing a ball that fight, and beating
+all ten in a single run.
+
+### Notes
+
+Promoted from `feature-ideas.md` and expanded into a full ten-boss roster before being built — see
+`done.md` for the roster and the design decisions behind it (why a boss's hit points survive a lost
+ball, why cover bricks in a boss arena never gate the level, why Omega reuses rather than reinvents).
 
 ---
 

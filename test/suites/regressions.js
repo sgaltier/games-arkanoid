@@ -15,10 +15,16 @@
 const { boot, HTML, SCRIPT } = require("../dom-stub");
 
 // Empty a level the short way. Bypassing brickHit means the remainingBricks
-// counter it maintains (#16) has to be kept in sync by hand.
+// counter it maintains (#16) has to be kept in sync by hand. On a boss level
+// (#44) remainingBricks is already pinned at 0, so it's the boss that has to
+// be put down instead — checkLevelClear() reads state.boss.dead there.
 function clearBricks(g) {
   g.T.state.bricks.forEach((b) => { if (b.hp !== Infinity) b.alive = false; });
   g.T.state.remainingBricks = 0;
+  if (g.T.state.boss) {
+    g.T.state.boss.parts.forEach((p) => { p.hp = 0; p.alive = false; });
+    g.T.state.boss.dead = true;
+  }
 }
 
 // #69: press and release the level-jump chord. Releasing matters — the chord
@@ -1192,8 +1198,7 @@ module.exports = {
         g.T.startLevel(g.T.CONFIG.progression.totalLevels - 1); // final level, so clearing it wins
         g.key("Space");
         g.T.state.score = 10;
-        g.T.state.bricks.forEach((b) => { if (b.hp !== Infinity) b.alive = false; });
-        g.T.state.remainingBricks = 0;
+        clearBricks(g);
         g.frame();
         a.eq(g.T.state.phase, "nameentry", "a qualifying score should still detour on a win");
         g.el("btn-nameentry-submit").click(1);
@@ -2456,8 +2461,14 @@ module.exports = {
         for (let i = 0; i < g.T.CONFIG.progression.totalLevels; i++) {
           g.T.startLevel(i);
           a.eq(g.T.state.levelIndex, i);
-          a.gt(g.T.state.bricks.filter((b) => b.hp !== Infinity).length, 0,
-            `level ${i + 1} has nothing to destroy`);
+          // #44: a boss level clears through state.boss, not remainingBricks —
+          // its arena can legitimately have nothing destructible in it.
+          if (g.T.state.boss) {
+            a.ok(g.T.state.boss.parts.some((p) => p.maxHp > 0), `level ${i + 1}: the boss has no hit points`);
+          } else {
+            a.gt(g.T.state.bricks.filter((b) => b.hp !== Infinity).length, 0,
+              `level ${i + 1} has nothing to destroy`);
+          }
           for (const b of g.T.state.bricks) {
             a.gte(b.x, 0, `level ${i + 1}: brick off the left edge`);
             a.lte(b.x + b.w, g.T.GAME_W, `level ${i + 1}: brick off the right edge`);
@@ -2473,6 +2484,7 @@ module.exports = {
         const g = boot();
         g.el("btn-start").click(1);
         for (let i = g.T.LEVELS.length; i < g.T.CONFIG.progression.totalLevels; i++) {
+          if ((i + 1) % 10 === 0) continue; // #44: a boss level's arena isn't generated, and its cover bricks don't gate the level anyway
           g.T.startLevel(i);
           for (const cell of walledOffBricks(g)) {
             a.ok(false, `level ${i + 1}: a destructible brick at row ${cell.r}, column ${cell.c} is walled off`);
@@ -2573,7 +2585,10 @@ module.exports = {
             `level ${n} must still score exactly 10 x ${n}`);
         }
         let prev = 10 * authored;
-        for (const n of [authored + 1, 20, 50, p.totalLevels]) {
+        // #44: every one of authored+1/20/50/totalLevels is now a boss level
+        // (10/20/50/100) whose arena may have no plain brick at all — probe
+        // the ordinary generated level right next to each instead.
+        for (const n of [authored + 2, 21, 51, p.totalLevels - 1]) {
           const v = firstBrickValue(n - 1);
           a.gte(v, prev, `level ${n} scores less than the level before it`);
           a.lte(v, 10 * p.scoreCap, `level ${n} broke the score cap`);
@@ -2619,13 +2634,20 @@ module.exports = {
     {
       name: "#68 — every authored level can actually be cleared",
       fn(a) {
-        // Level 10's first two rows were offset ("#S#S#S#S#S" over
-        // "S#S#S#S#S#"), which boxed each of the top row's five silvers in on
-        // all four sides — walls left, right and below, the ceiling above. With
-        // a 7px ball and 3px brick margins there is no diagonal squeeze, so the
-        // level could never be cleared and the campaign stopped dead there.
-        // ensureReachable() only guards generated levels, so an authored layout
-        // needs this check instead.
+        // The original finding: level 10's first two rows were offset
+        // ("#S#S#S#S#S" over "S#S#S#S#S#"), which boxed each of the top row's
+        // five silvers in on all four sides — walls left, right and below,
+        // the ceiling above. With a 7px ball and 3px brick margins there is no
+        // diagonal squeeze, so the level could never be cleared and the
+        // campaign stopped dead there. ensureReachable() only guards
+        // generated levels, so an authored layout needs this check instead.
+        //
+        // That specific level left the authored table when it became a boss
+        // (#44), so this now checks every remaining authored layout in
+        // general rather than pinning the one row shape that used to be
+        // broken — the guard the finding actually needs is "every
+        // destructible brick is reachable", not "this one level in
+        // particular is fine".
         const g = boot();
         g.el("btn-start").click(1);
         for (let i = 0; i < g.T.LEVELS.length; i++) {
@@ -2633,15 +2655,6 @@ module.exports = {
           for (const cell of walledOffBricks(g)) {
             a.ok(false, `level ${i + 1}: a destructible brick at row ${cell.r}, column ${cell.c} is walled off`);
           }
-        }
-
-        // And the specific shape that caused it, so the test fails for the
-        // original reason rather than only for its symptom.
-        const rows = g.T.LEVELS[9].rows;
-        a.ne(rows[0].indexOf("S"), -1, "level 10's top row should still be silver-and-wall");
-        for (let c = 0; c < rows[0].length; c++) {
-          if (rows[0][c] !== "S") continue;
-          a.ne(rows[1][c], "#", `level 10: the silver at column ${c} has a wall directly under it`);
         }
       },
     },

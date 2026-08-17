@@ -133,8 +133,14 @@ module.exports = {
         g.el("btn-start").click(1);
         for (let i = 0; i < g.T.CONFIG.progression.totalLevels; i++) {
           g.T.startLevel(i);
-          const destructible = g.T.state.bricks.filter((b) => b.hp !== Infinity);
-          a.gt(destructible.length, 0, `level ${i + 1} has nothing to destroy`);
+          // #44: a boss level clears through state.boss instead — its arena
+          // can legitimately have no destructible brick in it at all.
+          if (g.T.state.boss) {
+            a.ok(g.T.state.boss.parts.some((p) => p.maxHp > 0), `level ${i + 1}: the boss has no hit points`);
+          } else {
+            const destructible = g.T.state.bricks.filter((b) => b.hp !== Infinity);
+            a.gt(destructible.length, 0, `level ${i + 1} has nothing to destroy`);
+          }
           a.eq(g.T.state.levelIndex, i);
         }
       },

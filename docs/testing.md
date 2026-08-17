@@ -55,6 +55,7 @@ push/PR regardless.
 | `i18n` | String tables, locale detection, the toggle, interpolation. |
 | `persistence` | Storage round-trips, and behaviour when storage throws. |
 | `perf` | Per-frame budgets measured from the instrumented DOM stub. |
+| `boss` | The ten boss levels (#44): the roster's shape, level identification, damage and defeat, hazards. |
 | `regressions` | One test per fixed finding. |
 
 ---

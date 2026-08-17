@@ -905,6 +905,11 @@ canvas {
   //   X explosive (1hp; destroying it damages the 8 surrounding cells — #49)
   //   R regenerating (1hp; comes back after a delay, up to CONFIG.regen.max times — #51)
   //   ? mystery (resolves into one of MYSTERY_TYPES on the first hit — #52)
+  //
+  // #44: level 10 used to be authored here too. It is now BOSSES[0] (Sentinel)
+  // instead — every level ending in 0 is a boss fight, not a layout — so this
+  // table covers levels 1-9 and levelDef() is what decides which of the three
+  // sources (this table, a boss, or generateLevel()) a given level comes from.
   // ---------------------------------------------------------------------
   var LEVELS = [
     { rows: ["1111111111", "2222222222", "3333333333", "4444444444"], speed: 1.0 },
@@ -925,17 +930,12 @@ canvas {
     { rows: ["1#2#3#4#1#", "S1S2S3S4S1", ".2.3.4.1.2", "3S4S1S2S3S", "#3#4#1#2#3", "4.1.X.3.4.", "1234123412"], speed: 1.60 },
     { rows: ["##2#4#1#3#", "S3S1S4S2S1", "1.3.?.2.4.", "424R4?42R4", "S1S2S3S4S2", "#4#1#3#2#4", ".1.3.S.4.2", "3142314231"], speed: 1.70 },
     { rows: ["#1#2#S#3#4", "2S3SXS4S2S", ".4.2.S.1.3", "1#3#S#2#4#", "4S2S1S3S4S", "#2#4#1#S#3", ".3.1.4.2.S", "2413241324"], speed: 1.82 },
-    { rows: ["#S#1#S#2#S", "3S1S4S2S1S", ".2.?.4.S.1", "4#2#?#1#3#", "1S3S2S4S3S", ".4.1.R.2.S", "#1#S#3#4#S", "4231423142", "2341234123"], speed: 1.95 },
-    // #68: rows 1 and 2 used to be offset ("#S#S#S#S#S" over "S#S#S#S#S#"),
-    // which boxed each of the top row's five silvers in on all four sides —
-    // walls left, right and below, the ceiling above. With a 7px ball and 3px
-    // brick margins there is no diagonal squeeze, so those five could never be
-    // hit and the level could never be cleared. Aligning the two rows into
-    // alternating full-height wall and silver pillars keeps the gauntlet (same
-    // brick types, same counts) and puts a destructible brick under every
-    // silver. Rows are checked by ensureReachable() only when generated, so an
-    // authored layout is on the author to keep clearable — `#68` is the test.
-    { rows: ["#S#S#S#S#S", "#S#S#S#S#S", "43X1432X43", "S1S2S3S4S1", ".1.2.?.4.1", "2R3S4S1S2R", "#2#3#4#1#2", "3.4.1.2.3.", "S4S1S2S3S4", "1234123412"], speed: 2.08 }
+    // #44: this used to be level 9 of 10, one below the level-10 layout #68
+    // fixed. That layout (and the finding's history) left with level 10 when
+    // it became BOSSES[0] instead of an authored level — see the #68
+    // regression test, now a general "every authored layout is reachable"
+    // check rather than one pinned to a specific row's shape.
+    { rows: ["#S#1#S#2#S", "3S1S4S2S1S", ".2.?.4.S.1", "4#2#?#1#3#", "1S3S2S4S3S", ".4.1.R.2.S", "#1#S#3#4#S", "4231423142", "2341234123"], speed: 1.95 }
   ];
 
   var BRICK_COLOR = {
@@ -1033,12 +1033,26 @@ canvas {
 
   // ---------------------------------------------------------------------
   // The generated campaign (#41)
-  //   The run is CONFIG.progression.totalLevels long; LEVELS covers the first
-  //   ten of it and generateLevel() builds the rest from the level index alone.
-  //   Level 47 is therefore the same layout for every player and reproducible
-  //   in a test, and nothing downstream can tell an authored level from a
-  //   generated one — levelDef() is the only thing that knows the difference.
+  //   The run is CONFIG.progression.totalLevels long; LEVELS covers levels
+  //   1-9, every tenth level is a boss (#44), and generateLevel() builds
+  //   everything else from the level index alone. Level 47 is therefore the
+  //   same layout for every player and reproducible in a test, and nothing
+  //   downstream can tell an authored level from a generated one — levelDef()
+  //   is the only thing that knows the difference between all three sources.
   // ---------------------------------------------------------------------
+  function isBossLevel(idx) { return (idx + 1) % 10 === 0; }
+  // 0-based index into BOSSES: level 10 -> 0 (Sentinel), level 100 -> 9 (Omega).
+  function bossDefIndex(idx) { return Math.floor((idx + 1) / 10) - 1; }
+  // generateLevel()'s escalation counter (`d`, below) has to skip boss levels
+  // entirely, or every boss would eat one of the "generated" levels' worth of
+  // difficulty ramp without anything ramping. layoutIndex(idx) is the ordinal
+  // of idx among the non-boss levels alone — idx minus how many boss levels
+  // fall at or before it — so the escalation is continuous whether or not a
+  // boss cadence sits between two generated levels. The seed a level is drawn
+  // from stays keyed on the real idx (see generateLevel), so a layout does not
+  // move if the boss cadence is ever changed; only its difficulty escalation
+  // does.
+  function layoutIndex(idx) { return idx - Math.floor(idx / 10); }
 
   // Half-width row patterns (five cells), mirrored into the full ten columns.
   // Per-cell randomness produces mush; the authored levels are patterned, and
@@ -1178,7 +1192,7 @@ canvas {
   }
 
   function generateLevel(idx) {
-    var d = idx - LEVELS.length; // 0 on the first generated level
+    var d = layoutIndex(idx) - LEVELS.length; // 0 on the first generated level
     var rnd = seededRandom((idx + 1) * 104729);
     var rows = Math.min(10, 6 + Math.floor(d / 12)); // 10 is the authored maximum
     var shape = ARCHETYPES[Math.floor(rnd() * ARCHETYPES.length)];
@@ -1214,10 +1228,25 @@ canvas {
     return { rows: out, speed: levelSpeed(idx + 1) };
   }
 
+  // #44: a boss level's "layout" is its arena — the cover bricks it fights
+  // over, authored per boss in BOSSES rather than generated — plus a `boss`
+  // field naming which entry of BOSSES owns it. That field is the only thing
+  // that tells buildLevel() this level is a fight rather than a clear: the
+  // shape returned is otherwise the same { rows, speed } every other source
+  // returns, so nothing downstream has to learn a second level format.
+  function bossLevelDef(idx) {
+    var def = BOSSES[bossDefIndex(idx)];
+    return { rows: def.arena, speed: levelSpeed(idx + 1), boss: bossDefIndex(idx) };
+  }
+
   // The one place that reads the level table. Memoised a single slot deep
   // because resetPaddleAndBall() re-reads the definition on every lost ball.
   var levelCache = { idx: -1, def: null };
   function levelDef(idx) {
+    if (isBossLevel(idx)) {
+      if (levelCache.idx !== idx) levelCache = { idx: idx, def: bossLevelDef(idx) };
+      return levelCache.def;
+    }
     if (idx < LEVELS.length) return LEVELS[idx];
     if (levelCache.idx !== idx) levelCache = { idx: idx, def: generateLevel(idx) };
     return levelCache.def;
@@ -1397,8 +1426,465 @@ canvas {
     hallOfFame: {
       max: 10,
       nameMax: 12
+    },
+    // #44: the handful of boss knobs that are genuinely shared tuning rather
+    // than part of the roster — everything that *is* the roster (hit counts,
+    // speeds, arenas, hazard cadences) lives inline in BOSSES instead, on the
+    // same reasoning ACHIEVEMENTS' thresholds do: those numbers are the
+    // feature, not a dial on it.
+    boss: {
+      fireGrace: 1.2,   // seconds after a fight starts before the first hazard
+      roarDuration: 1.5, // Omega's inter-phase invulnerable beat
+      hitFlash: 0.08,   // seconds a part flashes white after taking a hit
+      shotSpeed: 190,   // px/s a dropped hazard falls at
+      minionSpeed: 60,  // px/s a drifting minion falls at
+      minionR: 9
     }
   };
+
+  // ---------------------------------------------------------------------
+  // Bosses (#44)
+  //   Ten fights, one at every level ending in 0, each replacing the layout
+  //   that used to sit there. A boss is one or more rectangular "parts" —
+  //   almost always the whole visible body, occasionally several (Carapace's
+  //   plates and core, Gemini's two halves, Omega's three phases) — reusing
+  //   circleRectCollide/brickPenetration/resolveBrickCollision exactly as
+  //   bricks and the paddle already do, since a part is just another
+  //   {x,y,w,h} rectangle. What is new is only the bookkeeping around it:
+  //   hit points per part, whether a part is solid (bounces the ball) and
+  //   vulnerable (damageable) this frame, and a per-boss update()/fire() pair
+  //   that moves it and spawns whatever it throws at the paddle.
+  //
+  //   Deliberately NOT a new phase or overlay: the fight happens inside the
+  //   ordinary "playing" phase, drawn on the canvas like every other entity.
+  //   The one beat with its own timer is Omega's inter-phase roar
+  //   (CONFIG.boss.roarDuration) and it lives on state.boss, not on
+  //   state.phase — the same shape #71's lifeLost beat already uses, and the
+  //   #18 lesson behind it: the fewer transitions that bypass setPhase(), the
+  //   better.
+  //
+  //   The boss is the only thing that counts toward level completion for one
+  //   of these levels — an arena's cover bricks never do (see buildLevel's
+  //   `!def.boss` guard) — so checkLevelClear() only needed one added
+  //   branch, and boss hit points live on state.boss rather than being
+  //   rebuilt per life, so a lost ball never undoes fight progress (see
+  //   resetPaddleAndBall, which clears bossShots/minions but not the boss).
+  // ---------------------------------------------------------------------
+  function mkPart(x, y, w, h, hp, kind) {
+    return { x: x, y: y, w: w, h: h, hp: hp, maxHp: hp, alive: true, solid: true, vulnerable: true, hitFlash: 0, kind: kind || "body" };
+  }
+
+  // Slides a part between the field edges, reversing on contact. `minX`/`maxX`
+  // default to the full field, but Gemini's halves each get their own half to
+  // stay apart rather than passing through one another.
+  function sideToSide(part, dt, speed, minX, maxX) {
+    if (minX === undefined) minX = FIELD_PAD;
+    if (maxX === undefined) maxX = GAME_W - FIELD_PAD - part.w;
+    part.x += part.dir * speed * dt;
+    if (part.x <= minX) { part.x = minX; part.dir = 1; }
+    else if (part.x >= maxX) { part.x = maxX; part.dir = -1; }
+  }
+
+  // A slow horizontal drift with `peakSpeed` as its peak velocity rather than
+  // a literal px/s constant — the sine's own frequency is derived from it, so
+  // "80 px/s" reads the same regardless of how wide the part's travel is.
+  function sineDrift(part, b, dt, peakSpeed) {
+    var minX = FIELD_PAD, maxX = GAME_W - FIELD_PAD - part.w;
+    var amplitude = (maxX - minX) / 2;
+    var omega = amplitude > 0 ? peakSpeed / amplitude : 0;
+    part.x = minX + amplitude + Math.sin(b.t * omega) * amplitude;
+  }
+
+  // Eases a part's x toward the paddle's centre at `rate` (higher = snappier).
+  // Used by Mirage and Omega's third phase — the boss reacting to the player
+  // rather than running a fixed pattern.
+  function easeTrackX(part, dt, rate) {
+    var targetX = clamp(state.paddle.x + paddleWidth() / 2 - part.w / 2, FIELD_PAD, GAME_W - FIELD_PAD - part.w);
+    part.x += (targetX - part.x) * Math.min(1, rate * dt);
+  }
+
+  // Alternates a part between visible/solid and faded/passable, teleporting
+  // to a new x each time it comes back. Returns true while solid. `b.blinkT`
+  // is fight-local time, not wall-clock, so a pause holds the phase exactly
+  // like every other timer here.
+  function cycleBlink(b, dt, period, fadeDur, part) {
+    b.blinkT = (b.blinkT || 0) + dt;
+    var cycleNum = Math.floor(b.blinkT / period);
+    if (cycleNum !== (b.blinkCycle || 0)) {
+      b.blinkCycle = cycleNum;
+      part.x = rand(FIELD_PAD, GAME_W - FIELD_PAD - part.w);
+    }
+    return (b.blinkT % period) >= fadeDur;
+  }
+
+  // Revive one randomly chosen dead plate from `plates` at full health —
+  // Carapace and Omega's first phase both use this to reopen the vulnerable
+  // window the player just closed, forcing them to keep pressure on it
+  // rather than clear it once and walk away.
+  function reviveRandomPlate(plates) {
+    var dead = plates.filter(function (p) { return !p.alive; });
+    if (!dead.length) return;
+    var p = dead[Math.floor(Math.random() * dead.length)];
+    p.alive = true; p.solid = true; p.vulnerable = true; p.hp = p.maxHp;
+  }
+
+  var BOSS_HIT_BASE = 14; // base score per vulnerable hit, before levelMultiplier/combo — a shade above silver's 15
+
+  // Arenas share the same 10-char row format LEVELS/generateLevel use, and
+  // are built into ordinary bricks by buildLevel() — the only difference is
+  // that a boss level's bricks never count toward remainingBricks. The first
+  // four rows are always blank: that band (y 66-158) is reserved for the
+  // boss body itself, generous enough to cover Carapace's core (bottom
+  // y=130) and Leviathan/Omega's descent (up to one more brick row down) —
+  // so a full-width cover row (Carapace's, Omega's) never physically
+  // overlaps the boss it sits below. A shallower boss just leaves part of
+  // the band empty.
+  var BOSS_BLANK = "..........";
+  function bossArena(rows) { return [BOSS_BLANK, BOSS_BLANK, BOSS_BLANK, BOSS_BLANK].concat(rows); }
+
+  var BOSSES = [
+    // B1 — Sentinel: the entity itself. No hazard, empty arena — the whole
+    // level is "here is a thing that fights back" with nothing else to read.
+    {
+      id: "sentinel", killBonus: 400, arena: bossArena([]),
+      spawn: function (b) {
+        var p = mkPart(GAME_W / 2 - 70, 90, 140, 30, 12, "body");
+        p.dir = 1;
+        b.parts = [p];
+      },
+      update: function (b, dt) {
+        var speedMult = 1 + Math.floor(b.hitsTaken / 4) * 0.15;
+        sideToSide(b.parts[0], dt, 70 * speedMult);
+      },
+      fire: function () {}
+    },
+    // B2 — Salvo: dodging. A shot falls from directly under it on a fixed
+    // cadence; the first hazard in the game aimed at the paddle rather than
+    // at a brick.
+    {
+      id: "salvo", killBonus: 550, arena: bossArena(["1.2.3.4.1."]),
+      spawn: function (b) {
+        var p = mkPart(GAME_W / 2 - 65, 90, 130, 30, 16, "body");
+        p.dir = 1;
+        b.parts = [p];
+        b.fireCd = 2.6;
+      },
+      update: function (b, dt) { sideToSide(b.parts[0], dt, 90); },
+      fire: function (b, dt) {
+        b.fireCd -= dt;
+        if (b.fireCd > 0) return;
+        b.fireCd = 2.6;
+        var p = b.parts[0];
+        spawnBossShot(p.x + p.w / 2, p.y + p.h, 0, CONFIG.boss.shotSpeed, { onPaddle: "narrow" });
+      }
+    },
+    // B3 — Carapace: a vulnerability window the player has to open and then
+    // keep open. Six plates shield the core; strip them all and the core
+    // becomes hittable, but a dead plate regrows every 8s.
+    {
+      id: "carapace", killBonus: 700, arena: bossArena(["2.3.4.1.2."]),
+      spawn: function (b) {
+        var coreW = 170, coreH = 34, cx = GAME_W / 2 - coreW / 2, cy = 96;
+        var core = mkPart(cx, cy, coreW, coreH, 12, "core");
+        core.solid = false; core.vulnerable = false;
+        var plateW = 26, plateH = 14, plates = [];
+        for (var i = 0; i < 6; i++) plates.push(mkPart(cx, cy - plateH - 3, plateW, plateH, 1, "plate"));
+        b.parts = plates.concat([core]);
+        b.core = core;
+        b.plateRegrowCd = 8;
+        b.fireCd = 3;
+      },
+      update: function (b, dt) {
+        sineDrift(b.core, b, dt, 80);
+        var alivePlates = 0;
+        for (var i = 0; i < 6; i++) {
+          var pl = b.parts[i];
+          pl.x = b.core.x + 8 + i * (b.core.w - 16 - pl.w) / 5;
+          pl.y = b.core.y - pl.h - 3;
+          if (pl.alive) alivePlates++;
+        }
+        b.core.solid = alivePlates === 0;
+        b.core.vulnerable = alivePlates === 0;
+        b.plateRegrowCd -= dt;
+        if (b.plateRegrowCd <= 0) { b.plateRegrowCd = 8; reviveRandomPlate(b.parts.slice(0, 6)); }
+      },
+      fire: function (b, dt) {
+        b.fireCd -= dt;
+        if (b.fireCd > 0) return;
+        b.fireCd = 3;
+        spawnBossShot(b.core.x + b.core.w / 2, b.core.y + b.core.h, 0, CONFIG.boss.shotSpeed, { onPaddle: "narrow" });
+      }
+    },
+    // B4 — Gemini: two targets. A single body until it goes down, then two
+    // half-width bodies moving in opposition, each with their own hit points.
+    {
+      id: "gemini", killBonus: 900, arena: bossArena(["#........#", "#........#"]),
+      spawn: function (b) {
+        var p = mkPart(GAME_W / 2 - 60, 90, 120, 30, 12, "body");
+        p.dir = 1;
+        b.parts = [p];
+        b.split = false;
+      },
+      update: function (b, dt) {
+        if (!b.split) { sideToSide(b.parts[0], dt, 80); return; }
+        var mid = GAME_W / 2;
+        if (b.parts[0].alive) sideToSide(b.parts[0], dt, 90, FIELD_PAD, mid - 4 - b.parts[0].w);
+        if (b.parts[1] && b.parts[1].alive) sideToSide(b.parts[1], dt, 90, mid + 4, GAME_W - FIELD_PAD - b.parts[1].w);
+      },
+      onPartDown: function (b, part) {
+        if (part.kind !== "body" || b.split) return;
+        b.split = true;
+        var halfW = 55, halfH = 28, y = 90;
+        var left = mkPart(FIELD_PAD, y, halfW, halfH, 6, "half"); left.dir = 1;
+        var right = mkPart(GAME_W - FIELD_PAD - halfW, y, halfW, halfH, 6, "half"); right.dir = -1;
+        b.parts.push(left, right);
+      },
+      fire: function (b, dt) {
+        if (!b.split) return;
+        b.fireCd = (b.fireCd === undefined ? 3.2 : b.fireCd) - dt;
+        if (b.fireCd > 0) return;
+        b.fireCd = 3.2;
+        var shooter = b.fireToggle ? b.parts[2] : b.parts[1];
+        b.fireToggle = !b.fireToggle;
+        if (shooter && shooter.alive) {
+          spawnBossShot(shooter.x + shooter.w / 2, shooter.y + shooter.h, 0, CONFIG.boss.shotSpeed, { onPaddle: "narrow" });
+        }
+      }
+    },
+    // B5 — Aegis: a rhythm, and a punishment for standing still. Only
+    // vulnerable while its deflector is down; every 6s it telegraphs a column
+    // over the paddle's position, then a beam that widens the loss if the
+    // paddle is still under it.
+    {
+      id: "aegis", killBonus: 1150, arena: bossArena(["1.2.3.4.1.", "#........#"]),
+      spawn: function (b) {
+        var p = mkPart(GAME_W / 2 - 70, 90, 140, 30, 26, "body");
+        p.dir = 1;
+        b.parts = [p];
+        b.fireCd = 6;
+      },
+      update: function (b, dt) {
+        sideToSide(b.parts[0], dt, 100);
+        b.shieldT = (b.shieldT || 0) + dt;
+        var shielded = (b.shieldT % 7) < 4; // 4s up (invulnerable), 3s down (vulnerable)
+        b.parts[0].vulnerable = !shielded;
+      },
+      fire: function (b, dt) {
+        b.fireCd -= dt;
+        if (b.fireCd > 0) return;
+        b.fireCd = 6;
+        var x = state.paddle.x + paddleWidth() / 2;
+        spawnBossShot(x, 0, 0, 0, { kind: "beam", w: 30, telegraph: 0.8, dur: 0.6, onPaddle: "narrow5" });
+      }
+    },
+    // B6 — The Hive: crowd control. The body is always vulnerable; the
+    // pressure comes from minions it spawns in pairs, capped at six alive.
+    {
+      id: "hive", killBonus: 1300, arena: bossArena(["1.3.1.3.1.", ".2.4.2.4.."]),
+      spawn: function (b) {
+        var p = mkPart(GAME_W / 2 - 70, 90, 140, 30, 28, "body");
+        p.dir = 1;
+        b.parts = [p];
+        b.fireCd = 5;
+      },
+      update: function (b, dt) { sideToSide(b.parts[0], dt, 100); },
+      fire: function (b, dt) {
+        b.fireCd -= dt;
+        if (b.fireCd > 0) return;
+        b.fireCd = 5;
+        var toSpawn = Math.min(2, 6 - state.minions.length);
+        var p = b.parts[0];
+        for (var i = 0; i < toSpawn; i++) {
+          spawnMinion(p.x + rand(0, p.w), p.y + p.h, rand(-20, 20), CONFIG.boss.minionSpeed, "drift");
+        }
+      }
+    },
+    // B7 — Phantom: timing and prediction rather than tracking. It blinks —
+    // fades, teleports, reappears — and the ball passes through while faded;
+    // it drops explosive minions instead of firing at range.
+    {
+      id: "phantom", killBonus: 1500, arena: bossArena(["..1..2..3."]),
+      spawn: function (b) {
+        var p = mkPart(GAME_W / 2 - 65, 90, 130, 30, 32, "body");
+        b.parts = [p];
+        b.fireCd = 3.4;
+      },
+      update: function (b, dt) {
+        var solid = cycleBlink(b, dt, 2.2, 0.4, b.parts[0]);
+        b.parts[0].solid = solid;
+        b.parts[0].vulnerable = solid;
+      },
+      fire: function (b, dt) {
+        b.fireCd -= dt;
+        if (b.fireCd > 0) return;
+        b.fireCd = 3.4;
+        var p = b.parts[0];
+        spawnMinion(p.x + p.w / 2, p.y + p.h, 0, CONFIG.boss.minionSpeed * 1.3, "explosive");
+      }
+    },
+    // B8 — Mirage: the boss reacts to you. It eases toward the paddle's x, so
+    // hitting it means leaving the ball's own return path; at 50% health it
+    // stops tracking and barrages instead for a few seconds.
+    {
+      id: "mirage", killBonus: 1700, arena: bossArena(["#........#", "#........#"]),
+      spawn: function (b) {
+        var p = mkPart(GAME_W / 2 - 65, 90, 130, 30, 34, "body");
+        b.parts = [p];
+        b.fireCd = 3.5;
+        b.barrageT = 0;
+        b.barrageTriggered = false;
+      },
+      update: function (b, dt) {
+        var p = b.parts[0];
+        if (b.barrageT > 0) b.barrageT -= dt;
+        else easeTrackX(p, dt, 2.2);
+        if (!b.barrageTriggered && p.hp <= p.maxHp / 2) { b.barrageTriggered = true; b.barrageT = 5; }
+      },
+      fire: function (b, dt) {
+        var rate = b.barrageT > 0 ? 1.2 : 3.5;
+        b.fireCd = (b.fireCd === undefined ? rate : b.fireCd) - dt;
+        if (b.fireCd > 0) return;
+        b.fireCd = rate;
+        var p = b.parts[0];
+        var angles = [-0.35, 0, 0.35];
+        for (var i = 0; i < angles.length; i++) {
+          spawnBossShot(p.x + p.w / 2, p.y + p.h, Math.sin(angles[i]) * 140, Math.cos(angles[i]) * 160, { kind: "fan", onPaddle: "narrow" });
+        }
+      }
+    },
+    // B9 — Leviathan: a soft timer. Wide enough to dominate the field, and it
+    // descends a row every 10 hits landed — stalling costs room, not just
+    // time. Its shots cost a life outright rather than a mere effect,
+    // telegraphed so that always reads as fair rather than a surprise.
+    {
+      id: "leviathan", killBonus: 2200, arena: bossArena(["#........#", "#........#", "#........#"]),
+      spawn: function (b) {
+        var w = 240, h = 32;
+        var p = mkPart(GAME_W / 2 - w / 2, 80, w, h, 38, "body");
+        p.dir = 1;
+        b.parts = [p];
+        b.descend = 0;
+        b.fireCd = 3.4;
+      },
+      update: function (b, dt) {
+        sideToSide(b.parts[0], dt, 50);
+        var want = Math.min(3, Math.floor(b.hitsTaken / 10));
+        if (want > b.descend) { b.descend = want; b.parts[0].y += BRICK_H + BRICK_MARGIN; }
+      },
+      fire: function (b, dt) {
+        b.fireCd -= dt;
+        if (b.fireCd > 0) return;
+        b.fireCd = 3.4;
+        var p = b.parts[0];
+        spawnBossShot(p.x + rand(10, p.w - 10), p.y + p.h, 0, CONFIG.boss.shotSpeed * 1.2, { onPaddle: "life", telegraph: 1.0 });
+      }
+    },
+    // B10 — Omega: the composite. Three phases, each reusing a mechanic
+    // introduced earlier in the campaign, separated by an invulnerable roar
+    // beat rather than a fresh level. Beating the third phase ends the fight
+    // the ordinary way, through bossDefeated() -> checkLevelClear().
+    {
+      id: "omega", killBonus: 4000, arena: bossArena(["#1#2#3#4#1", "2S3S4S1S2S"]),
+      spawn: function (b) { b.phase = 0; spawnOmegaPhase(b, 0); },
+      update: function (b, dt) {
+        if (b.transition) return; // ticked centrally in updateBoss()
+        if (b.phase === 0) {
+          sineDrift(b.core, b, dt, 70);
+          var aliveP = 0;
+          for (var i = 0; i < 5; i++) {
+            var pl = b.parts[i];
+            pl.x = b.core.x + 6 + i * (b.core.w - 12 - pl.w) / 4;
+            pl.y = b.core.y - pl.h - 3;
+            if (pl.alive) aliveP++;
+          }
+          b.core.solid = aliveP === 0;
+          b.core.vulnerable = aliveP === 0;
+          b.plateRegrowCd -= dt;
+          if (b.plateRegrowCd <= 0) { b.plateRegrowCd = 7; reviveRandomPlate(b.parts.slice(0, 5)); }
+        } else if (b.phase === 1) {
+          var solid = cycleBlink(b, dt, 2.4, 0.35, b.parts[0]);
+          for (var j = 0; j < b.parts.length; j++) {
+            if (!b.parts[j].alive) continue;
+            b.parts[j].solid = solid;
+            b.parts[j].vulnerable = solid;
+          }
+          var mid = GAME_W / 2;
+          if (b.parts[0].alive) sideToSide(b.parts[0], dt, 55, FIELD_PAD, mid - 4 - b.parts[0].w);
+          if (b.parts[1] && b.parts[1].alive) sideToSide(b.parts[1], dt, 55, mid + 4, GAME_W - FIELD_PAD - b.parts[1].w);
+        } else {
+          easeTrackX(b.parts[0], dt, 1.6);
+          var want = Math.min(1, Math.floor(b.hitsTaken / 8));
+          if (want > b.descend) { b.descend = want; b.parts[0].y += BRICK_H + BRICK_MARGIN; }
+        }
+      },
+      fire: function (b, dt) {
+        if (b.transition) return;
+        b.fireCd -= dt;
+        if (b.fireCd > 0) return;
+        if (b.phase === 0) {
+          b.fireCd = 2.4;
+          spawnBossShot(b.core.x + b.core.w / 2, b.core.y + b.core.h, 0, CONFIG.boss.shotSpeed, { onPaddle: "narrow" });
+        } else if (b.phase === 1) {
+          b.fireCd = 2.0;
+          var shooter = b.fireToggle ? b.parts[1] : b.parts[0];
+          b.fireToggle = !b.fireToggle;
+          if (shooter && shooter.alive) {
+            var angles = [-0.3, 0.3];
+            for (var k = 0; k < angles.length; k++) {
+              spawnBossShot(shooter.x + shooter.w / 2, shooter.y + shooter.h, Math.sin(angles[k]) * 130, 170, { kind: "fan", onPaddle: "narrow" });
+            }
+          }
+        } else {
+          b.fireCd = 2.6;
+          var p = b.parts[0];
+          spawnMinion(p.x + rand(10, p.w - 10), p.y + p.h, rand(-15, 15), CONFIG.boss.minionSpeed, "explosive");
+        }
+      },
+      onDepleted: function (b) {
+        if (b.phase >= 2) { bossDefeated(); return; }
+        b.phase += 1;
+        b.transition = { remaining: CONFIG.boss.roarDuration };
+        shakeScreen({ mag: 8, duration: CONFIG.boss.roarDuration });
+        freezeFrames();
+        spawnOmegaPhase(b, b.phase);
+      }
+    }
+  ];
+
+  // Builds the parts (and per-phase scratch fields) for one of Omega's three
+  // phases: plated-and-firing like Carapace, then two blinking Aegis-lite
+  // halves, then a single tracking, descending, minion-spawning body — the
+  // same mechanics the earlier fights taught one at a time, now stacked.
+  // Deliberately does not touch b.transition: onDepleted() sets that
+  // immediately before calling this, and this needs to leave it standing so
+  // the roar beat actually holds before the new parts become active (see
+  // updateBoss's `if (b.transition)` branch).
+  function spawnOmegaPhase(b, phase) {
+    b.fireToggle = false;
+    if (phase === 0) {
+      var coreW = 150, coreH = 30, cx = GAME_W / 2 - coreW / 2, cy = 96;
+      var core = mkPart(cx, cy, coreW, coreH, 10, "core");
+      core.solid = false; core.vulnerable = false;
+      var plates = [];
+      for (var i = 0; i < 5; i++) plates.push(mkPart(cx, cy - 15, 20, 12, 1, "plate"));
+      b.parts = plates.concat([core]);
+      b.core = core;
+      b.plateRegrowCd = 7;
+      b.fireCd = 2.4;
+    } else if (phase === 1) {
+      var halfW = 60, halfH = 28, y = 90;
+      var left = mkPart(FIELD_PAD, y, halfW, halfH, 7, "half"); left.dir = 1;
+      var right = mkPart(GAME_W - FIELD_PAD - halfW, y, halfW, halfH, 8, "half"); right.dir = -1;
+      b.parts = [left, right];
+      b.blinkT = 0; b.blinkCycle = 0;
+      b.fireCd = 2.0;
+    } else {
+      var w = 170, h = 32;
+      b.parts = [mkPart(GAME_W / 2 - w / 2, 84, w, h, 15, "body")];
+      b.descend = 0;
+      b.fireCd = 2.6;
+    }
+  }
 
   // ---------------------------------------------------------------------
   // Localisation
@@ -1505,6 +1991,10 @@ canvas {
       "ach.silverService.desc": "Détruisez 50 briques argentées en une partie.",
       "ach.discerning.name": "Œil sélectif",
       "ach.discerning.desc": "Terminez cinq niveaux d'affilée sans attraper de malus.",
+      "ach.bossSlayer.name": "Chasseur de boss",
+      "ach.bossSlayer.desc": "Battez votre premier boss.",
+      "ach.flawlessBoss.name": "Victoire sans faille",
+      "ach.flawlessBoss.desc": "Battez un boss sans perdre de balle durant son niveau.",
       "ach.immortalised.name": "Immortalisé",
       "ach.immortalised.desc": "Entrez au Hall of Fame.",
       "ach.worldClass.name": "Niveau mondial",
@@ -1514,7 +2004,21 @@ canvas {
       "ach.cabinetBeaten.name": "Machine vaincue",
       "ach.cabinetBeaten.desc": "Terminez la campagne.",
       "ach.untouchable.name": "Intouchable",
-      "ach.untouchable.desc": "Terminez la campagne sans perdre une seule balle."
+      "ach.untouchable.desc": "Terminez la campagne sans perdre une seule balle.",
+      "ach.tenHeads.name": "Dix têtes",
+      "ach.tenHeads.desc": "Battez les dix boss en une seule partie.",
+      // #44: the boss roster's names, read only by drawBoss() via t() — not
+      // wired to any data-i18n markup, since the fight is drawn on canvas.
+      "boss.sentinel.name": "SENTINELLE",
+      "boss.salvo.name": "SALVE",
+      "boss.carapace.name": "CARAPACE",
+      "boss.gemini.name": "GÉMEAUX",
+      "boss.aegis.name": "ÉGIDE",
+      "boss.hive.name": "LA RUCHE",
+      "boss.phantom.name": "SPECTRE",
+      "boss.mirage.name": "MIRAGE",
+      "boss.leviathan.name": "LÉVIATHAN",
+      "boss.omega.name": "OMÉGA"
     },
     en: {
       "doc.title": "Blokrush — Arcade Brick Breaker",
@@ -1611,6 +2115,10 @@ canvas {
       "ach.silverService.desc": "Destroy 50 silver bricks in one run.",
       "ach.discerning.name": "Discerning",
       "ach.discerning.desc": "Clear five levels in a row without catching a bad power-up.",
+      "ach.bossSlayer.name": "Boss Slayer",
+      "ach.bossSlayer.desc": "Beat your first boss.",
+      "ach.flawlessBoss.name": "Flawless Victory",
+      "ach.flawlessBoss.desc": "Beat a boss without losing a ball during its level.",
       "ach.immortalised.name": "Immortalised",
       "ach.immortalised.desc": "Land on the hall of fame.",
       "ach.worldClass.name": "World Class",
@@ -1620,7 +2128,19 @@ canvas {
       "ach.cabinetBeaten.name": "Cabinet Beaten",
       "ach.cabinetBeaten.desc": "Finish the campaign.",
       "ach.untouchable.name": "Untouchable",
-      "ach.untouchable.desc": "Finish the campaign without losing a single ball."
+      "ach.untouchable.desc": "Finish the campaign without losing a single ball.",
+      "ach.tenHeads.name": "Ten Heads",
+      "ach.tenHeads.desc": "Beat all ten bosses in a single run.",
+      "boss.sentinel.name": "SENTINEL",
+      "boss.salvo.name": "SALVO",
+      "boss.carapace.name": "CARAPACE",
+      "boss.gemini.name": "GEMINI",
+      "boss.aegis.name": "AEGIS",
+      "boss.hive.name": "THE HIVE",
+      "boss.phantom.name": "PHANTOM",
+      "boss.mirage.name": "MIRAGE",
+      "boss.leviathan.name": "LEVIATHAN",
+      "boss.omega.name": "OMEGA"
     }
   };
   var SUPPORTED_LANGS = ["fr", "en"];
@@ -1694,6 +2214,9 @@ canvas {
     { id: "curiosity", tier: 3, when: function (s) { return s.achStats.mysteries >= 25; } },
     { id: "silverService", tier: 3, when: function (s) { return s.achStats.silvers >= 50; } },
     { id: "discerning", tier: 3, when: function (s) { return s.achStats.cleanPowerStreak >= 5; } },
+    // #44: the first boss down, and one beaten without losing a ball that fight.
+    { id: "bossSlayer", tier: 3, when: function (s) { return s.achStats.bossesBeaten >= 1; } },
+    { id: "flawlessBoss", tier: 3, when: function (s) { return s.achStats.flawlessBoss; } },
 
     // IV — the long tail. The last one may never be earned by anybody, which is
     // the point of having it.
@@ -1701,7 +2224,8 @@ canvas {
     { id: "worldClass", tier: 4, when: function (s) { return s.achStats.onWorldBoard; } },
     { id: "sixFigures", tier: 4, when: function (s) { return s.achStats.ended && s.score >= 100000; } },
     { id: "cabinetBeaten", tier: 4, when: function (s) { return s.achStats.won; } },
-    { id: "untouchable", tier: 4, when: function (s) { return s.achStats.won && s.achStats.ballsLost === 0; } }
+    { id: "untouchable", tier: 4, when: function (s) { return s.achStats.won && s.achStats.ballsLost === 0; } },
+    { id: "tenHeads", tier: 4, when: function (s) { return s.achStats.bossesBeaten >= 10; } }
   ];
   var BLITZ_SECONDS = 45; // "Blitz": a level cleared in under this much *play* time
 
@@ -1722,6 +2246,8 @@ canvas {
       cleanPowerStreak: 0,  // ...without catching a bad power-up
       regenRevenge: false,
       blitz: false,
+      bossesBeaten: 0,     // #44
+      flawlessBoss: false, // a boss beaten without losing a ball that fight
       onBoard: false,
       onWorldBoard: false,
       ended: false,
@@ -1904,6 +2430,14 @@ canvas {
     drops: [],
     lasers: [],        // {x, y} bolts in flight; see fireLaser/updateLasers
     laserCooldown: 0,
+    // #44: the boss for the current level, or null on every other one — see
+    // spawnBoss/updateBoss. bossShots/minions are the two shapes a hazard can
+    // take (a projectile aimed at the paddle, or a small enemy the ball can
+    // also destroy); both are cleared per life like drops/lasers, but the
+    // boss itself is not — see resetPaddleAndBall.
+    boss: null,
+    bossShots: [],
+    minions: [],
     paddle: { x: GAME_W / 2 - 35, y: GAME_H - 34, h: 12, baseW: 70, speed: 460 },
     keys: {},
     pointerX: null,
@@ -2000,7 +2534,11 @@ canvas {
           regenLeft: ch === "R" ? CONFIG.regen.max : 0,
           regenTimer: 0
         });
-        if (hp !== Infinity) remaining++;
+        // #44: an arena's cover bricks never gate level completion — the boss
+        // is the only thing that does on one of these levels (see
+        // checkLevelClear) — so a boss level's remaining count stays at 0
+        // regardless of what its rows contain.
+        if (hp !== Infinity && !def.boss) remaining++;
       }
     }
     state.bricks = bricks;
@@ -2009,6 +2547,9 @@ canvas {
     state.difficultyMult = 1;
     state.theme = themeFor(idx);
     state.stars = buildStars(idx);
+    state.boss = def.boss !== undefined ? spawnBoss(def.boss) : null;
+    state.bossShots = [];
+    state.minions = [];
   }
 
   function resetPaddleAndBall() {
@@ -2028,6 +2569,11 @@ canvas {
     state.floatingTexts = [];
     state.lasers = [];
     state.laserCooldown = 0;
+    // #44: a fight's hazards are cleared on every serve, like drops/lasers —
+    // state.boss itself is deliberately untouched, so a lost ball never undoes
+    // hit points already landed on it.
+    state.bossShots = [];
+    state.minions = [];
     state.combo = 0;
     // #58: a blast that took the last ball must not leave the next one frozen
     // in place for its first few frames.
@@ -3189,6 +3735,241 @@ canvas {
         // that sets off an explosive does not get credit for the cascade.
         if (!hit.alive) state.achStats.laserKills += 1;
         state.lasers.splice(i, 1);
+        continue;
+      }
+      // #44: a bolt that missed every brick can still reach a boss part.
+      if (state.boss && !state.boss.dead) {
+        var bp = hitTestBossPartAt(laser.x, laser.y);
+        if (bp) { bossPartHit(bp); state.lasers.splice(i, 1); }
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // Bosses (#44) — runtime
+  //   Data (BOSSES, mkPart, the movement helpers) lives with the rest of the
+  //   tuning, above CONFIG's Localisation neighbour; everything here is the
+  //   per-frame machinery every boss shares.
+  // ---------------------------------------------------------------------
+  function spawnBoss(defIdx) {
+    var b = {
+      defIdx: defIdx, t: 0, hitsTaken: 0, parts: [],
+      dead: false, transition: null,
+      fireGrace: CONFIG.boss.fireGrace
+    };
+    BOSSES[defIdx].spawn(b);
+    return b;
+  }
+
+  function bossPartsAlive(b) {
+    for (var i = 0; i < b.parts.length; i++) if (b.parts[i].alive) return true;
+    return false;
+  }
+
+  function updateBoss(dt) {
+    var b = state.boss;
+    if (!b || b.dead) return;
+    b.t += dt;
+    var def = BOSSES[b.defIdx];
+    if (b.transition) {
+      b.transition.remaining -= dt;
+      if (b.transition.remaining <= 0) b.transition = null;
+    } else {
+      def.update(b, dt);
+      if (b.fireGrace > 0) b.fireGrace -= dt;
+      else def.fire(b, dt);
+    }
+    for (var i = 0; i < b.parts.length; i++) {
+      var p = b.parts[i];
+      if (p.hitFlash > 0) p.hitFlash = Math.max(0, p.hitFlash - dt);
+    }
+  }
+
+  // The least-penetrating alive, solid part a ball currently overlaps —
+  // "solid" rather than "alive" is the gate, since a faded (Phantom) or
+  // shielded-but-still-standing part can be alive without being in the way.
+  function hitTestBossPart(ball) {
+    var b = state.boss;
+    if (!b || b.dead || b.transition) return null;
+    var best = null, bestPen = Infinity;
+    for (var i = 0; i < b.parts.length; i++) {
+      var p = b.parts[i];
+      if (!p.alive || !p.solid) continue;
+      if (circleRectCollide(ball, p)) {
+        var pen = brickPenetration(ball, p);
+        if (pen < bestPen) { bestPen = pen; best = p; }
+      }
+    }
+    return best;
+  }
+
+  // The laser's point-in-rect counterpart to hitTestBossPart above.
+  function hitTestBossPartAt(x, y) {
+    var b = state.boss;
+    if (!b || b.dead || b.transition) return null;
+    for (var i = 0; i < b.parts.length; i++) {
+      var p = b.parts[i];
+      if (p.alive && p.solid && x >= p.x && x <= p.x + p.w && y >= p.y && y <= p.y + p.h) return p;
+    }
+    return null;
+  }
+
+  // Damage a boss part. A hit on a part that is standing but not currently
+  // vulnerable (Aegis' deflector up, a Carapace/Omega plate still guarding
+  // the core) still bounces the ball and reads on screen, it just does not
+  // score or cost hit points — the same "solid but harmless" distinction
+  // Phantom's fade makes by skipping collision entirely instead.
+  function bossPartHit(part) {
+    var b = state.boss;
+    var def = BOSSES[b.defIdx];
+    var cx = part.x + part.w / 2, cy = part.y + part.h / 2;
+    if (!part.vulnerable) {
+      burst(cx, cy, def.color, 6);
+      beep(220, 0.05, "square");
+      return;
+    }
+    part.hp -= 1;
+    part.hitFlash = CONFIG.boss.hitFlash;
+    b.hitsTaken += 1;
+    state.combo += 1;
+    var comboMult = Math.min(CONFIG.combo.max, 1 + (state.combo - 1) * CONFIG.combo.step);
+    var pts = Math.round(BOSS_HIT_BASE * levelMultiplier(state.levelIndex + 1) * comboMult);
+    state.score += pts;
+    spawnFloatingText(cx, cy, pts, state.combo);
+    burst(cx, cy, def.color, 12);
+    beep(180 + b.hitsTaken * 4, 0.08, "sawtooth");
+    updateHud();
+    if (part.hp <= 0) {
+      part.alive = false;
+      part.solid = false;
+      burst(cx, cy, def.color, 22);
+      shakeScreen(CONFIG.impact.explosionShake);
+      if (def.onPartDown) def.onPartDown(b, part);
+      if (!bossPartsAlive(b)) { if (def.onDepleted) def.onDepleted(b); else bossDefeated(); }
+    }
+  }
+
+  function bossDefeated() {
+    var b = state.boss;
+    var def = BOSSES[b.defIdx];
+    b.dead = true;
+    state.score += def.killBonus;
+    spawnFloatingText(GAME_W / 2, GAME_H / 2, def.killBonus, 1);
+    shakeScreen({ mag: 8, duration: 0.5 });
+    freezeFrames();
+    // #65: "Boss Slayer"/"Flawless Victory"/"Ten Heads" — see ACHIEVEMENTS.
+    state.achStats.bossesBeaten += 1;
+    if (state.achStats.levelLosses === 0) state.achStats.flawlessBoss = true;
+    updateHud();
+  }
+
+  // A hazard aimed at the paddle: a falling shot, a fan of them, or (kind:
+  // "beam") a telegraphed column that punishes standing in one place rather
+  // than something to dodge. `onPaddle` names the effect applyBossHazard
+  // applies on a hit — reusing the same widthEffect/lives state every other
+  // hazard in the game already goes through.
+  function spawnBossShot(x, y, vx, vy, opts) {
+    state.bossShots.push({
+      x: x, y: y, vx: vx, vy: vy,
+      kind: opts.kind || "drop",
+      onPaddle: opts.onPaddle || "narrow",
+      r: opts.r || 6,
+      w: opts.w || 0,
+      telegraph: opts.telegraph || 0,
+      dur: opts.dur || 0,
+      active: 0,
+      applied: false
+    });
+  }
+
+  function applyBossHazard(kind) {
+    state.combo = 0;
+    if (kind === "narrow") {
+      state.widthEffect = { mult: CONFIG.effects.narrow.mult, remaining: CONFIG.effects.narrow.duration };
+      beep(180, 0.15, "sawtooth");
+    } else if (kind === "narrow5") {
+      state.widthEffect = { mult: CONFIG.effects.narrow.mult, remaining: 5 };
+      beep(180, 0.18, "sawtooth");
+    } else if (kind === "life") {
+      if (state.lives > 0) {
+        state.lives -= 1;
+        shakeScreen(CONFIG.impact.lifeLostShake);
+        beep(120, 0.3, "sawtooth");
+        updateHud();
+        if (state.lives <= 0) endGame(false);
+      }
+    }
+    renderEffectBars();
+  }
+
+  function updateBossShots(dt) {
+    for (var i = state.bossShots.length - 1; i >= 0; i--) {
+      var s = state.bossShots[i];
+      if (s.telegraph > 0) { s.telegraph -= dt; continue; }
+      if (s.kind === "beam") {
+        s.active += dt;
+        if (!s.applied) {
+          var pw = paddleWidth();
+          if (state.paddle.x < s.x + s.w / 2 && state.paddle.x + pw > s.x - s.w / 2) {
+            applyBossHazard(s.onPaddle);
+            s.applied = true;
+          }
+        }
+        if (s.active >= s.dur) state.bossShots.splice(i, 1);
+        continue;
+      }
+      s.x += s.vx * dt;
+      s.y += s.vy * dt;
+      var pw2 = paddleWidth();
+      var hit = s.y + s.r >= state.paddle.y && s.y - s.r <= state.paddle.y + state.paddle.h &&
+                s.x + s.r >= state.paddle.x && s.x - s.r <= state.paddle.x + pw2;
+      if (hit) {
+        applyBossHazard(s.onPaddle);
+        burst(s.x, s.y, "#ff3b3b", 10);
+        state.bossShots.splice(i, 1);
+        continue;
+      }
+      if (s.y > GAME_H + 20 || s.y < -20) state.bossShots.splice(i, 1);
+    }
+  }
+
+  // A small enemy the ball can destroy in flight, spawned by Hive/Phantom/
+  // Omega's third phase — the "crowd control" and "prediction" ideas the
+  // roster adds. Reaching the paddle line detonates it (narrow) rather than
+  // costing a life outright; only Leviathan's beam does that.
+  function spawnMinion(x, y, vx, vy, kind) {
+    state.minions.push({ x: x, y: y, vx: vx, vy: vy, r: CONFIG.boss.minionR, kind: kind });
+  }
+
+  function minionKilled(m) {
+    var pts = Math.round(20 * levelMultiplier(state.levelIndex + 1));
+    state.score += pts;
+    spawnFloatingText(m.x, m.y, pts, 1);
+    burst(m.x, m.y, "#b06cff", 10);
+    beep(500, 0.06, "square");
+    updateHud();
+  }
+
+  function updateMinions(dt) {
+    for (var i = state.minions.length - 1; i >= 0; i--) {
+      var m = state.minions[i];
+      m.x += m.vx * dt;
+      m.y += m.vy * dt;
+      if (m.x - m.r < FIELD_PAD) { m.x = FIELD_PAD + m.r; m.vx = Math.abs(m.vx); }
+      if (m.x + m.r > GAME_W - FIELD_PAD) { m.x = GAME_W - FIELD_PAD - m.r; m.vx = -Math.abs(m.vx); }
+      var killed = false;
+      for (var bi = 0; bi < state.balls.length; bi++) {
+        var ball = state.balls[bi];
+        if (ball.attached) continue;
+        var dx = ball.x - m.x, dy = ball.y - m.y;
+        if (dx * dx + dy * dy < (ball.r + m.r) * (ball.r + m.r)) { killed = true; break; }
+      }
+      if (killed) { minionKilled(m); state.minions.splice(i, 1); continue; }
+      if (m.y + m.r >= state.paddle.y) {
+        applyBossHazard("narrow");
+        burst(m.x, m.y, "#b06cff", m.kind === "explosive" ? 20 : 10);
+        if (m.kind === "explosive") shakeScreen(CONFIG.impact.explosionShake);
+        state.minions.splice(i, 1);
       }
     }
   }
@@ -3467,6 +4248,16 @@ canvas {
       if (hitBrick) {
         resolveBrickCollision(ball, hitBrick);
         brickHit(hitBrick);
+      } else {
+        // #44: checked only when no ordinary brick was hit this frame — a rare
+        // corner case where an arena cover brick and the boss overlap resolves
+        // in the brick's favour, which is an acceptable simplification since
+        // the two are never meant to occupy the same space (see bossArena).
+        var bossPart = hitTestBossPart(ball);
+        if (bossPart) {
+          resolveBrickCollision(ball, bossPart);
+          bossPartHit(bossPart);
+        }
       }
 
       // lost off bottom
@@ -3535,7 +4326,15 @@ canvas {
   }
 
   function checkLevelClear() {
-    if (state.remainingBricks <= 0) {
+    // #44: a boss level's remainingBricks is pinned at 0 (see buildLevel), so
+    // the boss itself is what has to be checked instead — everything past
+    // this point is the same verdict either way.
+    if (state.boss) {
+      if (!state.boss.dead) return;
+    } else if (state.remainingBricks > 0) {
+      return;
+    }
+    {
       maybeSaveBest();
       // #65: the level's own verdict, settled before either branch below —
       // the last level of the campaign ends the run, and "Iron Ten" and
@@ -3968,6 +4767,81 @@ canvas {
     }
   }
 
+  // #44: the fight itself, plus a name/hp strip across the top of the field —
+  // canvas-drawn like everything else here rather than a DOM overlay, since
+  // the boss fight is not its own phase (see the Bosses runtime section).
+  function drawBoss() {
+    var b = state.boss;
+    if (!b) return;
+    var def = BOSSES[b.defIdx];
+    for (var i = 0; i < b.parts.length; i++) {
+      var p = b.parts[i];
+      if (!p.alive) continue;
+      ctx.save();
+      ctx.shadowColor = def.glow;
+      ctx.shadowBlur = p.vulnerable ? 14 : 6;
+      ctx.globalAlpha = p.solid ? 1 : 0.25; // faded (Phantom) or a plate's shielded core reads dim
+      ctx.fillStyle = p.hitFlash > 0 ? "#ffffff" : (p.vulnerable ? def.color : "#3d4463");
+      ctx.fillRect(p.x, p.y, p.w, p.h);
+      ctx.restore();
+      ctx.fillStyle = "rgba(255,255,255,0.18)";
+      ctx.fillRect(p.x, p.y + p.h - 3, p.w, 3);
+      ctx.fillStyle = "rgba(255,255,255,0.85)";
+      ctx.fillRect(p.x, p.y + p.h - 3, p.w * Math.max(0, p.hp / p.maxHp), 3);
+    }
+    var totalHp = 0, totalMax = 0;
+    for (var j = 0; j < b.parts.length; j++) {
+      totalMax += b.parts[j].maxHp;
+      if (b.parts[j].alive) totalHp += b.parts[j].hp;
+    }
+    ctx.save();
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.font = DROP_FONT;
+    ctx.textAlign = "center";
+    ctx.fillText(t("boss." + def.id + ".name"), GAME_W / 2, 16);
+    ctx.textAlign = "left";
+    ctx.fillStyle = "rgba(255,255,255,0.15)";
+    ctx.fillRect(FIELD_PAD, 24, GAME_W - FIELD_PAD * 2, 4);
+    ctx.fillStyle = def.color;
+    ctx.fillRect(FIELD_PAD, 24, (GAME_W - FIELD_PAD * 2) * Math.max(0, totalHp / Math.max(1, totalMax)), 4);
+    ctx.restore();
+  }
+
+  function drawMinions() {
+    for (var i = 0; i < state.minions.length; i++) {
+      var m = state.minions[i];
+      ctx.save();
+      ctx.shadowColor = "#b06cff";
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = m.kind === "explosive" ? "#ff5c1a" : "#b06cff";
+      ctx.beginPath();
+      ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  function drawBossShots() {
+    for (var i = 0; i < state.bossShots.length; i++) {
+      var s = state.bossShots[i];
+      ctx.save();
+      if (s.kind === "beam") {
+        var warn = s.telegraph > 0;
+        ctx.globalAlpha = warn ? 0.35 : 0.7;
+        ctx.fillStyle = warn ? "#ff3b3b" : "#ff7a3b";
+        ctx.fillRect(s.x - s.w / 2, 0, s.w, GAME_H);
+      } else {
+        ctx.shadowColor = "#ff3b3b";
+        ctx.shadowBlur = 8;
+        ctx.fillStyle = "#ff3b3b";
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+
   function drawPaddle() {
     var pw = paddleWidth();
     ctx.save();
@@ -4085,6 +4959,9 @@ canvas {
     if (offset) ctx.translate(offset.x, offset.y);
     drawBackground();
     drawBricks();
+    drawBoss();
+    drawMinions();
+    drawBossShots();
     drawDrops();
     drawLasers();
     drawParticles();
@@ -4138,9 +5015,12 @@ canvas {
       if (state.phase === "playing") {
         updateEffects(dt);
         updateBricks(dt);
+        updateBoss(dt); // #44: moved before updateBalls, so the ball collides with where it ends up this frame
         updateBalls(dt);
         updateDrops(dt);
         updateLasers(dt);
+        updateBossShots(dt);
+        updateMinions(dt);
         updateParticles(dt);
         updateFloatingTexts(dt);
         state.achStats.levelTime += dt; // #65: play time, so a pause never buys "Blitz"
