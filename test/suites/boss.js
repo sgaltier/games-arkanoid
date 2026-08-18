@@ -370,5 +370,45 @@ module.exports = {
         a.empty(muted.notes, "a muted game must not queue a single note, fanfare included");
       },
     },
+    {
+      name: "#79 — the level's music bed stops during the death beat instead of playing through it",
+      fn(a) {
+        const g = enterBoss(1);
+        landFinalHit(g);
+        a.ok(g.T.state.boss.deathBeat, "a death beat should be running");
+        const notesAfterHit = g.notes.length;
+        g.run(0.85); // still inside the silent explosion — BOSS_EXPLODE_DURATION is 0.9
+        a.eq(g.T.state.boss.deathBeat.stage, "explode", "should still be exploding this far in");
+        a.eq(g.notes.length, notesAfterHit,
+          "no music-bed notes should be queued while the death beat holds the field");
+      },
+    },
+    {
+      name: "#79 — the explosion is anchored on the boss, not the center of the screen",
+      fn(a) {
+        const g = enterBoss(1); // Sentinel: one part near the top of the arena, y: 90..120
+        landFinalHit(g);
+        g.T.state.particles.length = 0; // clear the (already correctly-placed) part-destroyed burst
+        g.frame(); // the death beat's first pulse
+        a.ok(g.T.state.particles.length, "the first pulse should have thrown particles");
+        const centerY = g.T.GAME_H / 2;
+        g.T.state.particles.forEach((p) => {
+          a.lt(p.y, centerY - 100, "a death-beat particle should sit up near the boss, not screen center");
+        });
+      },
+    },
+    {
+      name: "#79 — the finishing blast has its own sound: a low rumble and a sharper crack on top",
+      fn(a) {
+        const g = enterBoss(1);
+        landFinalHit(g);
+        g.notes.length = 0;
+        for (let i = 0; i < 200 && g.T.state.boss.deathBeat.stage === "explode"; i++) g.frame();
+        const rumble = g.notes.filter((n) => n.type === "noise" && n.filterFreq < 200);
+        a.ok(rumble.length, "a low, lowpass noise burst should fire when the blast lands");
+        const crack = g.notes.filter((n) => n.type === "noise" && n.filterFreq > 1000);
+        a.ok(crack.length, "a sharper, highpass burst should ride on top of it");
+      },
+    },
   ],
 };

@@ -44,11 +44,35 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #78 | ✅ Fixed — 2026-08-17 |
 | #76 | ✅ Fixed — 2026-08-18 |
 | #77 | ✅ Fixed — 2026-08-18 |
-| #79 | 🔲 Open — requested 2026-08-17 |
+| #79 | ✅ Fixed — 2026-08-18 |
 
-63 of 64 fixed; the one item open (#79) was requested directly by the user rather than surfaced by a
-review pass. See [todo.md](todo.md), and [feature-ideas.md](feature-ideas.md) for proposals not yet
-promoted to it.
+64 of 64 fixed — nothing open. See [todo.md](todo.md), and [feature-ideas.md](feature-ideas.md) for
+proposals not yet promoted to it.
+
+---
+
+## 2026-08-18 — A boss kill's death beat gets its own music, explosion and sound (#79)
+
+### Fixed
+
+**Three related gaps in the #74 death beat, all landing on the same moment.** The main music bed used
+to keep looping straight through the explosion and the fanfare instead of ducking out for them —
+`updateMusic()` gated only on the game phase, and the beat deliberately stays in `"playing"` (there's
+no paddle or ball to freeze around otherwise), so it fell straight through that guard. It now also
+checks whether a death beat is running and stops scheduling for as long as it is.
+
+**The explosion is anchored on the boss, not the center of the screen.** Both the escalating pulses and
+the finishing blast used to burst at `GAME_W / 2, GAME_H / 2` regardless of where the boss's parts
+actually stood, so the fireworks landed next to it rather than on it whenever a boss wasn't centered.
+They now scatter across the boss's own bounding box, captured once when the kill lands (parts hold
+still for the rest of the beat, so one snapshot stays valid throughout).
+
+**The explosion also has a distinct look and its own sound.** A new warm-flame particle burst — shorter
+life, a fixed warm palette, a soft glow — replaces the plain reused hit-effect for both the pulses and
+the finishing blast, and the finishing blast now also throws a handful of jagged lightning bolts
+outward from the boss. The blast itself was silent before; it now fires a layered explosion sound (a
+low rumble, a sharper crack on top, a short pitch-drop underneath) alongside the fanfare that follows
+it.
 
 ---
 

@@ -2446,6 +2446,7 @@ canvas {
     bricks: [],
     balls: [],
     particles: [],
+    lightning: [], // #79: jagged flash bolts on a boss kill; see spawnLightning
     floatingTexts: [], // "+30"-style score pop-ups; see spawnFloatingText
     drops: [],
     lasers: [],        // {x, y} bolts in flight; see fireLaser/updateLasers
@@ -2590,6 +2591,7 @@ canvas {
     }];
     state.drops = [];
     state.particles = [];
+    state.lightning = [];
     state.floatingTexts = [];
     state.lasers = [];
     state.laserCooldown = 0;
@@ -2654,6 +2656,43 @@ canvas {
         life: rand(0.3, 0.6), age: 0, color: color, size: rand(2, 4)
       });
     }
+  }
+
+  // #79: burst()'s warm-flame counterpart, for the one moment (a boss dying)
+  // that needs to read as fire rather than as one more brick breaking —
+  // faster-fading and bigger than a normal burst, off a fixed warm palette
+  // instead of the caller's color, and glowing (see drawParticles).
+  var FIRE_COLORS = ["#ff3b1f", "#ff8c1a", "#ffd23f"];
+  function fireBurst(x, y, n) {
+    if (reduceMotion) n = Math.max(1, Math.ceil(n / 3));
+    for (var i = 0; i < n; i++) {
+      var a = rand(0, Math.PI * 2);
+      var sp = rand(60, 260);
+      state.particles.push({
+        x: x, y: y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+        life: rand(0.15, 0.35), age: 0,
+        color: FIRE_COLORS[Math.floor(rand(0, FIRE_COLORS.length))],
+        size: rand(3, 6), glow: true
+      });
+    }
+  }
+
+  // #79: a jagged multi-segment flash, the lightning element alongside
+  // fireBurst() above — a straight glowing line would read as a laser, not a
+  // bolt, so the midpoints are displaced off the straight line between the
+  // two ends, tapering to none right at the ends so the bolt still lands on
+  // its target.
+  function spawnLightning(x1, y1, x2, y2, color) {
+    if (reduceMotion) return;
+    var segments = 5;
+    var points = [{ x: x1, y: y1 }];
+    for (var i = 1; i < segments; i++) {
+      var t = i / segments;
+      var jitter = 18 * (1 - Math.abs(t - 0.5) * 2);
+      points.push({ x: x1 + (x2 - x1) * t + rand(-jitter, jitter), y: y1 + (y2 - y1) * t + rand(-jitter, jitter) });
+    }
+    points.push({ x: x2, y: y2 });
+    state.lightning.push({ points: points, color: color, life: 0.18, age: 0 });
   }
 
   // A brief "+N" pop-up at the brick a hit just scored on — the only canvas
@@ -3552,6 +3591,20 @@ canvas {
     }
   }
 
+  // #79: the finishing blast's own sound, fired once alongside it — nothing
+  // else played on the kill besides the fanfare, which only starts a beat
+  // later. A lowpass rumble carries the weight, a highpass crack rides on top
+  // for the "8-bit" edge (the hi-hat recipe above stacks noise() the same way
+  // for a sense of scale), and a short sawtooth pitch-drop underneath both.
+  function bossExplosionSound() {
+    var ctxA = audioCtx();
+    if (!ctxA) return;
+    var at = ctxA.currentTime;
+    noise({ freq: 90, filter: "lowpass", at: at, dur: 0.5, vol: 0.3 });
+    noise({ freq: 4500, filter: "highpass", at: at + 0.02, dur: 0.16, vol: 0.16 });
+    tone({ freq: 180, slide: 30, at: at, dur: 0.4, type: "sawtooth", vol: 0.14 });
+  }
+
   // #59: the bed itself — four voices over a 16-step bar, as data rather than
   // as branches in the scheduler. `vol` is a fraction of CONFIG.music.gain and
   // `semi` turns a step into a pitch above the level's root. Only the bass is
@@ -3679,8 +3732,14 @@ canvas {
   // not by frames. Reads state.phase and state.combo and writes neither: the
   // bed is presentation, exactly like #58's impact layer, and the game sounds
   // different with it off but never plays differently.
+  //
+  // #79: gated on the death beat too, not just the phase — the beat
+  // deliberately stays in "playing" (see updateBossDeathBeat's comment), and
+  // without this the bed kept looping straight through the explosion and the
+  // fanfare instead of ducking out for them.
   function updateMusic(dt) {
-    var ctxA = state.phase === "playing" ? audioCtx() : null;
+    var inDeathBeat = !!(state.boss && state.boss.deathBeat);
+    var ctxA = (state.phase === "playing" && !inDeathBeat) ? audioCtx() : null;
     if (!ctxA) { music = null; return; }
     try {
       if (!music) music = { step: 0, nextStepTime: ctxA.currentTime, intensity: 0 };
@@ -3967,6 +4026,22 @@ canvas {
     }
   }
 
+  // #79: the boss's own bounding box, unioned over every part regardless of
+  // `alive` — a dead part keeps its x/y/w/h, only its flags change, so this
+  // stays correct even once every part is down. Used to anchor the death
+  // beat's explosion on the boss itself rather than the center of the
+  // screen, which used to put the fireworks next to it on any boss whose
+  // parts aren't centered (or still mid-arena-drift).
+  function bossBounds(b) {
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (var i = 0; i < b.parts.length; i++) {
+      var p = b.parts[i];
+      minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+      maxX = Math.max(maxX, p.x + p.w); maxY = Math.max(maxY, p.y + p.h);
+    }
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY, cx: (minX + maxX) / 2, cy: (minY + maxY) / 2 };
+  }
+
   // #74: how long the boss visibly takes to come apart before the fanfare
   // starts (silent — no music plays during it), and how long the fanfare
   // itself holds the level-clear transition back once it does.
@@ -3983,7 +4058,9 @@ canvas {
     // beat instead. updateBossDeathBeat() drives the explosion, then the
     // fanfare, then finally calls checkLevelClear() once both are done; see
     // the guard there and the branch frame() takes while this is set.
-    b.deathBeat = { stage: "explode", remaining: BOSS_EXPLODE_DURATION, pulseTimer: 0, pulseCount: 0 };
+    // #79: bounds is captured once, here — updateBoss() does not run during
+    // the beat, so the parts hold still and one snapshot stays valid for it.
+    b.deathBeat = { stage: "explode", remaining: BOSS_EXPLODE_DURATION, pulseTimer: 0, pulseCount: 0, bounds: bossBounds(b) };
     // #65: "Boss Slayer"/"Flawless Victory"/"Ten Heads" — see ACHIEVEMENTS.
     state.achStats.bossesBeaten += 1;
     if (state.achStats.levelLosses === 0) state.achStats.flawlessBoss = true;
@@ -3991,22 +4068,25 @@ canvas {
   }
 
   // Drives state.boss.deathBeat once bossDefeated() has set it. "explode" is
-  // a silent burst of escalating particle pulses (bigger and more frequent
-  // for a bigger boss, via b.defIdx) with no fanfare yet; it ends in one big
-  // finishing blast, at which point the fanfare starts and "fanfare" simply
-  // holds until that finishes — then the level actually clears.
+  // a silent burst of escalating fire pulses (bigger and more frequent for a
+  // bigger boss, via b.defIdx), scattered across the boss's own bounding box
+  // rather than one fixed point, with no fanfare yet; it ends in one big
+  // finishing blast — fire, a lightning flash and a matching explosion sound
+  // together — at which point the fanfare starts and "fanfare" simply holds
+  // until that finishes — then the level actually clears.
   function updateBossDeathBeat(dt) {
     var b = state.boss;
     if (!b || !b.deathBeat) return;
     var db = b.deathBeat;
     var def = BOSSES[b.defIdx];
+    var bounds = db.bounds;
     if (db.stage === "explode") {
       db.pulseTimer -= dt;
       if (db.pulseTimer <= 0) {
         db.pulseTimer = 0.12;
         db.pulseCount += 1;
         var pulseN = 6 + db.pulseCount * 3 + b.defIdx;
-        burst(GAME_W / 2 + rand(-40, 40), GAME_H / 2 + rand(-30, 30), def.color, pulseN);
+        fireBurst(bounds.x + rand(0, bounds.w), bounds.y + rand(0, bounds.h), pulseN);
         shakeScreen({ mag: 2 + db.pulseCount * 0.5, duration: 0.15 });
       }
       db.remaining -= dt;
@@ -4014,11 +4094,19 @@ canvas {
       // The finishing blast, scaled to the boss exactly as before — then the
       // fanfare, and only the fanfare, plays from here on.
       var n = 24 + b.defIdx * 6; // 24 (Sentinel) .. 78 (Omega)
-      burst(GAME_W / 2, GAME_H / 2, def.color, n);
-      burst(GAME_W / 2, GAME_H / 2, "#ffffff", Math.round(n / 2));
+      fireBurst(bounds.cx, bounds.cy, n);
+      burst(bounds.cx, bounds.cy, "#ffffff", Math.round(n / 2));
+      var boltN = 4 + Math.floor(b.defIdx / 2); // more bolts for a bigger boss
+      var reach = Math.max(bounds.w, bounds.h);
+      for (var k = 0; k < boltN; k++) {
+        var ang = rand(0, Math.PI * 2);
+        var len = reach * rand(0.6, 1.1);
+        spawnLightning(bounds.cx, bounds.cy, bounds.cx + Math.cos(ang) * len, bounds.cy + Math.sin(ang) * len, def.color);
+      }
       shakeScreen({ mag: 4 + b.defIdx * 0.5, duration: 0.35 + b.defIdx * 0.06 });
       freezeFrames();
       bossFanfareTone();
+      bossExplosionSound();
       db.stage = "fanfare";
       db.remaining = BOSS_FANFARE_DURATION;
     } else {
@@ -4147,6 +4235,16 @@ canvas {
       if (p.age > p.life) { state.particles.splice(i, 1); continue; }
       p.x += p.vx * dt; p.y += p.vy * dt;
       p.vy += CONFIG.particleGravity * dt;
+    }
+  }
+
+  // #79: lightning bolts don't move once struck — only age and fade — so this
+  // is just the splice half of updateParticles above.
+  function updateLightning(dt) {
+    for (var i = state.lightning.length - 1; i >= 0; i--) {
+      var l = state.lightning[i];
+      l.age += dt;
+      if (l.age > l.life) state.lightning.splice(i, 1);
     }
   }
 
@@ -5164,7 +5262,32 @@ canvas {
       ctx.save();
       ctx.globalAlpha = Math.max(0, alpha);
       ctx.fillStyle = p.color;
+      // #79: fireBurst()'s particles carry glow — a small halo is what reads
+      // as flame rather than as a spark, same shadowColor/shadowBlur pairing
+      // the rest of the game's neon look already uses.
+      if (p.glow) { ctx.shadowColor = p.color; ctx.shadowBlur = 10; }
       ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+      ctx.restore();
+    }
+  }
+
+  // #79: the jagged flash spawnLightning() queues — a plain straight glowing
+  // line would read as a laser bolt, not lightning, hence the pre-displaced
+  // midpoints on the points array rather than anything drawn here.
+  function drawLightning() {
+    for (var i = 0; i < state.lightning.length; i++) {
+      var l = state.lightning[i];
+      var alpha = 1 - l.age / l.life;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, alpha);
+      ctx.strokeStyle = l.color;
+      ctx.lineWidth = 2;
+      ctx.shadowColor = l.color;
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.moveTo(l.points[0].x, l.points[0].y);
+      for (var j = 1; j < l.points.length; j++) ctx.lineTo(l.points[j].x, l.points[j].y);
+      ctx.stroke();
       ctx.restore();
     }
   }
@@ -5201,6 +5324,7 @@ canvas {
     drawDrops();
     drawLasers();
     drawParticles();
+    drawLightning();
     drawPaddle();
     drawBalls();
     drawFloatingTexts();
@@ -5256,6 +5380,7 @@ canvas {
       if (state.phase === "playing" && inDeathBeat) {
         updateBossDeathBeat(dt);
         updateParticles(dt);
+        updateLightning(dt);
         updateFloatingTexts(dt);
       } else if (state.phase === "playing") {
         updateEffects(dt);
@@ -5272,8 +5397,9 @@ canvas {
         if (state.phase === "playing") checkLevelClear();
         updateHud();
         checkAchievements();
-      } else if (state.particles.length || state.floatingTexts.length) {
+      } else if (state.particles.length || state.lightning.length || state.floatingTexts.length) {
         updateParticles(dt);
+        updateLightning(dt);
         updateFloatingTexts(dt);
       }
     }

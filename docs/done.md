@@ -9,7 +9,7 @@ from `todo.md` to here, so numbering is shared across both files and never reuse
 Each entry keeps its original write-up (category, effort estimate, the bug as found) with a
 `> **Fixed <date>.**` note prepended describing what shipped — a historical record, not a live TODO.
 
-**Status:** 63 fixed — everything raised so far, review findings and promoted features alike. See
+**Status:** 64 fixed — everything raised so far, review findings and promoted features alike. See
 [todo.md](todo.md).
 
 **Line references below are re-anchored after each round of fixes** — they are only valid against the
@@ -181,10 +181,10 @@ per frame. This forced a synchronous style recalculation every frame for every f
 single most expensive line in the render path.
 
 ### 15. ✅ FIXED — `updateHud()` writes four DOM nodes every frame (S)
-> **Fixed 2026-08-13.** A `hudLast` cache [4806](../html/index.html#L4806) records what's currently
-> displayed for each of the four HUD fields; `updateHud()` [4807-4818](../html/index.html#L4807-L4818)
+> **Fixed 2026-08-13.** A `hudLast` cache [4904](../html/index.html#L4904) records what's currently
+> displayed for each of the four HUD fields; `updateHud()` [4905-4916](../html/index.html#L4905-L4916)
 > only touches `textContent` for a field whose value actually changed since the last call. The
-> unconditional per-frame call [5273](../html/index.html#L5273) stays — it's still what catches
+> unconditional per-frame call [5398](../html/index.html#L5398) stays — it's still what catches
 > `state.best` needing a live update against `state.score` — but an idle frame now writes nothing.
 
 `updateHud()` was called unconditionally every frame, in addition to the event-driven calls in
@@ -322,9 +322,9 @@ game was paused.
 `<canvas>` had an `aria-label` but empty inner content and no live text alternative for score/lives.
 
 ### 25. ✅ FIXED — `prefers-reduced-motion` is now read in JS too (S)
-> **Fixed 2026-08-13.** `burst()` [2648](../html/index.html#L2648) now scales its particle count down to
+> **Fixed 2026-08-13.** `burst()` [2650](../html/index.html#L2650) now scales its particle count down to
 > roughly a third (never below 1) whenever `reduceMotion` is true, read from
-> `matchMedia("(prefers-reduced-motion: reduce)")` [2641-2645](../html/index.html#L2641-L2645) — live,
+> `matchMedia("(prefers-reduced-motion: reduce)")` [2643-2647](../html/index.html#L2643-L2647) — live,
 > via a `change` listener, rather than once at load, so toggling the OS setting mid-session takes
 > effect on the very next burst rather than requiring a reload.
 
@@ -610,9 +610,9 @@ it, yanking focus back to `document.body` with no user action.
 
 ### 34. ✅ FIXED — Boot-time overlay focus bypassed `setPhase()` again (S)
 > **Fixed 2026-08-13.** `PHASE_OVERLAY` now carries a `start: "overlay-start"` entry
-> [2967](../html/index.html#L2967) — `OVERLAY_PRIMARY_BTN` already had the matching
-> `"overlay-start": "btn-start"` since #26 [2967](../html/index.html#L2967) — so boot
-> [5294](../html/index.html#L5294) now calls `setPhase("start")` instead of `showOverlay(...)`
+> [3006](../html/index.html#L3006) — `OVERLAY_PRIMARY_BTN` already had the matching
+> `"overlay-start": "btn-start"` since #26 [3006](../html/index.html#L3006) — so boot
+> [5420](../html/index.html#L5420) now calls `setPhase("start")` instead of `showOverlay(...)`
 > directly. `state.phase` already starts as `"start"`, so the call is a no-op on `state.phase`
 > itself; what it buys is routing the very first overlay through the same single entry point
 > (`setPhase()` → `PHASE_OVERLAY` → `showOverlay()`) every other transition uses, which is what
@@ -1187,11 +1187,11 @@ hand-authored levels for free.
 
 > **Fixed 2026-08-14.** All three, tuned in `CONFIG.impact`
 > ([1383-1395](../html/index.html#L1383-L1395)) and driven from three timers on `state`
-> ([2506-2511](../html/index.html#L2506-L2511)): a camera shake on an explosion
-> ([4190-4191](../html/index.html#L4190-L4191)) and on a lost ball
-> ([4447](../html/index.html#L4447)), 55 ms of frozen simulation with the blast, and a paddle squash
-> on every steered bounce ([4387](../html/index.html#L4387)). The whole layer lives in one block —
-> [2670-2724](../html/index.html#L2670-L2724).
+> ([2507-2512](../html/index.html#L2507-L2512)): a camera shake on an explosion
+> ([4288-4289](../html/index.html#L4288-L4289)) and on a lost ball
+> ([4545](../html/index.html#L4545)), 55 ms of frozen simulation with the blast, and a paddle squash
+> on every steered bounce ([4485](../html/index.html#L4485)). The whole layer lives in one block —
+> [2709-2763](../html/index.html#L2709-L2763).
 >
 > **It is presentation, and the boundary is enforced rather than described.** The shake is a
 > `ctx.translate` around the whole scene in `draw()` ([5190-5195](../html/index.html#L5190-L5195)),
@@ -1240,23 +1240,23 @@ above), which is already wired up.
 > a detuned twin (`detune`).
 >
 > **The game is in a key.** `noteFreq()`, a minor-pentatonic `MUSIC_SCALE` and one root per level in
-> `MUSIC_KEYS` ([3362-3364](../html/index.html#L3362-L3364)) pitch the music, the brick voices and
+> `MUSIC_KEYS` ([3401-3403](../html/index.html#L3401-L3403)) pitch the music, the brick voices and
 > the combo ladder from the same place, so a hit lands in tune with the bed rather than beside it —
 > and each level sounds like a different level without a single new asset.
 >
-> **A voice per brick type.** `BRICK_VOICE` ([3417-3428](../html/index.html#L3417-L3428)) gives each
+> **A voice per brick type.** `BRICK_VOICE` ([3456-3467](../html/index.html#L3456-L3467)) gives each
 > type its own timbre, register and envelope: a wall thuds low and slides down, silver rings as two
 > detuned squares, a mystery brick sparkles upward as it resolves, an explosive drops. Type is the
 > only thing that changes what a hit *does* (#49/#51/#52), so it is now also the only thing that
-> changes what a hit sounds like. `brickTone()` ([3432-3440](../html/index.html#L3432-L3440))
+> changes what a hit sounds like. `brickTone()` ([3471-3479](../html/index.html#L3471-L3479))
 > replaces the four hand-tuned `beep()` calls that used to be scattered through `brickHit()`
-> ([4241-4288](../html/index.html#L4241-L4288)).
+> ([4335-4388](../html/index.html#L4335-L4388)).
 >
-> **A ladder for streaks.** `ladderSemi()` ([3410-3412](../html/index.html#L3410-L3412)) climbs a
+> **A ladder for streaks.** `ladderSemi()` ([3449-3451](../html/index.html#L3449-L3451)) climbs a
 > step of the scale per brick destroyed without a paddle touch, wrapping octaves and holding after
 > two — past that the notes stop reading as notes. It is added only when the brick was destroyed,
 > because only a destroyed brick builds the combo it counts, and it is read *after* `state.combo` is
-> raised ([4273](../html/index.html#L4273)) so a hit sounds on the rung it just earned.
+> raised ([4363](../html/index.html#L4363)) so a hit sounds on the rung it just earned.
 >
 > **The bed.** Four voices over a 16-step bar ([3574-3630](../html/index.html#L3574-L3630)), queued
 > by `updateMusic()` ([3682-3703](../html/index.html#L3682-L3703)) from `frame()`
@@ -1345,11 +1345,11 @@ than only in the HUD counter, which is how *Shatter* and *Wizorb* sell their act
 > **One accessor hides the seam.** `levelDef(idx)` ([1239-1248](../html/index.html#L1239-L1248))
 > returns the authored entry or a generated one of the same `{ rows, speed }` shape, memoised a
 > single slot deep because `resetPaddleAndBall()` re-reads it on every lost ball. Its two callers are
-> `buildLevel()` ([2542](../html/index.html#L2542)) and `resetPaddleAndBall()`
-> ([2586](../html/index.html#L2586)), and neither can tell the difference.
+> `buildLevel()` ([2543](../html/index.html#L2543)) and `resetPaddleAndBall()`
+> ([2587](../html/index.html#L2587)), and neither can tell the difference.
 > `CONFIG.progression.totalLevels` ([1307-1314](../html/index.html#L1307-L1314)) replaced
-> `LEVELS.length` in `checkLevelClear()` ([4520](../html/index.html#L4520)), `renderDynamicText()`
-> ([2930](../html/index.html#L2930)) and `updateHud()` ([4812](../html/index.html#L4812)), and the
+> `LEVELS.length` in `checkLevelClear()` ([4618](../html/index.html#L4618)), `renderDynamicText()`
+> ([2969](../html/index.html#L2969)) and `updateHud()` ([4910](../html/index.html#L4910)), and the
 > HUD's pre-JS fallback became `1/100` ([676](../html/index.html#L676)) — #39's point about a stale
 > fallback applies unchanged. Putting the length in `CONFIG` rather than in a bare constant is what
 > left the test seam untouched: `CONFIG` was already exposed.
@@ -1984,17 +1984,17 @@ for a jumped run (#69/#72), which never gets the detour at all.
 > ([1040](../html/index.html#L1040)) are the two predicates everything else is built from;
 > `levelDef()` ([1240](../html/index.html#L1240)) routes a boss level through `bossLevelDef()`
 > ([1232](../html/index.html#L1232)), which returns the same `{ rows, speed }` shape every other
-> source does, plus a `boss` field — so `buildLevel()` ([2541](../html/index.html#L2541)) and
-> `resetPaddleAndBall()` ([2579](../html/index.html#L2579)) needed only a few lines each, and no
+> source does, plus a `boss` field — so `buildLevel()` ([2542](../html/index.html#L2542)) and
+> `resetPaddleAndBall()` ([2580](../html/index.html#L2580)) needed only a few lines each, and no
 > other caller learned what a boss is.
 >
 > **A boss is one or more rectangular "parts."** Almost always the whole visible body; Carapace's six
 > plates and core, Gemini's two halves and Omega's three phases are the exceptions. A part is exactly
 > the `{x,y,w,h}` shape a brick or the paddle already is, so collision reuses
 > `circleRectCollide`/`brickPenetration`/`resolveBrickCollision` unchanged — `updateBalls()`'s brick
-> loop just gained an `else` branch (`hitTestBossPart`, [3909](../html/index.html#L3909)) for when no
+> loop just gained an `else` branch (`hitTestBossPart`, [3968](../html/index.html#L3968)) for when no
 > ordinary brick was hit. Damage goes through `bossPartHit()`
-> ([3940](../html/index.html#L3940)): a hit on a part that is solid but not currently vulnerable
+> ([3999](../html/index.html#L3999)): a hit on a part that is solid but not currently vulnerable
 > (Aegis' deflector up, a Carapace/Omega plate still guarding the core) bounces the ball and reads on
 > screen without scoring, the same way Phantom's fade skips collision entirely instead
 > (`part.solid = false`).
@@ -2093,13 +2093,13 @@ and finally the composite of all nine.
 >   the fanfare finishes, then clears `deathBeat` and calls `checkLevelClear()` itself, which is what
 >   actually shows "level cleared".
 >
-> **`checkLevelClear()`** ([4494](../html/index.html#L4494)) gained one more clause in its existing
+> **`checkLevelClear()`** ([4592](../html/index.html#L4592)) gained one more clause in its existing
 > boss guard — `if (!state.boss.dead || state.boss.deathBeat) return;` — defensive rather than the
 > only thing enforcing the order, since `frame()` never calls it while a beat is running in the first
 > place (below).
 >
 > **`frame()` freezes the field while the beat plays**, the same idea #71's lost-ball beat already
-> applies to a shorter pause: `inDeathBeat` ([5242](../html/index.html#L5242)) skips
+> applies to a shorter pause: `inDeathBeat` ([5366](../html/index.html#L5366)) skips
 > `updatePaddle`/`updateBricks`/`updateBoss`/`updateBalls`/`updateDrops`/`updateLasers`/
 > `updateBossShots`/`updateMinions` entirely and runs `updateBossDeathBeat()` plus particles/floating
 > text instead — the paddle stops answering, the ball stops moving, and nothing is left to hit
@@ -2188,6 +2188,47 @@ and finally the composite of all nine.
 > `functions/api/scores.js` has no automated coverage — consistent with the
 > rest of that file, which the test suite doesn't reach at all (see CLAUDE.md: verify it by checking
 > `/api/scores` directly).
+
+### 79. ✅ FIXED — Boss defeat is an anticlimax: music keeps playing, the blast is generic and silent (M)
+
+> **Fixed 2026-08-18.** All three gaps closed together, since all three fire off the same moment —
+> `bossDefeated()`/`updateBossDeathBeat()` ([4051](../html/index.html#L4051)/
+> [4077](../html/index.html#L4077)).
+>
+> **The bed actually stops.** `updateMusic()` ([3740](../html/index.html#L3740)) now gates on
+> `state.phase === "playing" && !inDeathBeat` instead of the phase alone, computing `inDeathBeat`
+> itself rather than trusting a caller to pass it — the death beat deliberately stays in `"playing"`
+> (no paddle/ball to freeze around otherwise), and that was exactly the gap the old single-condition
+> gate fell through.
+>
+> **The explosion is anchored on the boss, not the screen.** `bossBounds(b)`
+> ([4035-4043](../html/index.html#L4035-L4043)) unions every part's `{x,y,w,h}` regardless of `alive`
+> — a dead part keeps its geometry, only its flags change — and `bossDefeated()` snapshots it once
+> into `deathBeat.bounds`, valid for the whole beat since `updateBoss()` does not run while it plays.
+> Both the escalating pulses and the finishing blast in `updateBossDeathBeat()` scatter across that
+> box instead of `GAME_W / 2, GAME_H / 2`.
+>
+> **A distinct look for the occasion.** `fireBurst()` ([2666-2678](../html/index.html#L2666-L2678)) is
+> `burst()`'s warm-flame counterpart — a fixed warm palette instead of the caller's color, shorter
+> life, and a `glow` flag `drawParticles()` ([5258-5272](../html/index.html#L5258-L5272)) picks up as
+> a shadow-blur halo — used for both the pulses and the finishing blast in place of a plain `burst()`
+> call. `spawnLightning()`/`drawLightning()`
+> ([2685-2696](../html/index.html#L2685-L2696)/[5277-5293](../html/index.html#L5277-L5293)) add a
+> handful of jagged, multi-segment bolts (more for a bigger boss) radiating from the boss's center on
+> the finishing blast only — the midpoints are displaced off the straight line between the two ends,
+> tapering to none at the ends, so a bolt still lands on its target rather than reading as a laser.
+>
+> **The blast has its own sound.** `bossExplosionSound()`
+> ([3599-3606](../html/index.html#L3599-L3606)) layers a lowpass rumble, a highpass crack and a short
+> sawtooth pitch-drop — the same "stack `noise()` at different bands for a sense of scale" trick the
+> hi-hat recipe already uses — fired once, alongside `bossFanfareTone()`, when the finishing blast
+> lands.
+>
+> Three new `#79` cases in `boss.js` (alongside the existing `#74` ones) cover each gap: that no
+> music-bed notes are queued while the death beat holds the field, that a death-beat particle lands up
+> near the boss rather than at screen center, and that the finishing blast queues both a low
+> (`filterFreq < 200`) and a high (`filterFreq > 1000`) noise burst. All three were confirmed failing
+> against the unfixed code before the fix landed.
 
 ---
 
