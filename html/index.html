@@ -1421,10 +1421,13 @@ canvas {
     // functions/api/scores.js (#76) — otherwise a name between the two limits
     // shows in full on the local board but arrives truncated on the global one.
     // `nameMin` (#76) blocks submission below it rather than truncating.
+    // `fallbackName` (#77) is what a name failing the profanity check is
+    // silently swapped for — see isProfaneName().
     hallOfFame: {
       max: 10,
       nameMin: 3,
-      nameMax: 16
+      nameMax: 16,
+      fallbackName: "Bisounours"
     },
     // #44: the handful of boss knobs that are genuinely shared tuning rather
     // than part of the roster — everything that *is* the roster (hit counts,
@@ -4592,6 +4595,54 @@ canvas {
     return entry;
   }
 
+  // #77: self-hosted profanity/slur list backing the name filter below —
+  // root words rather than an exhaustive list, since normalizeForProfanity()
+  // catches suffixes/plurals for free via substring matching. Covers both
+  // languages this game ships in (STRINGS has only "fr"/"en", but a name is
+  // free text regardless of `lang`). Mirrored verbatim in
+  // functions/api/scores.js, which enforces this independently for the
+  // global board (a public POST endpoint the client-side check can't reach);
+  // the two lists must stay in sync or the local and global boards judge the
+  // same name differently — same "restated in both places" trap the
+  // boss/preview-env bindings already have (see CLAUDE.md).
+  var PROFANITY_LIST = [
+    "fuck", "shit", "bitch", "cunt", "dick", "cock", "pussy", "whore", "slut",
+    "ass", "bastard", "rape", "nigger", "nigga", "faggot", "retard", "chink",
+    "spic", "kike", "gook", "tranny", "wetback", "sex", "porn", "anal",
+    "penis", "vagina", "boob", "cum",
+    // French.
+    "merde", "putain", "pute", "salope", "connard", "connasse", "encule",
+    "bite", "couille", "nique", "batard", "foutre", "branler", "pede",
+    "bougnoule", "negre", "youpin"
+  ];
+  // Collapses the usual filter evasions before matching: leetspeak
+  // look-alikes ("a55" -> "ass") and French accented letters ("nègre" ->
+  // "negre") fold to their plain equivalent, then anything left that isn't
+  // a-z (spaces, punctuation — "s e x" -> "sex") is dropped outright, so
+  // spacing tricks can't split a word across the boundary.
+  var PROFANITY_CHAR_MAP = {
+    "0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t",
+    "@": "a", "$": "s", "+": "t", "|": "i",
+    "à": "a", "â": "a", "ä": "a", "é": "e", "è": "e", "ê": "e", "ë": "e",
+    "î": "i", "ï": "i", "ô": "o", "ö": "o", "ù": "u", "û": "u", "ü": "u",
+    "ç": "c"
+  };
+  function normalizeForProfanity(s) {
+    var out = "";
+    for (var i = 0; i < s.length; i++) {
+      var ch = s[i].toLowerCase();
+      out += PROFANITY_CHAR_MAP[ch] || ch;
+    }
+    return out.replace(/[^a-z]/g, "");
+  }
+  function isProfaneName(name) {
+    var normalized = normalizeForProfanity(name);
+    for (var i = 0; i < PROFANITY_LIST.length; i++) {
+      if (normalized.indexOf(PROFANITY_LIST[i]) !== -1) return true;
+    }
+    return false;
+  }
+
   // Reads the name field and hands off to "halloffame" — but only once it
   // clears CONFIG.hallOfFame.nameMin (#76): a too-short (or empty) trim is
   // rejected rather than silently swapped for a placeholder, so the player
@@ -4608,6 +4659,10 @@ canvas {
       return;
     }
     state.nameEntryError = false;
+    // #77: swapped silently, not rejected like the too-short case above — the
+    // player typed a complete name, just not one that can go on a
+    // permanent, never-reset, world-visible board.
+    if (isProfaneName(name)) name = CONFIG.hallOfFame.fallbackName;
     // The local board is written whether or not the world board is reachable,
     // so a run played offline still lands somewhere and is not lost.
     var entry = insertHallOfFameEntry(name, state.score);

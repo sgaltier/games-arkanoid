@@ -43,11 +43,41 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #75 | ✅ Fixed — 2026-08-17 |
 | #78 | ✅ Fixed — 2026-08-17 |
 | #76 | ✅ Fixed — 2026-08-18 |
-| #77, #79 | 🔲 Open — requested 2026-08-17 |
+| #77 | ✅ Fixed — 2026-08-18 |
+| #79 | 🔲 Open — requested 2026-08-17 |
 
-62 of 64 fixed; the two items open (#77, #79) were requested directly by the user rather than
-surfaced by a review pass. See [todo.md](todo.md), and [feature-ideas.md](feature-ideas.md) for
-proposals not yet promoted to it.
+63 of 64 fixed; the one item open (#79) was requested directly by the user rather than surfaced by a
+review pass. See [todo.md](todo.md), and [feature-ideas.md](feature-ideas.md) for proposals not yet
+promoted to it.
+
+---
+
+## 2026-08-18 — Hall of fame names are checked for profanity (#77)
+
+### Fixed
+
+**A name matching a profanity/slur list is now silently swapped for a fixed placeholder, "Bisounours",
+before it reaches either board.** Nothing previously filtered what an entered name actually said —
+only control characters and length were enforced. The check normalizes the name first (folding
+leetspeak look-alikes like `a55` to their letter, folds French accented letters to their plain
+equivalent (`nègre` → `negre`) so they don't dodge the filter by evading the `a`-`z` match entirely,
+then drops any remaining spacing/punctuation so tricks like `s e x` can't dodge it by splitting a word
+across the gap) and matches the result against a self-hosted word list covering both languages the
+game ships in, root words rather than an exhaustive one so suffixes and plurals are caught for free. A
+match doesn't reject the submission the way an under-length one does (#76) — it substitutes silently,
+since the name itself is otherwise well-formed.
+
+The check runs independently in both places a name can land: `index.html`'s local-board path, and
+`functions/api/scores.js`'s `POST /api/scores` handler for the global board, since that endpoint is
+public and reachable directly, bypassing any client-side check entirely. The word list and
+normalization logic are mirrored verbatim between the two files, the same "restated in both places"
+arrangement `NAME_MAX` already has.
+
+### Notes
+
+A self-hosted list was chosen over an external moderation API to avoid adding a network dependency (and
+a new failure mode) to a backend that's explicitly allowed to degrade to "the leaderboard is empty",
+not to "the leaderboard rejects everyone."
 
 ---
 

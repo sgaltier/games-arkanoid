@@ -121,6 +121,50 @@ function cleanName(raw) {
   return name.length ? name : null;
 }
 
+// #77: mirrored verbatim from index.html's PROFANITY_LIST/isProfaneName —
+// this endpoint is public and reachable directly (curl, not just the game),
+// so the client-side check in index.html buys nothing here on its own. The
+// two lists must stay in sync or the local and global boards judge the same
+// name differently — same "restated in both places" trap the boss/preview-env
+// bindings already have (see CLAUDE.md).
+const PROFANITY_LIST = [
+  "fuck", "shit", "bitch", "cunt", "dick", "cock", "pussy", "whore", "slut",
+  "ass", "bastard", "rape", "nigger", "nigga", "faggot", "retard", "chink",
+  "spic", "kike", "gook", "tranny", "wetback", "sex", "porn", "anal",
+  "penis", "vagina", "boob", "cum",
+  // French.
+  "merde", "putain", "pute", "salope", "connard", "connasse", "encule",
+  "bite", "couille", "nique", "batard", "foutre", "branler", "pede",
+  "bougnoule", "negre", "youpin",
+];
+const PROFANITY_CHAR_MAP = {
+  "0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t",
+  "@": "a", "$": "s", "+": "t", "|": "i",
+  "à": "a", "â": "a", "ä": "a", "é": "e", "è": "e", "ê": "e", "ë": "e",
+  "î": "i", "ï": "i", "ô": "o", "ö": "o", "ù": "u", "û": "u", "ü": "u",
+  "ç": "c",
+};
+// A silent substitution, not a 400: the name is well-formed, just not one
+// that can go on a permanent, never-reset, world-visible board.
+const PROFANITY_FALLBACK_NAME = "Bisounours";
+
+function normalizeForProfanity(s) {
+  let out = "";
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i].toLowerCase();
+    out += PROFANITY_CHAR_MAP[ch] || ch;
+  }
+  return out.replace(/[^a-z]/g, "");
+}
+
+function filterProfanity(name) {
+  const normalized = normalizeForProfanity(name);
+  for (const word of PROFANITY_LIST) {
+    if (normalized.includes(word)) return PROFANITY_FALLBACK_NAME;
+  }
+  return name;
+}
+
 async function hashIp(secret, ip) {
   const bytes = await crypto.subtle.digest("SHA-256", enc.encode(secret + "|" + ip));
   return b64url(bytes).slice(0, 22);
@@ -176,8 +220,9 @@ export async function onRequestPost({ request, env }) {
   }
   if (score > (age / 1000) * MAX_POINTS_PER_SEC) return json({ error: "implausible" }, 403);
 
-  const name = cleanName(body.name);
+  let name = cleanName(body.name);
   if (!name) return json({ error: "bad_name" }, 400);
+  name = filterProfanity(name); // #77: silent substitution, not a rejection
 
   const ip = request.headers.get("cf-connecting-ip") || "unknown";
   const ipHash = await hashIp(secret, ip);

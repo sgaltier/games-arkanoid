@@ -1265,6 +1265,80 @@ module.exports = {
       },
     },
     {
+      name: "#77a — a profane name is silently swapped for the fallback name, not rejected",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.score = 10;
+        g.T.state.lives = 1;
+        g.loseBall();
+        g.el("nameentry-input").value = "fuck";
+        g.el("btn-nameentry-submit").click(1);
+        a.eq(g.T.state.phase, "halloffame", "a profane name should still be accepted, not rejected");
+        a.eq(g.T.state.hallOfFame[0].name, g.T.CONFIG.hallOfFame.fallbackName);
+        a.eq(g.el("nameentry-error").textContent, "", "no error should be shown for a silent substitution");
+      },
+    },
+    {
+      name: "#77b — leetspeak evasion (\"a55\") is caught by the filter",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.score = 10;
+        g.T.state.lives = 1;
+        g.loseBall();
+        g.el("nameentry-input").value = "a55";
+        g.el("btn-nameentry-submit").click(1);
+        a.eq(g.T.state.hallOfFame[0].name, g.T.CONFIG.hallOfFame.fallbackName);
+      },
+    },
+    {
+      name: "#77c — spacing evasion (\"s e x\") is caught by the filter",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.score = 10;
+        g.T.state.lives = 1;
+        g.loseBall();
+        g.el("nameentry-input").value = "s e x";
+        g.el("btn-nameentry-submit").click(1);
+        a.eq(g.T.state.hallOfFame[0].name, g.T.CONFIG.hallOfFame.fallbackName);
+      },
+    },
+    {
+      name: "#77d — an ordinary name is unaffected by the filter",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.score = 10;
+        g.T.state.lives = 1;
+        g.loseBall();
+        g.el("nameentry-input").value = "Ada";
+        g.el("btn-nameentry-submit").click(1);
+        a.eq(g.T.state.hallOfFame[0].name, "Ada");
+      },
+    },
+    {
+      name: "#77e — a French profanity is caught by the filter too",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.score = 10;
+        g.T.state.lives = 1;
+        g.loseBall();
+        g.el("nameentry-input").value = "connard";
+        g.el("btn-nameentry-submit").click(1);
+        a.eq(g.T.state.hallOfFame[0].name, g.T.CONFIG.hallOfFame.fallbackName);
+      },
+    },
+    {
+      name: "#77f — an accented evasion (\"nègre\") is folded and caught by the filter",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.score = 10;
+        g.T.state.lives = 1;
+        g.loseBall();
+        g.el("nameentry-input").value = "nègre";
+        g.el("btn-nameentry-submit").click(1);
+        a.eq(g.T.state.hallOfFame[0].name, g.T.CONFIG.hallOfFame.fallbackName);
+      },
+    },
+    {
       name: "#42f — a submitted name containing HTML never gets interpreted as markup",
       fn(a) {
         const g = boot().start();
