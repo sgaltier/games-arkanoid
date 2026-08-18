@@ -42,11 +42,34 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #74 | ✅ Fixed — 2026-08-17 |
 | #75 | ✅ Fixed — 2026-08-17 |
 | #78 | ✅ Fixed — 2026-08-17 |
-| #76, #77, #79 | 🔲 Open — requested 2026-08-17 |
+| #76 | ✅ Fixed — 2026-08-18 |
+| #77, #79 | 🔲 Open — requested 2026-08-17 |
 
-61 of 64 fixed; the three items open (#76, #77, #79) were requested directly by the user rather than
+62 of 64 fixed; the two items open (#77, #79) were requested directly by the user rather than
 surfaced by a review pass. See [todo.md](todo.md), and [feature-ideas.md](feature-ideas.md) for
 proposals not yet promoted to it.
+
+---
+
+## 2026-08-18 — Hall of fame names have a floor as well as a ceiling (#76)
+
+### Fixed
+
+**A name shorter than 3 characters — including a blank submission — is now rejected instead of being
+saved.** `submitHallOfFameName()` used to silently swap an empty trim for a `"???"` placeholder and
+placed no lower bound on anything else, so `"x"` or `"ab"` went onto the board exactly as typed. It
+now blocks submission below the 3-character minimum, leaves the player on the name-entry screen, and
+shows an inline message explaining why — the submit button and the input's Enter key both go through
+the same check, so neither can accept what the other rejects.
+
+**The maximum name length is now 16 characters, up from 12** — raised in the client
+(`CONFIG.hallOfFame.nameMax`, mirrored in the input's `maxlength`) and in the global board's own
+`NAME_MAX`, which used to re-clamp independently at the old limit of 12 and would otherwise have
+truncated a 13-16 character name on the global board while showing it in full on the local one.
+
+### Notes
+
+The now-unreachable `nameentry.anonymous` placeholder string was removed from both language tables.
 
 ---
 

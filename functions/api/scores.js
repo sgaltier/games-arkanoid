@@ -15,7 +15,10 @@
 // in docs/done.md for what an actual verification scheme would require.
 
 const BOARD_SIZE = 10;
-const NAME_MAX = 12;
+// Must match CONFIG.hallOfFame.nameMax in index.html (#76) — otherwise a name
+// between the two limits shows in full on the local board but arrives
+// truncated here on the global one.
+const NAME_MAX = 16;
 
 // A token older than this cannot be redeemed. Long enough for a slow full
 // playthrough, short enough that stockpiling tokens to age them is pointless.

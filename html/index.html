@@ -767,9 +767,10 @@ canvas {
           <p class="overlay-eyebrow" data-i18n="nameentry.eyebrow">Nouveau record !</p>
           <h2 class="overlay-title" data-i18n="nameentry.title">Entrez votre nom</h2>
           <p class="overlay-score" id="nameentry-score">Score : 0</p>
-          <input class="name-input" id="nameentry-input" type="text" maxlength="12" autocomplete="off"
+          <input class="name-input" id="nameentry-input" type="text" maxlength="16" autocomplete="off"
                  data-i18n-attr="placeholder:nameentry.placeholder|aria-label:nameentry.placeholder"
                  placeholder="Votre nom" aria-label="Votre nom">
+          <p class="jump-error" id="nameentry-error"></p>
           <button class="btn" id="btn-nameentry-submit" type="button" data-i18n="nameentry.btn">Valider</button>
         </div>
 
@@ -1416,10 +1417,14 @@ canvas {
     // #nameentry-input maxlength attribute — JS re-truncates independently
     // (see submitHallOfFameName()) rather than trusting the HTML attribute
     // alone, but the two should still agree so the input doesn't visually
-    // allow more than actually gets saved.
+    // allow more than actually gets saved. It must also match `NAME_MAX` in
+    // functions/api/scores.js (#76) — otherwise a name between the two limits
+    // shows in full on the local board but arrives truncated on the global one.
+    // `nameMin` (#76) blocks submission below it rather than truncating.
     hallOfFame: {
       max: 10,
-      nameMax: 12
+      nameMin: 3,
+      nameMax: 16
     },
     // #44: the handful of boss knobs that are genuinely shared tuning rather
     // than part of the roster — everything that *is* the roster (hit counts,
@@ -1932,7 +1937,7 @@ canvas {
       "nameentry.title": "Entrez votre nom",
       "nameentry.placeholder": "Votre nom",
       "nameentry.btn": "Valider",
-      "nameentry.anonymous": "???",
+      "nameentry.error": "Encore un peu court : au moins {min} caractères.",
       "halloffame.eyebrow": "Tableau des scores",
       "halloffame.title": "Hall of Fame",
       "halloffame.btn": "Continuer",
@@ -2065,7 +2070,7 @@ canvas {
       "nameentry.title": "Enter your name",
       "nameentry.placeholder": "Your name",
       "nameentry.btn": "Submit",
-      "nameentry.anonymous": "???",
+      "nameentry.error": "A little short — at least {min} characters.",
       "halloffame.eyebrow": "High scores",
       "halloffame.title": "Hall of Fame",
       "halloffame.btn": "Continue",
@@ -2482,6 +2487,10 @@ canvas {
     // "halloffame", read by the continue button alone.
     returnPhase: null,
     hofHighlight: null, // the entry submitHallOfFameName() just added, for renderHallOfFame()'s highlight
+    // #76: whether the last name-entry submission was rejected for being too
+    // short — a flag rather than the rendered message, same reasoning as
+    // jumpError below.
+    nameEntryError: false,
     // #69: the developer level jump. jumpReturn is the phase to restore if the
     // prompt is dismissed, jumpError whether the last entry was rejected (a
     // flag rather than the rendered message, so switching language re-renders
@@ -3062,6 +3071,8 @@ canvas {
       t("levelclear.title", { n: state.levelIndex + 1 });
     document.getElementById("levelclear-score").textContent = t("score", { score: state.score });
     document.getElementById("nameentry-score").textContent = t("score", { score: state.score });
+    document.getElementById("nameentry-error").textContent = state.nameEntryError
+      ? t("nameentry.error", { min: CONFIG.hallOfFame.nameMin }) : "";
     document.getElementById("victory-score").textContent = t("score.final", { score: state.score });
     document.getElementById("victory-best").textContent = t("best", { score: state.best });
     document.getElementById("gameover-score").textContent = t("score", { score: state.score });
@@ -4532,6 +4543,7 @@ canvas {
     // cheapest high score in the game.
     if (!state.jumped && qualifiesForHallOfFame(state.score)) {
       state.returnPhase = won ? "victory" : "gameover"; // read back by the continue button below
+      state.nameEntryError = false; // #76: a stale rejection from a previous run must not carry over
       setPhase("nameentry");
     } else {
       setPhase(won ? "victory" : "gameover");
@@ -4580,13 +4592,22 @@ canvas {
     return entry;
   }
 
-  // Reads the name field, falls back to a placeholder for an empty
-  // submission, and hands off to "halloffame" either way — every path out of
-  // "nameentry" ends there, never straight back to victory/gameover.
+  // Reads the name field and hands off to "halloffame" — but only once it
+  // clears CONFIG.hallOfFame.nameMin (#76): a too-short (or empty) trim is
+  // rejected rather than silently swapped for a placeholder, so the player
+  // sees why nothing happened instead of a blank-looking board entry. Shared
+  // by both the submit button and the input's Enter handler, so neither can
+  // accept what the other rejects.
   function submitHallOfFameName() {
     var input = document.getElementById("nameentry-input");
-    var raw = (input.value || "").trim().slice(0, CONFIG.hallOfFame.nameMax);
-    var name = raw || t("nameentry.anonymous");
+    var name = (input.value || "").trim().slice(0, CONFIG.hallOfFame.nameMax);
+    if (name.length < CONFIG.hallOfFame.nameMin) {
+      state.nameEntryError = true;
+      renderDynamicText();
+      input.focus();
+      return;
+    }
+    state.nameEntryError = false;
     // The local board is written whether or not the world board is reachable,
     // so a run played offline still lands somewhere and is not lost.
     var entry = insertHallOfFameEntry(name, state.score);

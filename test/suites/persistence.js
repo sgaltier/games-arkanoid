@@ -48,6 +48,7 @@ module.exports = {
         // same hostile storage before reaching the screen this test is about.
         a.eq(g.T.state.phase, "nameentry");
         a.doesNotThrow(() => {
+          g.el("nameentry-input").value = "Sto";
           g.el("btn-nameentry-submit").click(1);
           g.el("btn-hof-continue").click(1);
         }, "submitting a hall-of-fame name must not throw out of the loop");

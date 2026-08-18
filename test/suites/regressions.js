@@ -1193,7 +1193,9 @@ module.exports = {
       },
     },
     {
-      name: "#42e — an empty name submission falls back to a placeholder",
+      // #76: an empty submission used to fall back to a "???" placeholder
+      // rather than being rejected — superseded below.
+      name: "#76a — an empty name submission is rejected, not saved as a placeholder",
       fn(a) {
         const g = boot().start();
         g.T.state.score = 10;
@@ -1202,8 +1204,64 @@ module.exports = {
         a.eq(g.T.state.phase, "nameentry");
         // nameentry-input's .value is never set — mimics submitting with nothing typed.
         g.el("btn-nameentry-submit").click(1);
-        a.eq(g.T.state.hallOfFame[0].name, "???",
-          "an empty name should fall back to a placeholder, not save blank");
+        a.eq(g.T.state.phase, "nameentry", "an empty submission should not advance past nameentry");
+        a.eq(g.T.state.hallOfFame.length, 0, "nothing should be saved to the board");
+        a.includes(g.el("nameentry-error").textContent, String(g.T.CONFIG.hallOfFame.nameMin),
+          "the validation message should explain the minimum length");
+      },
+    },
+    {
+      name: "#76b — a one- or two-character name is also rejected",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.score = 10;
+        g.T.state.lives = 1;
+        g.loseBall();
+        g.el("nameentry-input").value = "ab";
+        g.el("btn-nameentry-submit").click(1);
+        a.eq(g.T.state.phase, "nameentry", "a two-character name should not advance past nameentry");
+        a.eq(g.T.state.hallOfFame.length, 0, "nothing should be saved to the board");
+      },
+    },
+    {
+      name: "#76c — a three-character name is accepted, the minimum",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.score = 10;
+        g.T.state.lives = 1;
+        g.loseBall();
+        g.el("nameentry-input").value = "abc";
+        g.el("btn-nameentry-submit").click(1);
+        a.eq(g.T.state.phase, "halloffame", "a three-character name should be accepted");
+        a.eq(g.T.state.hallOfFame[0].name, "abc");
+      },
+    },
+    {
+      name: "#76d — a name past the 16-character max is truncated, not rejected",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.score = 10;
+        g.T.state.lives = 1;
+        g.loseBall();
+        g.el("nameentry-input").value = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        g.el("btn-nameentry-submit").click(1);
+        a.eq(g.T.state.phase, "halloffame");
+        a.eq(g.T.state.hallOfFame[0].name, "ABCDEFGHIJKLMNOP", "should be clamped to nameMax (16) characters");
+      },
+    },
+    {
+      name: "#76e — a rejected submission clears once a valid name is typed and resubmitted",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.score = 10;
+        g.T.state.lives = 1;
+        g.loseBall();
+        g.el("btn-nameentry-submit").click(1); // empty: rejected
+        a.not(g.el("nameentry-error").textContent === "", "the error message should be showing");
+        g.el("nameentry-input").value = "Rex";
+        g.el("btn-nameentry-submit").click(1);
+        a.eq(g.T.state.phase, "halloffame", "a valid resubmission should now go through");
+        a.eq(g.el("nameentry-error").textContent, "", "the error message should be cleared");
       },
     },
     {
@@ -1231,6 +1289,7 @@ module.exports = {
         clearBricks(g);
         g.frame();
         a.eq(g.T.state.phase, "nameentry", "a qualifying score should still detour on a win");
+        g.el("nameentry-input").value = "Win";
         g.el("btn-nameentry-submit").click(1);
         a.eq(g.T.state.phase, "halloffame");
         g.el("btn-hof-continue").click(1);
@@ -1272,6 +1331,7 @@ module.exports = {
         g.T.state.score = 500; // beats everything on the board
         g.T.state.lives = 1;
         g.loseBall();
+        g.el("nameentry-input").value = "Top";
         g.el("btn-nameentry-submit").click(1);
         a.eq(g.T.state.hallOfFame.length, g.T.CONFIG.hallOfFame.max, "the board should stay capped at max");
         a.eq(g.T.state.hallOfFame[0].score, 500, "the new top score should be first");
@@ -1327,6 +1387,7 @@ module.exports = {
         g.T.state.lives = 1;
         g.loseBall();
         a.eq(g.T.state.phase, "nameentry");
+        g.el("nameentry-input").value = "Los";
         g.el("btn-nameentry-submit").click(1);
         a.eq(g.T.state.phase, "halloffame");
         g.el("btn-hof-continue").click(1);
@@ -1393,10 +1454,12 @@ module.exports = {
         g.T.state.score = 500;
         g.T.state.lives = 1;
         g.loseBall();
+        g.el("nameentry-input").value = "Tok";
         g.el("btn-nameentry-submit").click(1);
         await g.settle();
         a.eq(g.T.state.sessionToken, null, "the token should be cleared once spent");
         const before = g.apiCalls.filter((c) => c.init && c.init.method === "POST").length;
+        g.el("nameentry-input").value = "Tok"; // input.value was cleared by the successful submit above
         g.el("btn-nameentry-submit").click(1); // same handler, no fresh token behind it
         await g.settle();
         a.eq(
