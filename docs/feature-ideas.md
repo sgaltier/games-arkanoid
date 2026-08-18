@@ -17,7 +17,8 @@ capability (things merely *absent*).
 **Numbering:** entries reserve numbers **44–66** in the shared sequence used by
 [todo.md](todo.md) and [done.md](done.md), so an idea promoted from here keeps its number when it
 moves. Do not reuse these numbers for new review findings. Numbers missing below (#44, #49, #51,
-#52, #58, #59, #60, #65) have already been promoted into [todo.md](todo.md).
+#52, #53, #54, #55, #56, #57, #58, #59, #60, #65) have already been promoted into
+[todo.md](todo.md).
 
 **What already exists** (so nothing below duplicates it): a 100-level campaign — 10 hand-authored
 levels and 90 generated deterministically from the level number (#41); 4 brick colours
@@ -80,47 +81,6 @@ of updating `x` and being careful about a brick sweeping into a ball.
 
 ---
 
-## C. Power-ups and ball mechanics
-
-### 53. Fireball / through-ball (S)
-
-A timed effect where the ball ploughs through bricks without bouncing, destroying everything in a
-column. It is the classic power fantasy of the genre and the natural "big" reward to sit above the
-current table's `multi`. The implementation is a flag checked in `resolveBrickCollision()` — skip
-the bounce, keep the damage.
-
-### 54. Safety net / shield (S)
-
-A one-shot barrier across the bottom of the field that bounces the ball back once instead of
-costing a life. It is the most forgiving power-up in the genre and the one most likely to keep a
-struggling player in a run, which makes it a good difficulty-smoothing tool that does not require
-touching the difficulty curve itself.
-
-### 55. Magnet paddle and ball-slow-on-demand (S each)
-
-Two small ball-control effects that reward skill rather than luck: a magnet that subtly curves the
-ball toward the paddle's centre while active, and a hold-to-slow bullet-time button on a cooldown.
-Both give the player agency during the moments the current game gives them none — the long
-descent after a top-wall bounce.
-
-### 56. Paddle spin / English on the ball (M)
-
-Letting paddle *movement* at the moment of contact impart sideways momentum, rather than deriving
-the bounce angle purely from hit position as `updateBalls()` does today. This is the single change
-most likely to make the game feel skill-expressive to an experienced player, because it turns the
-paddle from a mirror into an instrument. It is marked M rather than S because it interacts with the
-tunnelling-prevention sweep and needs care not to let a player pin the ball into a horizontal
-stalemate.
-
-### 57. Negative power-up counterplay (S)
-
-`narrow` and `fast` currently just happen to you. Giving the player an out — a brief window to
-shoot a falling bad capsule with the laser, or a "cleanse" pickup that clears active negatives —
-converts a frustration into a decision. Small change, disproportionate effect on how the bad drops
-feel.
-
----
-
 ## D. Input, accessibility, and platform
 
 ### 61. Gamepad support (S)
@@ -167,8 +127,9 @@ hall of fame feel like an opponent rather than a list.
 
 ## Suggested first cuts
 
-Of what remains in this file, the cheapest high-impact items are **#53 (fireball)** and **#54
-(safety net)** — both S, both touching code paths that already exist. **#56 (paddle spin)** is the
-one small-to-medium change most likely to raise the game's skill ceiling. The item that changed what
-kind of game this is has left the file: **#44 (boss levels)** is now in [todo.md](todo.md), expanded
-into a ten-boss roster.
+Of what remains in this file, the cheapest items are **#61 (gamepad)** and **#63 (difficulty
+selection)** — both S, both touching config/input surfaces that already exist. **#46 (level select)**
+is the one most likely to matter for retention, since #41 made a full run 100 levels long. Two items
+have left the file for [todo.md](todo.md): **#44 (boss levels)**, expanded into a ten-boss roster,
+and **#53–57 (power-ups and ball mechanics)** — fireball, shield, magnet/bullet-time, paddle spin,
+and negative-power-up counterplay, expanded together since they share the same handful of functions.

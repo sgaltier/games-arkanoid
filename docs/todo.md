@@ -9,7 +9,8 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** nothing open.
+**Status:** 5 open items — #53–57, promoted from [feature-ideas.md](feature-ideas.md) §C. Every
+review finding, and every other directly-requested feature, raised so far has shipped.
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
 test → fix → move the finding's whole entry from this file to [done.md](done.md), prepending a
@@ -17,14 +18,222 @@ test → fix → move the finding's whole entry from this file to [done.md](done
 the historical record → add an entry to [release-notes.md](release-notes.md).
 
 **Line references, once written, are only valid against the current `index.html`** — the same
-re-anchoring discipline applies here as in `done.md`.
+re-anchoring discipline applies here as in `done.md`. The five entries below deliberately carry
+**no line anchors**: they describe features that do not exist yet, so every reference is to a
+function or field name, which does not go stale.
 
 ---
 
 Every review finding raised so far has shipped, and so has every directly-requested feature — #44
 (boss levels), #74 (the boss-kill celebration built on top of it), #75 (a follow-on to #37), #78
 (effect-bar names), #76 (hall-of-fame name validation), #77 (hall-of-fame profanity filtering), and
-#79 (the boss-kill death beat's music/explosion/sound gaps) — see [done.md](done.md).
-[feature-ideas.md](feature-ideas.md) still holds proposals not yet promoted.
+#79 (the boss-kill death beat's music/explosion/sound gaps) — see [done.md](done.md). What is open
+below are five power-up/ball-mechanics ideas promoted from [feature-ideas.md](feature-ideas.md),
+which keep their numbers; that file still holds the proposals not yet promoted. New review findings
+go here too, keeping the shared numbering: the next free number is **#80**.
 
-New items go here, keeping the shared numbering: the next free number is **#80**.
+---
+
+## C. Power-ups and ball mechanics
+
+Promoted together because all five touch the same handful of functions —
+`updateBalls()`/`resolveBrickCollision()`, `applyPowerup()`, `CONFIG.effects`, `renderEffectBars()`
+— and are cheaper to reason about as a set than one at a time.
+
+### 53. Fireball / through-ball (S)
+
+A timed effect where the ball ploughs through ordinary bricks without bouncing, felling everything
+in its path instead of the usual one contact per frame. The natural "big" reward to sit above
+`multi` in the drop table.
+
+**The single-hit-per-frame rule (#10) is exactly the obstacle.** `updateBalls()` today picks *one*
+brick per ball per frame — whichever `hitBrick` has the smallest `brickPenetration()` — precisely so
+a ball clipping two adjacent bricks in a corner doesn't get a phantom double-bounce (#10 in
+[done.md](done.md)). A fireball needs the opposite: every alive brick the ball's swept path overlaps
+this frame, not just the least-penetrated one. That means fireball collision can't reuse the
+existing `hitBrick` selection at all — it needs its own loop over `state.bricks` when
+`state.fireballEffect` is active, calling `brickHit()` on every overlap and skipping
+`resolveBrickCollision()` entirely (no `dx`/`dy` flip, no reposition).
+
+**What still blocks it.** Not everything should melt:
+- Indestructible walls (`"#"`) — `brickHit()` already returns before touching `hp` for these; a
+  fireball should still bounce off one like a normal ball, or "indestructible" stops meaning
+  anything.
+- A boss body/parts (`state.boss`, `hitTestBossPart()`) — plowing through a boss trivialises every
+  fight #44 built. The existing `resolveBrickCollision(ball, bossPart)` + `bossPartHit()` path stays
+  untouched regardless of `fireballEffect`.
+- The paddle and the four field walls — unaffected; only *brick* contact skips the bounce.
+
+Ordinary and silver (`hp` 2) bricks alike go down in one fireball pass — a silver already tracked as
+`Sc` after one hit, so this is just `brickHit()` called twice in the same frame for one still
+standing, which the existing decrement handles with no new state.
+
+**Everything downstream of `brickHit()` already works unmodified**: combo (`state.combo`), score,
+drops, `explode()` cascades for `"X"` bricks, the regen schedule for `"R"`. None of that assumes one
+call per frame — it's already called multiple times per frame from the laser path
+(`updateLasers()`) and from cascade recursion.
+
+**New, not reused**: `state.fireballEffect = { remaining }` alongside the other four in
+`CONFIG.effects`; a fifth `.effect-bar` (see Shared needs below); `powerup.fireball` in both
+`STRINGS` tables; and — the one purely cosmetic gap — `drawBalls()` currently renders every ball
+identically (`#ffffff`, no per-ball state read at all). A fireball is the first effect to touch ball
+*appearance*: it needs a flame tint/trail so ploughing through a column reads as different from a
+normal bounce that happened to land on the same brick.
+
+### 54. Safety net / shield (S)
+
+A one-shot barrier that turns the next ball reaching the bottom into a bounce instead of a life —
+the most forgiving pickup in the genre, and the only one aimed at keeping a losing run alive rather
+than at score.
+
+**Where it hooks in.** `updateBalls()`'s bottom-loss check is a single guard per ball:
+`if (ball.y - ball.r > GAME_H) { lostAtX = ball.x; state.balls.splice(bi, 1); }`. A shield check goes
+immediately before it — if `state.shieldEffect` is armed, consume it (`state.shieldEffect = null`),
+reflect the ball back up (`ball.dy = -Math.abs(ball.dy)`, `ball.y = GAME_H - ball.r`) and reset
+`state.combo` the way a real paddle touch does, instead of splicing the ball out. Nothing else in
+`updateBalls()` — the paddle-collision block above it, `loseLife()` below — needs to know the save
+happened.
+
+**Not a duration.** Every existing effect in `CONFIG.effects` decays by `remaining -= dt` in
+`updateEffects()`; a shield decays by *use*, not by time, so it doesn't belong in that loop or on
+the duration-based `.effect-bar` (`updateEffectBar()` assumes a `remaining`/`duration` ratio to
+drive a shrinking fill — there is nothing to shrink here). It wants its own small "armed" indicator
+— a static icon, not a bar — which is new UI, not a reuse of `renderEffectBars()`.
+
+**Clears with everything else on a lost life.** `resetPaddleAndBall()` already nulls
+`widthEffect`/`speedEffect`/`stickyEffect`/`laserEffect` on every fresh life; `shieldEffect` joins
+that list. An *unused* shield is deliberately not carried forward — the alternative (hoarding one
+indefinitely across many lives, waiting for the worst possible moment) is a strictly better play
+than using it promptly, which would make every other timed pickup look bad by comparison.
+
+**Multi-ball interaction, decided rather than left ambiguous:** one shield saves exactly one ball —
+whichever the `bi` loop (counting down from `state.balls.length - 1`) reaches first this frame —
+even if several balls cross the floor in the same frame. That's a rare edge case (near-simultaneous
+losses only really happen with `multi` active and balls launched close together), and catching only
+one of them is the correct forgiving-but-not-free reading of "one-shot."
+
+### 55. Magnet paddle and hold-to-slow bullet time (S each)
+
+Two skill-reward effects, bundled here because they're both small and both aimed at the same gap —
+giving the player agency during the long, do-nothing descent after a top-wall bounce — not because
+they share implementation.
+
+**Magnet.** While `state.magnetEffect` is active, the descending ball's angle bends gently toward
+the paddle's centre each frame, rather than being purely a function of where it lands.
+
+The one thing this must get right: `ball.dx`/`ball.dy` are a **unit direction vector** — every
+existing write to them (`Math.cos(angle)`/`Math.sin(angle)` at spawn, at the paddle bounce, at every
+wall reflection) keeps `dx*dx + dy*dy == 1`, and `updateBalls()`'s per-frame step
+(`v = ball.speed * mult * state.difficultyMult * dt; ball.x += ball.dx * v`) relies on that being
+true — it's what makes `ball.speed` the actual px/s. A magnet can't just nudge `ball.dx` by some
+px/s²-shaped constant; it has to convert to an angle, rotate the angle a small step toward the
+paddle centre, and convert back — the same move the paddle-bounce code already makes. Skipping the
+renormalisation would silently speed the ball up every frame it curves, a bug that wouldn't show up
+until someone actually clocks the ball's speed against the level's nominal one.
+
+**Hold-to-slow.** A held input (a dedicated key, plus an on-screen button for touch, alongside the
+existing launch/pause controls) that drops `ballSpeedMult()` — today the one-line
+`state.speedEffect ? state.speedEffect.mult : 1` — while held, drawn from a meter that depletes on
+hold and recharges when released, rather than a pickup-granted duration. This is new state
+(`state.slowMeter`, refilled alongside `updateEffects()`) and a new always-visible meter UI, not
+another `.effect-bar` — it's player-triggered and available from the start of a run, not something
+collected.
+
+Both are additive to the existing `slow`/`fast` power-up (`state.speedEffect`): magnet changes
+angle, not speed; bullet time is its own multiplier stacked into `ballSpeedMult()`'s product, not a
+replacement for it.
+
+### 56. Paddle spin — English on the ball (M)
+
+Today the paddle-bounce angle in `updateBalls()` is purely a function of *where* the ball lands —
+`rel = (ball.x - (pr.x + pw/2)) / (pw/2)`, clamped and scaled by `CONFIG.paddleBounceSpread` — with
+no read of how the paddle itself was moving. Letting paddle *velocity* at the moment of contact bend
+that angle further is the single change most likely to make the game feel skill-expressive to an
+experienced player: it turns the paddle from a mirror into an instrument.
+
+**Needs paddle velocity, which does not exist today.** `updatePaddle()` sets `state.paddle.x`
+directly from keys or `state.pointerX` and never records how far it moved. Add
+`state.paddle.vx = (state.paddle.x - prevX) / dt` at the end of `updatePaddle()`, `prevX` captured
+before the movement branches.
+
+**The mixed-input problem.** Keyboard/gamepad movement is naturally bounded —
+`state.paddle.x -= speed * dt` — so `vx` from that path never exceeds `state.paddle.speed`.
+Pointer/touch movement is not: `state.paddle.x = state.pointerX - w / 2` snaps to wherever the
+cursor is *this frame*, so a mouse that jumped across the screen between two animation frames (a
+real OS/browser coalescing behaviour, not a hypothetical) produces a `vx` far larger than any hand
+could actually swing the paddle. `vx` must be clamped to a `CONFIG.paddle.maxSpin`-shaped constant
+before it feeds the bounce angle, or a single fast mouse flick would out-spin a full second of
+deliberate keyboard steering.
+
+**The stalemate risk the original proposal called out.** Adding spin means adding to `angle` before
+`Math.cos`/`Math.sin`, not adding to `ball.dx` directly (same unit-vector requirement as #55's
+magnet). The existing formula already spends a `-Math.PI/2 ± paddleBounceSpread` budget; spin has to
+share that budget, not extend it — `angle = rel * CONFIG.paddleBounceSpread + spinTerm - Math.PI/2`,
+with the **total** deviation from straight-up clamped, not each term separately. Skip that and a
+player who tracks the ball while spinning hard can, in principle, hold it in a near-horizontal loop
+between the side wall and the paddle that never climbs back toward the bricks — exactly the
+"horizontal stalemate" the feature-ideas entry flagged as the reason this is M and not S.
+
+**Interacts with the tunnelling sweep, but doesn't complicate it.** The #38 rewind in
+`updateBalls()` (`tCross`/`xCross`, recovering a paddle hit the ball's own per-frame movement
+overshot) only cares about *where* the ball crossed the paddle's top plane, which spin doesn't
+change — spin is applied to the outgoing angle after that rewind has already located the hit, so the
+two features don't need to coordinate beyond "spin reads the same `rel` `isTopHit` already computed."
+
+### 57. Negative power-up counterplay (S)
+
+`narrow` and `fast` currently just happen to you — they land in `state.drops`, fall, and either miss
+the paddle or apply themselves with no decision on the player's part. The concrete, cheap version of
+"give the player an out": **let a laser bolt destroy a falling bad capsule before it lands.**
+
+`updateLasers()` already sweeps every bolt against `state.bricks` and, failing that, against
+`state.boss`; it needs a third pass, against `state.drops`, using the same hit-test shape
+`updateDrops()` already uses for the paddle (`d.x`/`d.y` ± the drawn 10px radius). Restricted to
+`!d.def.good` drops only — a bolt should never be able to snipe a `widen` or a `life` out of the
+air; that would make good drops a liability near a laser-holding player, the opposite of the intent.
+On a hit: splice the drop, a small burst at its position, a distinct tone so it reads as "denied"
+rather than "collected," and no score — this is defence, not offence, and awarding points would make
+`laser` strictly better at farming than at its existing job.
+
+**Two small consequences worth deciding rather than discovering:** it only exists while
+`state.laserEffect` is active (no laser, no counterplay — same as every other laser interaction),
+and it stacks with #53's fireball for free if that ships too, since both are read-only additions to
+functions that already loop over their respective collections once per frame.
+
+**Left out of this pass, deliberately:** the feature-ideas entry's second option, a standalone
+"cleanse" pickup that clears whatever bad effect is currently active (`state.widthEffect.mult < 1` /
+`state.speedEffect.mult > 1`, nulled the same way `resetPaddleAndBall()` already does). It's a
+natural follow-up — a new `POWERUPS` row plus a branch in `applyPowerup()`, genuinely S on its own —
+but doing both at once is what would push this above S, and the laser version alone already converts
+the frustration into a decision for anyone who picked up `laser` in the first place.
+
+#### Shared needs
+
+- **`.effect-bars` capacity.** Today at most four bars show at once — one slot each for
+  `width`/`speed` (`widen`/`narrow` share `widthEffect`, `slow`/`fast` share `speedEffect`), plus
+  `sticky`, plus `laser`. `fireball` (#53) and `magnet` (#55) are each their own independent slot,
+  raising the simultaneous maximum to six. The container's `height: 38px` is commented as sized for
+  "2 wrapped rows... the worst case" of the current four — that comment, and the height itself, need
+  re-deriving against six before either effect ships, not after a player reports bars overlapping.
+- **i18n.** `powerup.fireball`, `powerup.magnet`, and (if the cleanse follow-up to #57 is taken)
+  `powerup.cleanse` — one dotted key per new type in both `STRINGS.fr` and `STRINGS.en`, or the
+  `i18n` suite fails the build.
+- **`POWERUPS` table weight.** Two new good entries (`fireball`, `magnet`) dilute every existing
+  weight's share of `POWERUP_TOTAL_WEIGHT`; keep both low (2, matching `laser`'s existing weight) so
+  the drop table doesn't quietly become mostly-new-stuff.
+
+#### Tests
+
+- `#53a` — a fireball ball destroys three bricks stacked in its path in a single frame, and none of
+  them bounce it.
+- `#53b` — a fireball ball still bounces off an indestructible `"#"` brick and off a boss part.
+- `#54a` — a ball that would have cost a life bounces instead while a shield is armed, and the
+  shield is gone afterward.
+- `#54b` — an unused shield does not survive `resetPaddleAndBall()`.
+- `#55a` — a magnet-curved ball's `dx`/`dy` stay unit length every frame (`dx*dx + dy*dy ≈ 1`).
+- `#56a` — a paddle moving right at the moment of contact steers the bounce further right than the
+  same hit position would with a stationary paddle, within the clamp.
+- `#56b` — the clamp holds: no combination of hit position and paddle velocity produces a bounce
+  angle whose vertical component drops below the existing minimum.
+- `#57a` — a laser bolt destroys a falling `narrow` drop and the drop never reaches the paddle.
+- `#57b` — a laser bolt passes through a falling `widen` drop untouched.
