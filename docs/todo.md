@@ -9,9 +9,9 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 4 open items — #54–57, promoted from [feature-ideas.md](feature-ideas.md) §C. Every
-review finding, and every other directly-requested feature, raised so far has shipped, and so has
-#53 from this same batch (see [done.md](done.md)).
+**Status:** 5 open items — #54–57, promoted from [feature-ideas.md](feature-ideas.md) §C, plus #80.
+Every review finding, and every other directly-requested feature, raised so far has shipped, and so
+has #53 from this same batch (see [done.md](done.md)).
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
 test → fix → move the finding's whole entry from this file to [done.md](done.md), prepending a
@@ -32,7 +32,7 @@ Every review finding raised so far has shipped, and so has every directly-reques
 [done.md](done.md). What is open below are four power-up/ball-mechanics ideas promoted from
 [feature-ideas.md](feature-ideas.md), which keep their numbers; that file still holds the proposals
 not yet promoted. New review findings go here too, keeping the shared numbering: the next free
-number is **#80**.
+number is **#81**.
 
 ---
 
@@ -198,3 +198,60 @@ the frustration into a decision for anyone who picked up `laser` in the first pl
   angle whose vertical component drops below the existing minimum.
 - `#57a` — a laser bolt destroys a falling `narrow` drop and the drop never reaches the paddle.
 - `#57b` — a laser bolt passes through a falling `widen` drop untouched.
+
+## D. Audio
+
+### 80. Music intensity driven by level progress, not combo (S/M)
+
+Today `nextIntensity()` ([3734-3741](../html/index.html#L3734-L3741)) reads `state.combo` against
+`CONFIG.music.voiceCombo` ([1374-1379](../html/index.html#L1374-L1379))'s `[3, 6, 10]` thresholds: a
+voice joins the arrangement the instant a combo streak reaches it, and leaves at `voiceDecay`
+voices/second once the streak breaks. That rewards *rate* — breaking bricks fast without a paddle
+touch in between — rather than progress. Wanted instead: intensity tracks how close the level is to
+clear, so the arrangement builds toward the last few bricks whether or not the player is on a streak.
+
+**The replacement metric.** `buildLevel()` already counts destructible bricks while it populates
+`state.bricks` and writes the result to `state.remainingBricks`
+([2560-2582](../html/index.html#L2560-L2582)); it just doesn't keep the starting total once that loop
+ends. A new `state.levelBrickTotal = remaining`, set alongside it, is the whole addition needed on the
+data side. `nextIntensity()` then computes `progress = 1 - state.remainingBricks / state.levelBrickTotal`
+(guarding `levelBrickTotal === 0` — boss levels, see below) and maps *that* to a target voice count
+instead of walking `voiceCombo`.
+
+**Keep the decay, drop the instant-join.** `voiceDecay` still earns its keep for the reverse case: `R`
+bricks regenerate ([3837](../html/index.html#L3837), [4364](../html/index.html#L4364)) and put
+`remainingBricks` back up, which would otherwise yank a voice back out the instant one respawns.
+Ease toward the new target the same way intensity already eases toward zero today, rather than
+snapping on every brick.
+
+**Boss levels have no bricks to count.** `checkLevelClear()` treats a boss level as a special case
+already — `remainingBricks` is pinned at 0 for the whole fight
+([4619-4630](../html/index.html#L4619-L4630)) — so a bricks-based `progress` would read a boss level
+as permanently "just cleared." The natural analogue is the boss's own health: `state.boss.parts` and
+each part's `hp` ([3950-4038](../html/index.html#L3950-L4038)) give the same shape of fraction (parts
+down, or summed hp, over the starting total). `nextIntensity()` needs a branch keyed on `state.boss`
+— the same guard `checkLevelClear()` already uses — reading that instead of
+`remainingBricks`/`levelBrickTotal`.
+
+**`voiceCombo` becomes thresholds on progress, not combo.** `[3, 6, 10]` are combo counts today; the
+replacement wants fractions (e.g. `[0.4, 0.7, 0.9]`) so the last voice arrives near the end of the
+level rather than the middle. Rename the field along with the change — leaving it called `voiceCombo`
+while it holds progress fractions would mislead the next person editing `CONFIG.music`.
+
+**What this gives up.** The current scheme rewards a specific kind of skilled play — rapid combo
+chains; the replacement rewards a different one — clearing the level at all — so a slow, careful
+player who never chains three hits will now hear the arrangement build anyway as the level empties
+out. That's the intent of the change, but worth naming: the music stops being a moment-to-moment
+skill signal and becomes a level-progress meter.
+
+#### Tests
+
+- `#80a` — with combo held at 0 throughout, breaking bricks down to 20% of `levelBrickTotal`
+  remaining raises `music.intensity` above where it started (progress alone drives it; combo doesn't
+  have to move).
+- `#80b` — a fresh level (`remainingBricks === levelBrickTotal`) starts at the lowest intensity even
+  with a high combo carried in, ruling out combo still gating the target after the change.
+- `#80c` — a regenerating brick returning mid-level lowers `progress` and, given enough time, eases
+  `music.intensity` back down rather than cutting a voice instantly.
+- `#80d` — a boss level's intensity climbs as `state.boss.parts` are destroyed, independent of
+  `state.remainingBricks` (which stays pinned at 0 throughout).
