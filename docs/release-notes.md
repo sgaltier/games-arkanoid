@@ -45,9 +45,33 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #76 | ✅ Fixed — 2026-08-18 |
 | #77 | ✅ Fixed — 2026-08-18 |
 | #79 | ✅ Fixed — 2026-08-18 |
+| #53 | ✅ Fixed — 2026-08-19 |
 
-64 of 64 fixed — nothing open. See [todo.md](todo.md), and [feature-ideas.md](feature-ideas.md) for
+65 of 65 fixed — nothing open. See [todo.md](todo.md), and [feature-ideas.md](feature-ideas.md) for
 proposals not yet promoted to it.
+
+---
+
+## 2026-08-19 — Fireball power-up (#53)
+
+### Fixed
+
+**A ninth power-up: a timed effect that ploughs the ball through ordinary and silver bricks instead
+of bouncing off the first one it touches.** `updateBalls()`'s brick collision used to pick exactly one
+brick per ball per frame — whichever it penetrated least — so a ball couldn't take out more than one
+brick in a single frame even lined up straight through a column. While fireball is active, every alive
+brick the ball overlaps that frame goes down outright, with no bounce, and the ball keeps travelling.
+
+**Indestructible walls and boss parts are the two things it still can't get through.** A `"#"` wall
+still bounces a fireball ball exactly like a normal one, and a boss fight is completely unaffected —
+plowing through either would trivialise walls-as-obstacles and boss fights outright, so both paths were
+left untouched.
+
+**A fireball ball also looks different.** It's the first power-up to change ball appearance rather than
+paddle or ball behaviour: while active, every ball on screen swaps its usual white fill/glow for a warm
+flame palette, so ploughing through a column reads as distinct from an ordinary bounce landing on the
+same brick. A fifth `.effect-bars` slot shows the remaining time, and the container's reserved height
+grew to fit a third wrapped row on narrow viewports.
 
 ---
 

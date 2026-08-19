@@ -216,7 +216,7 @@ body {
    that read as a misplaced sidebar on any normal-width window (#75). #75
    keeps the "canvas never moves" property a different way: the row sits
    below the canvas at every width (see .play-row) with a fixed, reserved
-   `height` sized for the worst-case wrap of all four bars, so a slot coming
+   `height` sized for the worst-case wrap of all five bars, so a slot coming
    or going repaints inside that row without ever resizing it. */
 .effect-bars {
   flex: 0 0 auto;
@@ -225,7 +225,9 @@ body {
   flex-wrap: wrap;
   gap: 6px;
   width: 100%;
-  height: 38px; /* 2 wrapped rows of .effect-bar (16px) + 1 gap, the worst case */
+  /* 3 wrapped rows of .effect-bar (16px) + 2 gaps, the worst case at the
+     narrowest supported width (~320px), now that #53 added a fifth slot. */
+  height: 60px;
 }
 
 .effect-bar {
@@ -834,6 +836,10 @@ canvas {
         <div class="effect-bar-fill" id="bar-laser-fill"></div>
         <span class="effect-bar-label" id="bar-laser-label"></span>
       </div>
+      <div class="effect-bar" id="bar-fireball" hidden>
+        <div class="effect-bar-fill" id="bar-fireball-fill"></div>
+        <span class="effect-bar-label" id="bar-fireball-label"></span>
+      </div>
     </div>
   </div>
 
@@ -1257,6 +1263,7 @@ canvas {
     { type: "life", color: "#ffb627", weight: 1, good: true, label: "+1" },
     { type: "sticky", color: "#c3cee0", weight: 3, good: true, label: "St" },
     { type: "laser", color: "#ffe600", weight: 2, good: true, label: "L" },
+    { type: "fireball", color: "#ff6a00", weight: 2, good: true, label: "Fb" },
     { type: "narrow", color: "#ff3b3b", weight: 4, good: false, label: "N" },
     { type: "fast", color: "#ff7a3b", weight: 4, good: false, label: "F" }
   ];
@@ -1322,7 +1329,8 @@ canvas {
       slow:   { mult: 0.7, duration: 8 },
       fast:   { mult: 1.4, duration: 8 },
       sticky: { duration: 10 }, // no mult — a boolean-ish effect, see applyPowerup
-      laser:  { duration: 8 }
+      laser:  { duration: 8 },
+      fireball: { duration: 8 } // no mult — see applyPowerup/updateBalls
     },
     // Twin bolts fired from the paddle while laserEffect is active — see
     // fireLaser()/updateLasers(). cooldown stops holding Space from emptying
@@ -2018,6 +2026,7 @@ canvas {
       "powerup.fast": "Balle accélérée",
       "powerup.sticky": "Raquette collante",
       "powerup.laser": "Laser",
+      "powerup.fireball": "Balle de feu",
       // #44: the boss roster's names, read only by drawBoss() via t() — not
       // wired to any data-i18n markup, since the fight is drawn on canvas.
       "boss.sentinel.name": "SENTINELLE",
@@ -2151,6 +2160,7 @@ canvas {
       "powerup.fast": "Ball sped up",
       "powerup.sticky": "Sticky paddle",
       "powerup.laser": "Laser",
+      "powerup.fireball": "Fireball",
       "boss.sentinel.name": "SENTINEL",
       "boss.salvo.name": "SALVO",
       "boss.carapace.name": "CARAPACE",
@@ -2466,6 +2476,7 @@ canvas {
     speedEffect: null,  // {mult, remaining}
     stickyEffect: null, // {remaining} — a ball touching the paddle re-attaches
     laserEffect: null,  // {remaining} — the fire button shoots instead of a no-op
+    fireballEffect: null, // {remaining} — ordinary/silver bricks die without bouncing the ball; see updateBalls
     remainingBricks: 0, // destructible bricks still alive; see buildLevel/brickHit
     bricksDestroyed: 0, // this level, toward the next difficulty milestone
     difficultyMult: 1,  // ramps up within a level; see CONFIG.difficulty
@@ -2583,6 +2594,7 @@ canvas {
     state.speedEffect = null;
     state.stickyEffect = null;
     state.laserEffect = null;
+    state.fireballEffect = null;
     state.paddle.x = clamp(state.paddle.x, 0, GAME_W - paddleWidth());
     var speed = state.baseBallSpeed * levelDef(state.levelIndex).speed;
     state.balls = [{
@@ -3799,6 +3811,10 @@ canvas {
       state.laserEffect.remaining -= dt;
       if (state.laserEffect.remaining <= 0) state.laserEffect = null;
     }
+    if (state.fireballEffect) {
+      state.fireballEffect.remaining -= dt;
+      if (state.fireballEffect.remaining <= 0) state.fireballEffect = null;
+    }
   }
 
   // #51: bring regenerating bricks back. Called from the same `playing`-only
@@ -3847,6 +3863,9 @@ canvas {
     } else if (p.type === "laser") {
       state.laserEffect = { remaining: CONFIG.effects.laser.duration };
       beep(900, 0.1, "square");
+    } else if (p.type === "fireball") {
+      state.fireballEffect = { remaining: CONFIG.effects.fireball.duration };
+      beep(760, 0.14, "sawtooth");
     } else if (p.type === "multi") {
       beep(660, 0.12, "square");
       var base = state.balls.filter(function (b) { return !b.attached; })[0];
@@ -4496,17 +4515,25 @@ canvas {
 
       // bricks — a ball can overlap two adjacent bricks at once near a corner;
       // resolve against whichever it penetrates least, not just the first
-      // match in array order (bricks are stored top-row-first).
+      // match in array order (bricks are stored top-row-first). #53: a
+      // fireball ball skips that pick-one selection for anything but an
+      // indestructible "#" wall — every alive brick it overlaps this frame is
+      // hit outright below, with no bounce, while a wall (the one thing
+      // fireball still can't get through) falls through to the usual
+      // least-penetration pick.
       var hitBrick = null, hitPenetration = Infinity;
       for (var i = 0; i < state.bricks.length; i++) {
         var brick = state.bricks[i];
         if (!brick.alive) continue;
-        if (circleRectCollide(ball, brick)) {
-          var penetration = brickPenetration(ball, brick);
-          if (penetration < hitPenetration) {
-            hitPenetration = penetration;
-            hitBrick = brick;
-          }
+        if (!circleRectCollide(ball, brick)) continue;
+        if (state.fireballEffect && brick.type !== "#") {
+          brickHit(brick);
+          continue;
+        }
+        var penetration = brickPenetration(ball, brick);
+        if (penetration < hitPenetration) {
+          hitPenetration = penetration;
+          hitBrick = brick;
         }
       }
       if (hitBrick) {
@@ -4934,6 +4961,9 @@ canvas {
   var barLaser = document.getElementById("bar-laser");
   var barLaserFill = document.getElementById("bar-laser-fill");
   var barLaserLabel = document.getElementById("bar-laser-label");
+  var barFireball = document.getElementById("bar-fireball");
+  var barFireballFill = document.getElementById("bar-fireball-fill");
+  var barFireballLabel = document.getElementById("bar-fireball-label");
 
   // `effect` is the {remaining} object (or null); `duration`/`color`/`name`
   // describe whichever specific powerup is currently behind it. #78: `name`
@@ -4968,6 +4998,8 @@ canvas {
       CONFIG.effects.sticky.duration, "#c3cee0", t("powerup.sticky"));
     updateEffectBar(barLaser, barLaserFill, barLaserLabel, state.laserEffect,
       CONFIG.effects.laser.duration, "#ffe600", t("powerup.laser"));
+    updateEffectBar(barFireball, barFireballFill, barFireballLabel, state.fireballEffect,
+      CONFIG.effects.fireball.duration, "#ff6a00", t("powerup.fireball"));
   }
   renderEffectBars();
 
@@ -5207,12 +5239,16 @@ canvas {
   }
 
   function drawBalls() {
+    // #53: the one effect that changes ball appearance rather than paddle/ball
+    // behaviour — a flame tint so ploughing through a column of bricks reads as
+    // different from a normal bounce that happened to land on the same brick.
+    var flame = !!state.fireballEffect;
     for (var i = 0; i < state.balls.length; i++) {
       var b = state.balls[i];
       ctx.save();
-      ctx.shadowColor = "#f2eefc";
-      ctx.shadowBlur = 10;
-      ctx.fillStyle = "#ffffff";
+      ctx.shadowColor = flame ? "#ff6a00" : "#f2eefc";
+      ctx.shadowBlur = flame ? 14 : 10;
+      ctx.fillStyle = flame ? "#ffcf3b" : "#ffffff";
       ctx.beginPath();
       ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
       ctx.fill();

@@ -9,8 +9,9 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 5 open items — #53–57, promoted from [feature-ideas.md](feature-ideas.md) §C. Every
-review finding, and every other directly-requested feature, raised so far has shipped.
+**Status:** 4 open items — #54–57, promoted from [feature-ideas.md](feature-ideas.md) §C. Every
+review finding, and every other directly-requested feature, raised so far has shipped, and so has
+#53 from this same batch (see [done.md](done.md)).
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
 test → fix → move the finding's whole entry from this file to [done.md](done.md), prepending a
@@ -18,7 +19,7 @@ test → fix → move the finding's whole entry from this file to [done.md](done
 the historical record → add an entry to [release-notes.md](release-notes.md).
 
 **Line references, once written, are only valid against the current `index.html`** — the same
-re-anchoring discipline applies here as in `done.md`. The five entries below deliberately carry
+re-anchoring discipline applies here as in `done.md`. The four entries below deliberately carry
 **no line anchors**: they describe features that do not exist yet, so every reference is to a
 function or field name, which does not go stale.
 
@@ -26,59 +27,23 @@ function or field name, which does not go stale.
 
 Every review finding raised so far has shipped, and so has every directly-requested feature — #44
 (boss levels), #74 (the boss-kill celebration built on top of it), #75 (a follow-on to #37), #78
-(effect-bar names), #76 (hall-of-fame name validation), #77 (hall-of-fame profanity filtering), and
-#79 (the boss-kill death beat's music/explosion/sound gaps) — see [done.md](done.md). What is open
-below are five power-up/ball-mechanics ideas promoted from [feature-ideas.md](feature-ideas.md),
-which keep their numbers; that file still holds the proposals not yet promoted. New review findings
-go here too, keeping the shared numbering: the next free number is **#80**.
+(effect-bar names), #76 (hall-of-fame name validation), #77 (hall-of-fame profanity filtering), #79
+(the boss-kill death beat's music/explosion/sound gaps), and #53 (the fireball power-up) — see
+[done.md](done.md). What is open below are four power-up/ball-mechanics ideas promoted from
+[feature-ideas.md](feature-ideas.md), which keep their numbers; that file still holds the proposals
+not yet promoted. New review findings go here too, keeping the shared numbering: the next free
+number is **#80**.
 
 ---
 
 ## C. Power-ups and ball mechanics
 
-Promoted together because all five touch the same handful of functions —
+Promoted together because all four touch the same handful of functions —
 `updateBalls()`/`resolveBrickCollision()`, `applyPowerup()`, `CONFIG.effects`, `renderEffectBars()`
-— and are cheaper to reason about as a set than one at a time.
-
-### 53. Fireball / through-ball (S)
-
-A timed effect where the ball ploughs through ordinary bricks without bouncing, felling everything
-in its path instead of the usual one contact per frame. The natural "big" reward to sit above
-`multi` in the drop table.
-
-**The single-hit-per-frame rule (#10) is exactly the obstacle.** `updateBalls()` today picks *one*
-brick per ball per frame — whichever `hitBrick` has the smallest `brickPenetration()` — precisely so
-a ball clipping two adjacent bricks in a corner doesn't get a phantom double-bounce (#10 in
-[done.md](done.md)). A fireball needs the opposite: every alive brick the ball's swept path overlaps
-this frame, not just the least-penetrated one. That means fireball collision can't reuse the
-existing `hitBrick` selection at all — it needs its own loop over `state.bricks` when
-`state.fireballEffect` is active, calling `brickHit()` on every overlap and skipping
-`resolveBrickCollision()` entirely (no `dx`/`dy` flip, no reposition).
-
-**What still blocks it.** Not everything should melt:
-- Indestructible walls (`"#"`) — `brickHit()` already returns before touching `hp` for these; a
-  fireball should still bounce off one like a normal ball, or "indestructible" stops meaning
-  anything.
-- A boss body/parts (`state.boss`, `hitTestBossPart()`) — plowing through a boss trivialises every
-  fight #44 built. The existing `resolveBrickCollision(ball, bossPart)` + `bossPartHit()` path stays
-  untouched regardless of `fireballEffect`.
-- The paddle and the four field walls — unaffected; only *brick* contact skips the bounce.
-
-Ordinary and silver (`hp` 2) bricks alike go down in one fireball pass — a silver already tracked as
-`Sc` after one hit, so this is just `brickHit()` called twice in the same frame for one still
-standing, which the existing decrement handles with no new state.
-
-**Everything downstream of `brickHit()` already works unmodified**: combo (`state.combo`), score,
-drops, `explode()` cascades for `"X"` bricks, the regen schedule for `"R"`. None of that assumes one
-call per frame — it's already called multiple times per frame from the laser path
-(`updateLasers()`) and from cascade recursion.
-
-**New, not reused**: `state.fireballEffect = { remaining }` alongside the other four in
-`CONFIG.effects`; a fifth `.effect-bar` (see Shared needs below); `powerup.fireball` in both
-`STRINGS` tables; and — the one purely cosmetic gap — `drawBalls()` currently renders every ball
-identically (`#ffffff`, no per-ball state read at all). A fireball is the first effect to touch ball
-*appearance*: it needs a flame tint/trail so ploughing through a column reads as different from a
-normal bounce that happened to land on the same brick.
+— and are cheaper to reason about as a set than one at a time. #53 (fireball), promoted alongside
+them, has already shipped — see [done.md](done.md) for how it landed, including the `.effect-bars`
+capacity/i18n/weight bookkeeping it accounted for on its own; whichever of the four below ships next
+still needs to re-derive that bookkeeping against its own new slot.
 
 ### 54. Safety net / shield (S)
 
@@ -209,24 +174,20 @@ the frustration into a decision for anyone who picked up `laser` in the first pl
 
 #### Shared needs
 
-- **`.effect-bars` capacity.** Today at most four bars show at once — one slot each for
-  `width`/`speed` (`widen`/`narrow` share `widthEffect`, `slow`/`fast` share `speedEffect`), plus
-  `sticky`, plus `laser`. `fireball` (#53) and `magnet` (#55) are each their own independent slot,
-  raising the simultaneous maximum to six. The container's `height: 38px` is commented as sized for
-  "2 wrapped rows... the worst case" of the current four — that comment, and the height itself, need
-  re-deriving against six before either effect ships, not after a player reports bars overlapping.
-- **i18n.** `powerup.fireball`, `powerup.magnet`, and (if the cleanse follow-up to #57 is taken)
-  `powerup.cleanse` — one dotted key per new type in both `STRINGS.fr` and `STRINGS.en`, or the
-  `i18n` suite fails the build.
-- **`POWERUPS` table weight.** Two new good entries (`fireball`, `magnet`) dilute every existing
-  weight's share of `POWERUP_TOTAL_WEIGHT`; keep both low (2, matching `laser`'s existing weight) so
-  the drop table doesn't quietly become mostly-new-stuff.
+- **`.effect-bars` capacity.** Five bars show at once today — one slot each for `width`/`speed`
+  (`widen`/`narrow` share `widthEffect`, `slow`/`fast` share `speedEffect`), plus `sticky`, plus
+  `laser`, plus `fireball` (#53, shipped). `magnet` (#55) would be its own independent slot on top of
+  that, raising the simultaneous maximum to six. The container's `height: 60px` is commented as sized
+  for "3 wrapped rows... the worst case" of the current five — that comment, and the height itself,
+  need re-deriving against six before magnet ships, not after a player reports bars overlapping.
+- **i18n.** `powerup.magnet`, and (if the cleanse follow-up to #57 is taken) `powerup.cleanse` — one
+  dotted key per new type in both `STRINGS.fr` and `STRINGS.en`, or the `i18n` suite fails the build.
+- **`POWERUPS` table weight.** A new good `magnet` entry dilutes every existing weight's share of
+  `POWERUP_TOTAL_WEIGHT`; keep it low (2, matching `laser`/`fireball`'s existing weight) so the drop
+  table doesn't quietly become mostly-new-stuff.
 
 #### Tests
 
-- `#53a` — a fireball ball destroys three bricks stacked in its path in a single frame, and none of
-  them bounce it.
-- `#53b` — a fireball ball still bounces off an indestructible `"#"` brick and off a boss part.
 - `#54a` — a ball that would have cost a life bounces instead while a shield is armed, and the
   shield is gone afterward.
 - `#54b` — an unused shield does not survive `resetPaddleAndBall()`.

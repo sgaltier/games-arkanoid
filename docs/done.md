@@ -23,23 +23,23 @@ current `index.html`.
 > **Fixed 2026-08-12.** The file now opens with `<!doctype html>` / `<html lang="fr">` and a real
 > `<head>` carrying `<meta charset="utf-8">`, a viewport meta, and a `<title>`, with the markup
 > wrapped in `<body>` — see [1-7](../html/index.html#L1-L7),
-> [650-650](../html/index.html#L650-L650), [5304-5305](../html/index.html#L5304-L5305).
+> [652-652](../html/index.html#L652-L652), [5340-5341](../html/index.html#L5340-L5341).
 
 The file previously began directly with `<style>`, with no doctype, `<html>`, `<head>`, `<title>`,
 charset, viewport, or `lang` attribute. Two real consequences:
 
 - **Quirks mode.** Without a doctype the browser rendered in quirks mode, changing box-model and
   inline-layout behaviour.
-- **Encoding.** The file contains raw UTF-8 accented text (`Détruisez` [707](../html/index.html#L707),
-  `Prêt ?` [717](../html/index.html#L717), `Bougez` [718](../html/index.html#L718)). With no charset
+- **Encoding.** The file contains raw UTF-8 accented text (`Détruisez` [709](../html/index.html#L709),
+  `Prêt ?` [719](../html/index.html#L719), `Bougez` [720](../html/index.html#L720)). With no charset
   declared, a browser opening this over `file://` or a server that didn't send `charset` would fall
   back to windows-1252 and render `DÃ©truisez`.
 
 ### 2. ✅ FIXED — `localStorage` access was unguarded, one throw killed the entire game (S)
 > **Fixed 2026-08-12.** Reads and writes now go through `loadBest()` / `saveBest()`
-> ([2296-2310](../html/index.html#L2296-L2310)), both wrapped in `try/catch`, with the best score
-> degrading to in-memory only. Call sites: [2443](../html/index.html#L2443),
-> [4490](../html/index.html#L4490).
+> ([2306-2320](../html/index.html#L2306-L2320)), both wrapped in `try/catch`, with the best score
+> degrading to in-memory only. Call sites: [2453](../html/index.html#L2453),
+> [4509](../html/index.html#L4509).
 
 `localStorage.getItem(BEST_KEY)` was read at IIFE top level while constructing `state`. In Safari
 private browsing, with cookies/site-data disabled, or in some sandboxed `file://` contexts,
@@ -48,20 +48,20 @@ error visible to the player.
 
 ### 3. ✅ FIXED — Held keys stuck when the window lost focus (S)
 > **Fixed 2026-08-12.** A `blur` handler now clears every held key —
-> [2787-2793](../html/index.html#L2787-L2793).
+> [2799-2805](../html/index.html#L2799-L2805).
 
-`keydown` sets `state.keys[e.code] = true` [2745](../html/index.html#L2745) and only `keyup` cleared it
-[2786](../html/index.html#L2786). Alt-tabbing (or hitting a browser shortcut) while holding <kbd>→</kbd>
+`keydown` sets `state.keys[e.code] = true` [2757](../html/index.html#L2757) and only `keyup` cleared it
+[2798](../html/index.html#L2798). Alt-tabbing (or hitting a browser shortcut) while holding <kbd>→</kbd>
 meant the `keyup` was never delivered — on return the paddle slid into the wall and stayed pinned
 until the key was pressed and released again.
 
 ### 4. ✅ FIXED — Power-up timers kept running while the game was paused (S)
 > **Fixed 2026-08-12.** Effects now carry a `remaining` duration in seconds instead of an absolute
 > `until` deadline, and `updateEffects(dt)` decrements it from the frame delta — which the loop only
-> feeds while the phase is `playing`. See [3723-3734](../html/index.html#L3723-L3734), the effect
+> feeds while the phase is `playing`. See [3735-3746](../html/index.html#L3735-L3746), the effect
 > durations each `remaining` starts from in `CONFIG.effects`
-> ([1319-1326](../html/index.html#L1319-L1326), added by #21, since extended by #30), and the call site at
-> [5261](../html/index.html#L5261).
+> ([1326-1334](../html/index.html#L1326-L1334), added by #21, since extended by #30), and the call site at
+> [5297](../html/index.html#L5297).
 > Verified: a `widen` survives a 30-second pause intact, then expires after its full 10 seconds of
 > actual play.
 
@@ -70,25 +70,25 @@ compared against the rAF `now`. Pausing for 20 seconds silently burned a 10-seco
 in accumulated play time also makes the timers immune to tab-throttling and clock adjustments.
 
 ### 5. ✅ FIXED — Game did not auto-pause when the tab was hidden or the window blurred (S)
-> **Fixed 2026-08-12.** `autoPause()` ([2795-2803](../html/index.html#L2795-L2803)) pauses whenever the
+> **Fixed 2026-08-12.** `autoPause()` ([2807-2815](../html/index.html#L2807-L2815)) pauses whenever the
 > phase is `playing`, wired to both `visibilitychange` and the existing `blur` handler from #3
-> ([2790-2793](../html/index.html#L2790-L2793)). It deliberately only fires *on* hide/blur, never on
+> ([2802-2805](../html/index.html#L2802-L2805)). It deliberately only fires *on* hide/blur, never on
 > return, so the player resumes explicitly.
 
 There was no `visibilitychange` handler. `requestAnimationFrame` throttles in a background tab, and
-`dt` is clamped to 33 ms [5214](../html/index.html#L5214), so the game didn't *jump* — but it stayed in
+`dt` is clamped to 33 ms [5250](../html/index.html#L5250), so the game didn't *jump* — but it stayed in
 the `playing` phase, so power-up timers kept expiring (see #4) and returning to the tab dropped you
 straight back into live play with no warm-up.
 
 ### 6. ✅ FIXED — `e.preventDefault()` on Space blocked button activation (S)
 > **Fixed 2026-08-12.** The Space branch is now guarded by `isButtonFocused()` (renamed to
-> `isTypingTarget()` and widened to cover text inputs too by #42, [2730-2734](../html/index.html#L2730-L2734),
-> used at [2776](../html/index.html#L2776)): when a `<button>` holds focus the key is handed back to the
+> `isTypingTarget()` and widened to cover text inputs too by #42, [2742-2746](../html/index.html#L2742-L2746),
+> used at [2788](../html/index.html#L2788)): when a `<button>` holds focus the key is handed back to the
 > browser, so it activates the button instead of launching the ball.
 >
 > This needed a companion fix. The deck's pause/mute buttons stay on screen and keep focus after a
 > mouse click, so the guard alone would have made Space toggle pause instead of launching. A
-> `blurIfPointerClick` helper ([3196-3201](../html/index.html#L3196-L3201)) drops focus after pointer
+> `blurIfPointerClick` helper ([3208-3213](../html/index.html#L3208-L3213)) drops focus after pointer
 > clicks only — keyboard activation (`detail === 0`) keeps it, so tab-order navigation is unharmed.
 >
 > A related gap closed under #26: `showOverlay()` also blurs a stale button focus left over from
@@ -101,7 +101,7 @@ not press it with Space (Enter still worked).
 
 ### 7. ✅ FIXED — Arrow keys scroll the page (S)
 > **Fixed 2026-08-13.** The movement branch in the `keydown` handler now calls `e.preventDefault()`
-> alongside the existing pointer-release logic — [2768-2775](../html/index.html#L2768-L2775). Applied to
+> alongside the existing pointer-release logic — [2780-2787](../html/index.html#L2780-L2787). Applied to
 > all four movement codes (`ArrowLeft`/`ArrowRight`/`KeyA`/`KeyD`) rather than singling out the arrow
 > keys, since suppressing the letter keys too is harmless and keeps them behaving identically.
 
@@ -110,18 +110,18 @@ overflows, steering the paddle also scrolls the document under it.
 
 ### 8. ✅ FIXED — `mousedown` launches the ball on any button, including right-click (S)
 > **Fixed 2026-08-13.** The handler now takes the event and returns early unless
-> `e.button === 0` — [2810-2813](../html/index.html#L2810-L2813).
+> `e.button === 0` — [2822-2825](../html/index.html#L2822-L2825).
 
 `canvas.addEventListener("mousedown", handleLaunchOrResume)` had no `e.button` check. Right-clicking
 or middle-clicking to open a context menu launched the ball.
 
 ### 9. ✅ FIXED — Ball–paddle collision teleported the ball on side hits (M)
 > **Fixed 2026-08-13.** The ball's `y` from before the frame's own movement is captured as `prevY`
-> [4335](../html/index.html#L4335). A paddle collision is only resolved as a top-face bounce — steering
+> [4354](../html/index.html#L4354). A paddle collision is only resolved as a top-face bounce — steering
 > by offset and snapping onto the top — when `prevY` was already above the paddle top
-> [4378-4386](../html/index.html#L4378-L4386); otherwise it resolves as a side hit that reflects only
+> [4397-4405](../html/index.html#L4397-L4405); otherwise it resolves as a side hit that reflects only
 > the horizontal component and repositions the ball beside the paddle, the same treatment a brick's
-> side face gets [4388-4397](../html/index.html#L4388-L4397). Paddle-velocity spin was left for a
+> side face gets [4407-4416](../html/index.html#L4407-L4416). Paddle-velocity spin was left for a
 > separate pass — out of scope for the teleport itself.
 
 Any `circleRectCollide` with `dy > 0` snapped `ball.y = pr.y - ball.r - 0.5`, i.e. onto the top of the
@@ -131,9 +131,9 @@ which read as a phantom save.
 ### 10. ✅ FIXED — Only one brick collision was resolved per ball per frame, chosen by array order (M)
 > **Fixed 2026-08-13.** The bricks loop no longer resolves against the first overlap it finds. It now
 > scans every alive brick the ball overlaps, scores each with `brickPenetration()`
-> [4299-4308](../html/index.html#L4299-L4308) — the smaller of the two axis overlaps, i.e. how shallow
+> [4318-4327](../html/index.html#L4318-L4327) — the smaller of the two axis overlaps, i.e. how shallow
 > the intrusion is — and resolves against whichever brick has the smallest penetration
-> [4399-4427](../html/index.html#L4399-L4427). Array order no longer has any say in which face gets hit.
+> [4418-4446](../html/index.html#L4418-L4446). Array order no longer has any say in which face gets hit.
 
 The loop broke after the first overlapping brick. Bricks are stored top-row-first, so when a ball
 overlapped two adjacent bricks in a corner, it always bounced off the *upper* one regardless of which
@@ -141,15 +141,15 @@ face it actually struck. Visible as occasional wrong-direction ricochets in the 
 
 ### 11. ✅ FIXED — Drop hitbox (8 px) didn't match the drawn capsule (10 px) (S)
 > **Fixed 2026-08-13.** `updateDrops`'s hit test now uses the same 10px radius `drawDrops` renders the
-> capsule with — [3823-3824](../html/index.html#L3823-L3824) vs. the `arc(0, 0, 10, …)` at
-> [5134](../html/index.html#L5134).
+> capsule with — [3839-3840](../html/index.html#L3839-L3840) vs. the `arc(0, 0, 10, …)` at
+> [5166](../html/index.html#L5166).
 
 `updateDrops` tested `± 8` while `drawDrops` rendered `arc(0,0,10,…)`. Power-ups visually clipped the
 paddle without being collected.
 
 ### 12. ✅ FIXED — Multi-ball could spawn balls aimed straight down (S)
 > **Fixed 2026-08-13.** The clone angle is derived from the source ball's angle mirrored upward when
-> it's descending, then spread symmetrically to either side — [3799-3803](../html/index.html#L3799-L3803).
+> it's descending, then spread symmetrically to either side — [3811-3819](../html/index.html#L3811-L3819).
 > A source ball travelling straight down used to produce two clones that were also both descending and
 > usually lost within a second; now every clone starts with a negative `dy`.
 
@@ -158,9 +158,9 @@ were also descending, making "M" feel like a dud.
 
 ### 13. ✅ FIXED — Best score was only persisted at game over (S)
 > **Fixed 2026-08-13.** The `state.score > state.best` check and `saveBest()` call are now behind a
-> shared `maybeSaveBest()` helper [4480-4488](../html/index.html#L4480-L4488), called from
-> `checkLevelClear()` [4507](../html/index.html#L4507) as well as `endGame()`
-> [4535](../html/index.html#L4535). Progress is now checkpointed at every level clear, not just at the
+> shared `maybeSaveBest()` helper [4499-4507](../html/index.html#L4499-L4507), called from
+> `checkLevelClear()` [4526](../html/index.html#L4526) as well as `endGame()`
+> [4562](../html/index.html#L4562). Progress is now checkpointed at every level clear, not just at the
 > end of the run.
 
 `endGame` was the only caller of `saveBest()`. Closing the tab mid-run — including after clearing four
@@ -172,7 +172,7 @@ levels — lost the score entirely.
 
 ### 14. ✅ FIXED — `getComputedStyle(document.body)` called per drop, per frame (S)
 > **Fixed 2026-08-13.** The font string is now built once into a module-level `DROP_FONT` constant
-> [1282](../html/index.html#L1282); `drawDrops` just assigns it — [5137](../html/index.html#L5137). The
+> [1289](../html/index.html#L1289); `drawDrops` just assigns it — [5169](../html/index.html#L5169). The
 > body's font never changes at runtime, so there was nothing to gain from recomputing it 60 times a
 > second.
 
@@ -181,10 +181,10 @@ per frame. This forced a synchronous style recalculation every frame for every f
 single most expensive line in the render path.
 
 ### 15. ✅ FIXED — `updateHud()` writes four DOM nodes every frame (S)
-> **Fixed 2026-08-13.** A `hudLast` cache [4904](../html/index.html#L4904) records what's currently
-> displayed for each of the four HUD fields; `updateHud()` [4905-4916](../html/index.html#L4905-L4916)
+> **Fixed 2026-08-13.** A `hudLast` cache [4931](../html/index.html#L4931) records what's currently
+> displayed for each of the four HUD fields; `updateHud()` [4932-4943](../html/index.html#L4932-L4943)
 > only touches `textContent` for a field whose value actually changed since the last call. The
-> unconditional per-frame call [5398](../html/index.html#L5398) stays — it's still what catches
+> unconditional per-frame call [5434](../html/index.html#L5434) stays — it's still what catches
 > `state.best` needing a live update against `state.score` — but an idle frame now writes nothing.
 
 `updateHud()` was called unconditionally every frame, in addition to the event-driven calls in
@@ -192,17 +192,17 @@ single most expensive line in the render path.
 while nothing displayed was changing.
 
 ### 16. ✅ FIXED — `checkLevelClear()` scans the full brick array every frame (S)
-> **Fixed 2026-08-13.** `state.remainingBricks` [2468](../html/index.html#L2468) counts destructible
+> **Fixed 2026-08-13.** `state.remainingBricks` [2478](../html/index.html#L2478) counts destructible
 > bricks still alive; `buildLevel()` seeds it when a level starts
-> [2544](../html/index.html#L2544)/[2569](../html/index.html#L2569), and `brickHit()` decrements it at the
-> single point a brick actually dies [4247](../html/index.html#L4247). `checkLevelClear()`
-> [4494-4526](../html/index.html#L4494-L4526) is now an `O(1)` counter check instead of an `O(n)` scan.
+> [2555](../html/index.html#L2555)/[2580](../html/index.html#L2580), and `brickHit()` decrements it at the
+> single point a brick actually dies [4266](../html/index.html#L4266). `checkLevelClear()`
+> [4513-4553](../html/index.html#L4513-L4553) is now an `O(1)` counter check instead of an `O(n)` scan.
 
 `checkLevelClear()` ran `.some()` over up to 80 bricks every single frame. Cheap in absolute terms, but
 trivially replaceable with a counter decremented in `brickHit`.
 
 ### 17. ✅ FIXED — Canvas backing store is sized from DPR only, ignoring displayed size (S)
-> **Fixed 2026-08-13.** `fitCanvas()` [860-874](../html/index.html#L860-L874) now reads the canvas's
+> **Fixed 2026-08-13.** `fitCanvas()` [866-880](../html/index.html#L866-L880) now reads the canvas's
 > actual displayed width via `getBoundingClientRect()` and scales the backing store by
 > `dpr * min(1, displayWidth / GAME_W)` — never upsizing past `dpr` (unchanged from before whenever the
 > canvas is shown at or above its logical size), but shrinking the allocation when the canvas — styled
@@ -216,15 +216,15 @@ with `dpr = 3`, that was a 1440×2040 buffer for a 300 px element.
 ## C. Code quality / structure
 
 ### 18. ✅ FIXED — Phase transitions bypassed `setPhase()` in three places (S)
-> **Fixed 2026-08-13.** `setPhase()` [3050](../html/index.html#L3050) now owns every phase→overlay
-> mapping via a `PHASE_OVERLAY` lookup [2966-2980](../html/index.html#L2966-L2980), extended to cover
+> **Fixed 2026-08-13.** `setPhase()` [3062](../html/index.html#L3062) now owns every phase→overlay
+> mapping via a `PHASE_OVERLAY` lookup [2978-2992](../html/index.html#L2978-L2992), extended to cover
 > `levelclear`/`victory`/`gameover` as well as the phases it already handled. `togglePause`
-> [2894](../html/index.html#L2894), `checkLevelClear` [4529](../html/index.html#L4529), and `endGame`
-> [3731](../html/index.html#L3731) now all just call `setPhase(...)` instead of duplicating the
+> [2906](../html/index.html#L2906), `checkLevelClear` [4556](../html/index.html#L4556), and `endGame`
+> [3743](../html/index.html#L3743) now all just call `setPhase(...)` instead of duplicating the
 > `state.phase` assignment and `showOverlay` call. (#34 below was a follow-up gap — the boot-time
 > start screen still bypassed this — since fixed.)
 
-`setPhase` [3050](../html/index.html#L3050) was the intended single entry point, but `togglePause`,
+`setPhase` [3062](../html/index.html#L3062) was the intended single entry point, but `togglePause`,
 `checkLevelClear`, and `endGame` each assigned `state.phase` *and* called `showOverlay` directly.
 That's the kind of duplication that causes an overlay/phase desync the first time someone adds a
 state.
@@ -235,10 +235,10 @@ state.
 >   nothing ever read; `paddleWidth()` remains the one source of truth.
 > - The redundant `updateHud(); drawBackground(); drawBricks(); drawPaddle();` block right before the
 >   first `requestAnimationFrame(frame)` call is removed; that first frame already paints the same
->   thing ~16 ms later via `draw()` [5189-5208](../html/index.html#L5189-L5208), and the HUD's own
->   one-time init call [4819](../html/index.html#L4819) already covers the pre-play text.
-> - `updateBalls` [4323](../html/index.html#L4323) now declares only the `dt` parameter it uses; the
->   call site [5264](../html/index.html#L5264) no longer passes the unused `now`.
+>   thing ~16 ms later via `draw()` [5221-5240](../html/index.html#L5221-L5240), and the HUD's own
+>   one-time init call [4846](../html/index.html#L4846) already covers the pre-play text.
+> - `updateBalls` [4342](../html/index.html#L4342) now declares only the `dt` parameter it uses; the
+>   call site [5300](../html/index.html#L5300) no longer passes the unused `now`.
 
 - `state.paddle.w` was assigned in `updatePaddle` but never read — every draw/collision path called
   `paddleWidth()` instead.
@@ -247,29 +247,29 @@ state.
 - `updateBalls(dt, now)` never used `now`.
 
 ### 20. ✅ FIXED — No `AudioContext` resume, and the mute state wasn't persisted (S)
-> **Fixed 2026-08-13.** `audioCtx()` [3260](../html/index.html#L3260) — `beep()`'s own body when
+> **Fixed 2026-08-13.** `audioCtx()` [3272](../html/index.html#L3272) — `beep()`'s own body when
 > this was written, split out by #59 — now calls `actx.resume()`
-> [3269](../html/index.html#L3269) whenever the context is `"suspended"` — cheap and a no-op once
+> [3281](../html/index.html#L3281) whenever the context is `"suspended"` — cheap and a no-op once
 > already running, but it rescues audio for the rest of the session if the very first beep didn't
 > happen to fire from inside a user-gesture handler. Separately, `state.muted` now round-trips through
-> `loadMuted()`/`saveMuted()` [2318-2319](../html/index.html#L2318-L2319), the same `storageGet`/
-> `storageSet` pair [2296-2310](../html/index.html#L2296-L2310) already used for the best score and the
-> language preference, written on every toggle [3238](../html/index.html#L3238) and read back into
-> `state.muted` at boot [2472](../html/index.html#L2472).
+> `loadMuted()`/`saveMuted()` [2328-2329](../html/index.html#L2328-L2329), the same `storageGet`/
+> `storageSet` pair [2306-2320](../html/index.html#L2306-L2320) already used for the best score and the
+> language preference, written on every toggle [3250](../html/index.html#L3250) and read back into
+> `state.muted` at boot [2483](../html/index.html#L2483).
 
 `beep` lazily constructed the context but never called `actx.resume()`. If the context was ever
 created outside a user gesture it started `suspended` and the game was silently mute for the rest of
 the session. Separately, `state.muted` wasn't saved, so the setting reset on every reload.
 
 ### 21. ✅ FIXED — Scattered magic numbers collected into a `CONFIG` block (M)
-> **Fixed 2026-08-13.** A single `CONFIG` object [1301-1405](../html/index.html#L1301-L1405) now holds drop
+> **Fixed 2026-08-13.** A single `CONFIG` object [1308-1413](../html/index.html#L1308-L1413) now holds drop
 > fall speed, particle gravity, the ball cap, the paddle bounce spread, each power-up's mult/duration
 > pair, and — since added by #28/#29/#30 — the difficulty ramp, combo/floating-text, and laser tuning
 > too. Every call site reads from it instead of a local literal: drop fall speed
-> [3819](../html/index.html#L3819), particle gravity [4149](../html/index.html#L4149), the ball cap in
-> both of `applyPowerup`'s multi-ball checks [3794](../html/index.html#L3794)/
-> [3801](../html/index.html#L3801), the paddle bounce spread [4382](../html/index.html#L4382), and the
-> four original effect branches [3770-3781](../html/index.html#L3770-L3781).
+> [3835](../html/index.html#L3835), particle gravity [4168](../html/index.html#L4168), the ball cap in
+> both of `applyPowerup`'s multi-ball checks [3806](../html/index.html#L3806)/
+> [3813](../html/index.html#L3813), the paddle bounce spread [4401](../html/index.html#L4401), and the
+> four original effect branches [3782-3793](../html/index.html#L3782-L3793).
 
 Magic numbers were scattered through the file: drop fall speed `130`, particle gravity `260`, effect
 durations `10`/`8` seconds, multipliers `1.6`/`0.6`/`0.7`/`1.4`, ball-cap `5`, paddle bounce spread
@@ -281,9 +281,9 @@ logic.
 ## D. Accessibility
 
 ### 22. ✅ FIXED — Overlay state changes are now announced (S)
-> **Fixed 2026-08-13.** All six `.overlay` divs [704-751](../html/index.html#L704-L751) now carry
+> **Fixed 2026-08-13.** All six `.overlay` divs [706-753](../html/index.html#L706-L753) now carry
 > `role="status" aria-live="polite"`, with a static `aria-hidden` default matching whether they're the
-> one shown at boot. `showOverlay()` [3013-3045](../html/index.html#L3013-L3045) keeps `aria-hidden` in
+> one shown at boot. `showOverlay()` [3025-3057](../html/index.html#L3025-L3057) keeps `aria-hidden` in
 > sync with the `.show` class on every transition — the overlay actually on screen is the only one
 > ever inside the accessibility tree, which is what lets a screen reader announce it as it appears
 > rather than the swap happening silently.
@@ -293,38 +293,38 @@ notification.
 
 ### 23. ✅ FIXED — Toggle buttons now reflect their state (S)
 > **Fixed 2026-08-13** (half fixed 2026-08-12 by the bilingual work — see below). Both deck buttons
-> default to `aria-pressed="false"` in markup [843-844](../html/index.html#L843-L844) and are kept in
-> sync by their render functions. `renderMuteButton()` [3108-3113](../html/index.html#L3108-L3113) now
+> default to `aria-pressed="false"` in markup [849-850](../html/index.html#L849-L850) and are kept in
+> sync by their render functions. `renderMuteButton()` [3120-3125](../html/index.html#L3120-L3125) now
 > also sets `aria-pressed`; a new `renderPauseButton()`
-> [3119-3125](../html/index.html#L3119-L3125) mirrors it for pause, and — since the pause button used to
+> [3131-3137](../html/index.html#L3131-L3137) mirrors it for pause, and — since the pause button used to
 > show the same "II" icon regardless of whether the game was actually paused — swaps the icon
 > (`⏸`/`▶`) and `aria-label` between "pause" and "resume" too, not just `aria-pressed`. It's called
-> from both `setPhase()` [3053](../html/index.html#L3053) and `applyLanguage()`
-> [3162](../html/index.html#L3162), so it stays correct across phase changes and language switches
-> alike. A `.icon-btn[aria-pressed="true"]` rule [641-645](../html/index.html#L641-L645) gives both
+> from both `setPhase()` [3065](../html/index.html#L3065) and `applyLanguage()`
+> [3174](../html/index.html#L3174), so it stays correct across phase changes and language switches
+> alike. A `.icon-btn[aria-pressed="true"]` rule [643-647](../html/index.html#L643-L647) gives both
 > buttons the same visual "pressed" cue the language toggle already had.
 
 > **Half fixed 2026-08-12** by the bilingual work. `renderMuteButton()`
-> ([3108-3113](../html/index.html#L3108-L3113)) sets the mute button's `aria-label` from both the
+> ([3120-3125](../html/index.html#L3120-L3125)) sets the mute button's `aria-label` from both the
 > language and the on/off state, so it no longer claims "Couper le son" while already muted.
 
 Neither toggle exposed `aria-pressed`, and the pause button never changed its label or state when the
 game was paused.
 
 ### 24. ✅ FIXED — Canvas now points assistive tech at the HUD (S)
-> **Fixed 2026-08-13.** The HUD [665-682](../html/index.html#L665-L682) was already reachable — plain,
+> **Fixed 2026-08-13.** The HUD [667-684](../html/index.html#L667-L684) was already reachable — plain,
 > unhidden DOM text ahead of the canvas in reading order — so no canvas fallback content was needed;
 > what was missing was the connection between the two. The canvas now carries
-> `aria-describedby="hud"` [690](../html/index.html#L690), pointing at the HUD container's new
-> `id="hud"` [665](../html/index.html#L665), so a screen-reader user who lands directly on the canvas
+> `aria-describedby="hud"` [692](../html/index.html#L692), pointing at the HUD container's new
+> `id="hud"` [667](../html/index.html#L667), so a screen-reader user who lands directly on the canvas
 > (rather than reading the page linearly) is told where the live score/lives text actually lives.
 
 `<canvas>` had an `aria-label` but empty inner content and no live text alternative for score/lives.
 
 ### 25. ✅ FIXED — `prefers-reduced-motion` is now read in JS too (S)
-> **Fixed 2026-08-13.** `burst()` [2650](../html/index.html#L2650) now scales its particle count down to
+> **Fixed 2026-08-13.** `burst()` [2662](../html/index.html#L2662) now scales its particle count down to
 > roughly a third (never below 1) whenever `reduceMotion` is true, read from
-> `matchMedia("(prefers-reduced-motion: reduce)")` [2643-2647](../html/index.html#L2643-L2647) — live,
+> `matchMedia("(prefers-reduced-motion: reduce)")` [2655-2659](../html/index.html#L2655-L2659) — live,
 > via a `change` listener, rather than once at load, so toggling the OS setting mid-session takes
 > effect on the very next burst rather than requiring a reload.
 
@@ -336,7 +336,7 @@ unaffected — the CSS media query can't reach into canvas drawing.
 ## E. Gameplay / UX enhancements
 
 ### 26. ✅ FIXED — Keyboard path out of the game-over / victory screens (S)
-> **Fixed 2026-08-13.** `showOverlay()` [3013-3045](../html/index.html#L3013-L3045) now focuses the
+> **Fixed 2026-08-13.** `showOverlay()` [3025-3057](../html/index.html#L3025-L3057) now focuses the
 > overlay's own call-to-action button whenever one appears, looked up from a small
 > `OVERLAY_PRIMARY_BTN` map (a separate map at the time; #36 below folded it into `PHASE_OVERLAY`,
 > the range linked above) ("ready" has no button and is a no-op). Once that button holds focus,
@@ -348,14 +348,14 @@ unaffected — the CSS media query can't reach into canvas drawing.
 > after a later transition. (At the time, this call bypassed `setPhase()`; #34 below folded it back
 > in. Three follow-up gaps found in this fix are tracked separately: #33, #34, #36 — all since fixed.)
 
-`handleLaunchOrResume` [2847](../html/index.html#L2847) only handled `ready` and `paused`. From
+`handleLaunchOrResume` [2859](../html/index.html#L2859) only handled `ready` and `paused`. From
 `gameover`, `victory`, `levelclear`, or the initial `start` screen, Space did nothing — the player had
 to reach for the mouse.
 
 ### 27. ✅ FIXED — Touch: the first tap both aimed and launched (S)
 > **Fixed 2026-08-13.** Launching moved from `touchstart` to a new `touchend` handler
-> [2830-2845](../html/index.html#L2830-L2845); `touchstart`/`touchmove`
-> [2818-2829](../html/index.html#L2818-L2829) now only update `pointerX`, aiming the paddle. That gives
+> [2842-2857](../html/index.html#L2842-L2857); `touchstart`/`touchmove`
+> [2830-2841](../html/index.html#L2830-L2841) now only update `pointerX`, aiming the paddle. That gives
 > the player a chance to drag into position before committing to serve, instead of the ball launching
 > from wherever the finger first landed. The "vertical offset" half of the original fix — tracking the
 > paddle's own Y position above the finger — was deliberately dropped: the paddle only ever steers
@@ -364,37 +364,37 @@ to reach for the mouse.
 > implied, and isn't needed to fix the actual bug (the ball launching prematurely). (#35 below is a
 > follow-up gap in the `touchend` handler itself.)
 
-`touchstart` [2818](../html/index.html#L2818) (previously) set `pointerX` and immediately called
+`touchstart` [2830](../html/index.html#L2830) (previously) set `pointerX` and immediately called
 `handleLaunchOrResume`. On mobile you could not position the paddle before serving — the ball launched
 from wherever your finger first landed.
 
 ### 28. ✅ FIXED — Difficulty ramp within a level (M)
-> **Fixed 2026-08-13.** `state.difficultyMult` [2470](../html/index.html#L2470) multiplies directly into
-> ball velocity [4336](../html/index.html#L4336), alongside the existing power-up speed multiplier. It
-> ramps via `bumpDifficulty()` [2534-2536](../html/index.html#L2534-L2536) — cumulative, multiplicative,
+> **Fixed 2026-08-13.** `state.difficultyMult` [2481](../html/index.html#L2481) multiplies directly into
+> ball velocity [4355](../html/index.html#L4355), alongside the existing power-up speed multiplier. It
+> ramps via `bumpDifficulty()` [2545-2547](../html/index.html#L2545-L2547) — cumulative, multiplicative,
 > capped at `CONFIG.difficulty.max` — from two classic-Breakout triggers: every top-wall bounce
-> [4342-4348](../html/index.html#L4342-L4348), and every `CONFIG.difficulty.brickMilestone` bricks
-> destroyed in the current level [4248-4261](../html/index.html#L4248-L4261). `CONFIG.difficulty`
-> [1340-1345](../html/index.html#L1340-L1345) holds the tuning; `buildLevel()`
-> [2570-2571](../html/index.html#L2570-L2571) resets both the multiplier and the milestone counter at the
+> [4361-4367](../html/index.html#L4361-L4367), and every `CONFIG.difficulty.brickMilestone` bricks
+> destroyed in the current level [4267-4280](../html/index.html#L4267-L4280). `CONFIG.difficulty`
+> [1348-1353](../html/index.html#L1348-L1353) holds the tuning; `buildLevel()`
+> [2581-2582](../html/index.html#L2581-L2582) resets both the multiplier and the milestone counter at the
 > start of every level, so the ramp never carries over from one level — or one difficulty — to the
 > next.
 
-Ball speed was fixed per level ([2064](../html/index.html#L2064), `LEVELS[i].speed`). Classic breakout
+Ball speed was fixed per level ([2073](../html/index.html#L2073), `LEVELS[i].speed`). Classic breakout
 speeds the ball up after N bricks or on reaching the top wall, which prevents long stalemates on the
 last brick.
 
 ### 29. ✅ FIXED — Score feedback on the canvas (M)
 > **Fixed 2026-08-13.** Destroying a brick now spawns a floating `"+N"` pop-up at its position
-> ([2663-2668](../html/index.html#L2663-L2668), rising and fading over `CONFIG.floatingText.life`
+> ([2675-2680](../html/index.html#L2675-L2680), rising and fading over `CONFIG.floatingText.life`
 > seconds via `updateFloatingTexts()`/`drawFloatingTexts()`
-> [4153-4160](../html/index.html#L4153-L4160)/[5172-5187](../html/index.html#L5172-L5187)), wired into
-> the frame loop alongside particles [5270](../html/index.html#L5270)/[5277](../html/index.html#L5277)
-> and `draw()` [5206](../html/index.html#L5206). Consecutive bricks destroyed without the ball touching
-> the paddle also build a combo [4265-4270](../html/index.html#L4265-L4270) that scales the points
+> [4172-4179](../html/index.html#L4172-L4179)/[5204-5219](../html/index.html#L5204-L5219)), wired into
+> the frame loop alongside particles [5306](../html/index.html#L5306)/[5313](../html/index.html#L5313)
+> and `draw()` [5238](../html/index.html#L5238). Consecutive bricks destroyed without the ball touching
+> the paddle also build a combo [4284-4289](../html/index.html#L4284-L4289) that scales the points
 > awarded, capped at `CONFIG.combo.max`; any paddle contact — top face or side clip — resets it
-> [4366](../html/index.html#L4366). `CONFIG.combo`/`CONFIG.floatingText`
-> [1346-1417](../html/index.html#L1346-L1417) hold the tuning. This changes the scoring curve going forward
+> [4385](../html/index.html#L4385). `CONFIG.combo`/`CONFIG.floatingText`
+> [1354-1425](../html/index.html#L1354-L1425) hold the tuning. This changes the scoring curve going forward
 > — an unbroken combo now scores noticeably more than the same bricks hit in isolation — so existing
 > saved best scores are no longer directly comparable to newly-earned ones.
 
@@ -403,25 +403,25 @@ paddle touch.
 
 ### 30. ✅ FIXED — Sticky paddle and laser power-ups (M)
 > **Fixed 2026-08-13.** Both suggested additions are in, slotting into the existing timed-effect
-> architecture: `POWERUPS` [1258-1259](../html/index.html#L1258-L1259), `CONFIG.effects.sticky`/
-> `CONFIG.effects.laser` [1324-1325](../html/index.html#L1324-L1325), and two new branches in
-> `applyPowerup` [3785-3790](../html/index.html#L3785-L3790).
+> architecture: `POWERUPS` [1264-1265](../html/index.html#L1264-L1265), `CONFIG.effects.sticky`/
+> `CONFIG.effects.laser` [1331-1332](../html/index.html#L1331-L1332), and two new branches in
+> `applyPowerup` [3797-3802](../html/index.html#L3797-L3802).
 >
 > **Sticky** re-attaches a ball on a genuine top-face paddle hit while `stickyEffect` is active
-> [4368-4377](../html/index.html#L4368-L4377), capped to one attached ball at a time so multi-ball
+> [4387-4396](../html/index.html#L4387-L4396), capped to one attached ball at a time so multi-ball
 > can't stack several on the paddle at once. `updatePaddle()`'s attached-ball tracking, previously
-> hardcoded to `balls[0]`, now loops over every ball [3716-3721](../html/index.html#L3716-L3721) since
+> hardcoded to `balls[0]`, now loops over every ball [3728-3733](../html/index.html#L3728-L3733) since
 > sticky can catch any of them, not just the one served at the start of a life.
 >
 > **Laser** gives the action button a second job during `"playing"`: alongside releasing a stuck ball,
-> `handleLaunchOrResume()` [2847-2857](../html/index.html#L2847-L2857) now calls `fireLaser()`
-> [2880-2892](../html/index.html#L2880-L2892), which fires classic twin bolts from the paddle on a
-> cooldown (`CONFIG.laser` [1330-1335](../html/index.html#L1330-L1335)). `updateLasers()`
-> [3834-4141](../html/index.html#L3834-L4141) moves them and reuses `brickHit()` on impact — the same
+> `handleLaunchOrResume()` [2859-2869](../html/index.html#L2859-L2869) now calls `fireLaser()`
+> [2892-2904](../html/index.html#L2892-L2904), which fires classic twin bolts from the paddle on a
+> cooldown (`CONFIG.laser` [1338-1343](../html/index.html#L1338-L1343)). `updateLasers()`
+> [3850-4160](../html/index.html#L3850-L4160) moves them and reuses `brickHit()` on impact — the same
 > scoring/combo/difficulty path a ball hit goes through — and `drawLasers()`
-> [5145-5158](../html/index.html#L5145-L5158) renders them. Releasing a sticky ball and firing both
+> [5177-5190](../html/index.html#L5177-L5190) renders them. Releasing a sticky ball and firing both
 > route through the same action-button entry point used everywhere else (mouse, touch, Space), via a
-> new `launchAttachedBalls()` helper [2859-2872](../html/index.html#L2859-L2872) `launchBall()`
+> new `launchAttachedBalls()` helper [2871-2884](../html/index.html#L2871-L2884) `launchBall()`
 > (the "ready" → "playing" serve) now also calls.
 
 The current six were solid, but nothing rewarded skillful play with new tools. **Sticky paddle** (ball
@@ -430,24 +430,24 @@ additions.
 
 ### 31. ✅ FIXED — Active power-up timers are now visible (S)
 > **Fixed 2026-08-13.** A depleting bar per effect, under the HUD
-> ([817-837](../html/index.html#L817-L837) markup, [209-266](../html/index.html#L209-L266) CSS). Slots
+> ([819-843](../html/index.html#L819-L843) markup, [209-268](../html/index.html#L209-L268) CSS). Slots
 > are toggled with the `hidden` attribute and resized via the fill's inline width rather than
 > created/destroyed — see `updateEffectBar()`/`renderEffectBars()`
-> [4844-4873](../html/index.html#L4844-L4873), called after every `applyPowerup()`
-> [3813](../html/index.html#L3813) and once per frame [5280](../html/index.html#L5280). `state.widthEffect`/
+> [4871-4900](../html/index.html#L4871-L4900), called after every `applyPowerup()`
+> [3829](../html/index.html#L3829) and once per frame [5316](../html/index.html#L5316). `state.widthEffect`/
 > `state.speedEffect` don't record which specific powerup produced them, only the resulting `mult`, so
 > the bar recovers it from the sign of `mult` — the same trick `drawPaddle()`
-> [5084](../html/index.html#L5084) already used for its colour swap.
+> [5116](../html/index.html#L5116) already used for its colour swap.
 
 The paddle changed colour for width effects, but there was no indication of *how long* an effect
 lasted, and speed effects had no visual at all.
 
 ### 32. ✅ FIXED — Add more levels (M)
 > **Fixed 2026-08-13.** Five hand-authored levels added to `LEVELS`
-> [913-927](../html/index.html#L913-L927), taking the game from 5 levels to 10. Went with hand-authored
+> [919-933](../html/index.html#L919-L933), taking the game from 5 levels to 10. Went with hand-authored
 > over the procedural-generator option: it keeps the existing finite-levels-then-`victory` structure
-> intact (`checkLevelClear()`'s `LEVELS.length - 1` win check [3721](../html/index.html#L3721), the HUD's
-> `n/LEVELS.length` readout [4141](../html/index.html#L4141), and `level.of`'s `{n}/{total}` string all
+> intact (`checkLevelClear()`'s `LEVELS.length - 1` win check [3733](../html/index.html#L3733), the HUD's
+> `n/LEVELS.length` readout [4160](../html/index.html#L4160), and `level.of`'s `{n}/{total}` string all
 > already read `LEVELS.length` generically, so nothing there needed to change) rather than redesigning
 > what "winning" means for an endless mode. The new levels lean progressively harder on `#` (walls —
 > indestructible, shape the ball's path rather than something to clear) and `S` (silver, 2hp) instead of
@@ -463,7 +463,7 @@ lasted, and speed effects had no visual at all.
 >
 > The static "Niveau 1 / 5" markup fallback (shown for the one frame before `renderDynamicText()` paints
 > the real `n/total` from `LEVELS.length`) is updated to "Niveau 1 / 10" to match, at
-> [677](../html/index.html#L677) and [686](../html/index.html#L686).
+> [679](../html/index.html#L679) and [688](../html/index.html#L688).
 
 Endless mode past level 5 (a procedural generator) was the other option on the table; not pursued here
 — see the fix note above for why hand-authoring won out for this pass. Tracked as its own follow-up in
@@ -473,10 +473,10 @@ Endless mode past level 5 (a procedural generator) was the other option on the t
 > **Fixed 2026-08-13.** `.effect-bars` and `.screen-wrap` became independent flex siblings inside a
 > new `.play-row` — the effect-bars markup moved from before `.screen-wrap` to after it, as a sibling
 > rather than a fellow child of `.cabinet`'s own flex column [57-65](../html/index.html#L57-L65)
-> *(markup: [687](../html/index.html#L687) wraps both; the bars themselves were at
-> [820-837](../html/index.html#L820-L837))*. `.effect-bars` took a fixed `flex: 0 0 84px` column
+> *(markup: [689](../html/index.html#L689) wraps both; the bars themselves were at
+> [822-843](../html/index.html#L822-L843))*. `.effect-bars` took a fixed `flex: 0 0 84px` column
 > instead of wrapping horizontally, so a slot's `hidden` toggle (still the same mechanism from
-> #31 — see `updateEffectBar()` [4844-4854](../html/index.html#L4844-L4854)) resized only that
+> #31 — see `updateEffectBar()` [4871-4881](../html/index.html#L4871-L4881)) resized only that
 > column's own height, never `.screen-wrap`'s; the canvas inside it didn't move. Below a
 > 560px-viewport breakpoint there wasn't width to spare for a side column without squeezing the
 > canvas uncomfortably small, so `.play-row` fell back to the pre-#37 stacked layout there — the
@@ -485,7 +485,7 @@ Endless mode past level 5 (a procedural generator) was the other option on the t
 > width every resize, so narrowing the canvas to share space with the sidebar needed no JS changes.
 >
 > **Superseded 2026-08-17 by #75.** The side column read as a misplaced sidebar on any normal-width
-> window rather than an intentional layout, so `.effect-bars` [221-229](../html/index.html#L221-L229)
+> window rather than an intentional layout, so `.effect-bars` [221-231](../html/index.html#L221-L231)
 > now sits as a row below `.screen-wrap` at every width instead, keeping this fix's "canvas never
 > moves" property a different way — see #75 below for the current layout.
 
@@ -505,15 +505,15 @@ aim, momentarily desynced the pointer from the paddle until the next `mousemove`
 ---
 
 ### 75. ✅ FIXED — The power-up timer bars sit in the wrong place on wide viewports (S/M)
-> **Fixed 2026-08-17.** `.effect-bars` [221-229](../html/index.html#L221-L229) now sits as a row
+> **Fixed 2026-08-17.** `.effect-bars` [221-231](../html/index.html#L221-L231) now sits as a row
 > below `.screen-wrap` at every width instead of a desktop-only side column: `.play-row`
-> [272-277](../html/index.html#L272-L277) dropped its row-at-desktop/column-below-560px split for
+> [274-279](../html/index.html#L274-L279) dropped its row-at-desktop/column-below-560px split for
 > `flex-direction: column` unconditionally, and the `@media (max-width: 560px)` fallback that used to
 > switch it there is gone outright. `.effect-bars` keeps a **reserved, fixed `height: 38px`** (two
 > wrapped rows of the 16px `.effect-bar` plus one gap — the worst-case wrap of all four bars) so a
 > slot's `hidden` toggle repaints inside the row without ever resizing it, the same "canvas never
 > moves" guarantee #37 gave the desktop sidebar, now held at every width instead of only above the
-> breakpoint. `.screen-wrap` [279-289](../html/index.html#L279-L289) picked up an explicit
+> breakpoint. `.screen-wrap` [281-291](../html/index.html#L281-L291) picked up an explicit
 > `width: 100%` so the canvas keeps filling the row now that it's the row's sole main-axis item
 > rather than a `flex: 1 1 auto` sibling growing to fill a shared row with the bars.
 
@@ -527,7 +527,7 @@ from play: the sidebar read as misplaced on a normal window, not as an intention
 
 **Not simply an oversight — #37 above put it there on purpose**, and the reason still held:
 `.effect-bar` slots toggle via the `hidden` attribute (`updateEffectBar()`,
-[4844](../html/index.html#L4844)), so with the bars stacked as an ordinary block above the canvas
+[4871](../html/index.html#L4871)), so with the bars stacked as an ordinary block above the canvas
 (the pre-#37 layout, which is what a phone still got), a slot appearing or disappearing mid-rally
 changed that block's height and shoved the canvas — and the player's aim with it — up or down. The
 side column fixed that by making `.effect-bars` a flex sibling of `.screen-wrap` rather than a block
@@ -538,7 +538,7 @@ restoring the phone's stacked-block layout at desktop widths too would have rein
 there instead. The layout that gets both — bars below the canvas *and* a canvas that never shifts —
 is a row below `.screen-wrap` with a **reserved, fixed height** regardless of how many slots are
 currently visible (sized for all four bars at once, each already a fixed `height: 16px`
-([231](../html/index.html#L231)) plus the row's `gap`), so a slot's `hidden` toggle changes what's
+([233](../html/index.html#L233)) plus the row's `gap`), so a slot's `hidden` toggle changes what's
 painted inside that row without changing the row's own height — dropping `.effect-bars`'
 `flex: 0 0 84px` column basis for a `flex: 0 0 auto` row one, applied unconditionally rather than
 only below the breakpoint, with the reserved height added rather than left implicit. `fitCanvas()`
@@ -554,19 +554,19 @@ small phones too, not just at desktop widths, for the same reason it fixes the s
 ### 78. ✅ FIXED — Effect bars label active power-ups with a single cryptic letter (S)
 > **Fixed 2026-08-17.** Went with the full-word option, not a hover-only tooltip: every bar now
 > shows the power-up's whole name directly. `updateEffectBar()`
-> ([4844-4854](../html/index.html#L4844-L4854)) takes a `name` argument instead of a single-letter
+> ([4871-4881](../html/index.html#L4871-L4881)) takes a `name` argument instead of a single-letter
 > `label`, writes it into the `*-label` element, and — since a name can be wider than the bar — also
-> sets it as the bar's `title` ([4853](../html/index.html#L4853)) as a fallback for whatever the CSS
-> ellipsis clips. `.effect-bar-label` ([251-267](../html/index.html#L251-L267)) picked up
+> sets it as the bar's `title` ([4880](../html/index.html#L4880)) as a fallback for whatever the CSS
+> ellipsis clips. `.effect-bar-label` ([253-269](../html/index.html#L253-L269)) picked up
 > `overflow: hidden`/`white-space: nowrap`/`text-overflow: ellipsis` to clip gracefully rather than
-> spill past the bar's rounded corners. `bar-sticky`/`bar-laser` ([831](../html/index.html#L831),
-> [835](../html/index.html#L835)) no longer hard-code their letter in the markup — they route through
+> spill past the bar's rounded corners. `bar-sticky`/`bar-laser` ([833](../html/index.html#L833),
+> [837](../html/index.html#L837)) no longer hard-code their letter in the markup — they route through
 > `bar-sticky-label`/`bar-laser-label` elements now, the same as width/speed always did, closing the
 > asymmetry the finding called out. Six new `powerup.*` keys
-> ([2015-2020](../html/index.html#L2015-L2020) fr, [2148-2153](../html/index.html#L2148-L2153) en)
+> ([2023-2028](../html/index.html#L2023-L2028) fr, [2157-2162](../html/index.html#L2157-L2162) en)
 > name every timed effect the bars can show — widen/narrow/slow/fast/sticky/laser; `multi`/`life`
 > have no timer bar, so they got no entry. `#effect-bars` stays `aria-hidden="true"`
-> ([820](../html/index.html#L820)) — the name is now on-screen as ordinary bar content rather than
+> ([822](../html/index.html#L822)) — the name is now on-screen as ordinary bar content rather than
 > only reachable via hover, but the strip as a whole is still fast-updating and decorative, the same
 > reasoning #31 gave it that attribute for in the first place.
 
@@ -589,9 +589,9 @@ aim, difficulty ramp, combo score"). #33–#36 all fixed.
 
 ### 33. ✅ FIXED — `showOverlay()` blurs any focused button, not just its own (S)
 > **Fixed 2026-08-13.** The blur is now scoped to buttons that actually belong to an overlay. A new
-> `OVERLAY_BUTTON_IDS` lookup [3003-3012](../html/index.html#L3003-L3012) is built from
+> `OVERLAY_BUTTON_IDS` lookup [3015-3024](../html/index.html#L3015-L3024) is built from
 > `PHASE_OVERLAY`'s button entries (from `OVERLAY_PRIMARY_BTN`'s values at the time; #36 below folded
-> that map into `PHASE_OVERLAY`), and `showOverlay()` [3034-3037](../html/index.html#L3034-L3037)
+> that map into `PHASE_OVERLAY`), and `showOverlay()` [3046-3049](../html/index.html#L3046-L3049)
 > only blurs `document.activeElement` when it's a `BUTTON` whose id is in that set — the deck's
 > mute/pause buttons never qualify, so a level clearing or a life being lost no longer yanks focus
 > away from one a keyboard user just activated.
@@ -610,9 +610,9 @@ it, yanking focus back to `document.body` with no user action.
 
 ### 34. ✅ FIXED — Boot-time overlay focus bypassed `setPhase()` again (S)
 > **Fixed 2026-08-13.** `PHASE_OVERLAY` now carries a `start: "overlay-start"` entry
-> [3006](../html/index.html#L3006) — `OVERLAY_PRIMARY_BTN` already had the matching
-> `"overlay-start": "btn-start"` since #26 [3006](../html/index.html#L3006) — so boot
-> [5420](../html/index.html#L5420) now calls `setPhase("start")` instead of `showOverlay(...)`
+> [3018](../html/index.html#L3018) — `OVERLAY_PRIMARY_BTN` already had the matching
+> `"overlay-start": "btn-start"` since #26 [3018](../html/index.html#L3018) — so boot
+> [5456](../html/index.html#L5456) now calls `setPhase("start")` instead of `showOverlay(...)`
 > directly. `state.phase` already starts as `"start"`, so the call is a no-op on `state.phase`
 > itself; what it buys is routing the very first overlay through the same single entry point
 > (`setPhase()` → `PHASE_OVERLAY` → `showOverlay()`) every other transition uses, which is what
@@ -628,7 +628,7 @@ because `"start"` wasn't a key in `PHASE_OVERLAY` (only
 through `setPhase` in the first place).
 
 ### 35. ✅ FIXED — Touch launch fires while a second finger is still down (S)
-> **Fixed 2026-08-13.** `touchend`'s handler [2830-2847](../html/index.html#L2830-L2847) now only
+> **Fixed 2026-08-13.** `touchend`'s handler [2842-2859](../html/index.html#L2842-L2859) now only
 > calls `handleLaunchOrResume()` when `e.touches.length === 0` — i.e. no finger is left on the
 > canvas. `changedTouches` (the lifted finger) still updates `pointerX` unconditionally, so aiming
 > keeps working right up to the moment a second finger is resting; only the launch itself waits for
@@ -642,12 +642,12 @@ dragging the primary finger to aim during `"ready"` would launch the ball the mo
 finger lifted, even though a finger was still down and they hadn't committed to the serve.
 
 ### 36. ✅ FIXED — `OVERLAY_PRIMARY_BTN` and `PHASE_OVERLAY` are no longer two hand-synced maps (S/M)
-> **Fixed 2026-08-13.** `PHASE_OVERLAY` [2966-2980](../html/index.html#L2966-L2980) is now the only
+> **Fixed 2026-08-13.** `PHASE_OVERLAY` [2978-2992](../html/index.html#L2978-L2992) is now the only
 > map: each phase's entry carries both its overlay id and its button id together (e.g.
 > `paused: { overlay: "overlay-pause", button: "btn-resume" }`), or is `null`/has no `button` key
 > for `"playing"`/`"ready"`. `OVERLAY_PRIMARY_BTN` is gone; `OVERLAY_BUTTON_IDS`
-> [3003-3012](../html/index.html#L3003-L3012) (see #33) and `setPhase()`
-> [3050-3058](../html/index.html#L3050-L3058) both derive what they need from `PHASE_OVERLAY` alone,
+> [3015-3024](../html/index.html#L3015-L3024) (see #33) and `setPhase()`
+> [3062-3070](../html/index.html#L3062-L3070) both derive what they need from `PHASE_OVERLAY` alone,
 > so a new phase's overlay+button pair is one entry to add rather than two maps to keep in step.
 
 `PHASE_OVERLAY` mapped phase → overlay id; `OVERLAY_PRIMARY_BTN` separately mapped overlay id →
@@ -667,14 +667,14 @@ three fixed.
 
 ### 38. ✅ FIXED — Ball can tunnel through the paddle once the difficulty ramp stacks with the fast power-up (M)
 > **Fixed 2026-08-14.** A swept paddle-only check now runs in `updateBalls()` right before the
-> existing overlap test — [4352-4364](../html/index.html#L4352-L4364). When the ball's start-of-frame
+> existing overlap test — [4371-4383](../html/index.html#L4371-L4383). When the ball's start-of-frame
 > position was above the paddle top but its end-of-frame position has already cleared the paddle
 > bottom (the exact tunneling case: no overlap left for `circleRectCollide` to catch), it's rewound
 > to the point where it crossed the paddle's top plane, so the existing `isTopHit` branch just below
 > sees a normal top hit and steers it exactly as it always has. Bricks are deliberately exempt — a
 > missed brick costs nothing, the ball just continues past it — so this only guards the one collision
 > that actually costs the player something. The stale comment in `LEVELS`
-> ([918-924](../html/index.html#L918-L924)) claiming level 10's speed was "kept under the ceiling" is
+> ([924-930](../html/index.html#L924-L930)) claiming level 10's speed was "kept under the ceiling" is
 > corrected too: that ceiling never held once the difficulty ramp was accounted for, and the sweep
 > makes level speed a non-issue for this class of bug going forward. The paper-math test in
 > `test/suites/physics.js` ("the ball cannot tunnel through the paddle...") is now a behavioural test
@@ -685,10 +685,10 @@ three fixed.
 The "cannot tunnel through the paddle at maximum speed" test
 ([test/suites/physics.js:202–218](../test/suites/physics.js#L202-L218)) only budgets for
 `baseBallSpeed * LEVELS[i].speed * fast-powerup's 1.4x`, capped by the 33ms clamped max `dt`
-([5214](../html/index.html#L5214)). It never factors in `state.difficultyMult`
-([2470](../html/index.html#L2470)), the mid-level ramp (up to `CONFIG.difficulty.max` = `1.6`,
-[1344](../html/index.html#L1344)) that's multiplied into the same per-frame displacement at
-[4336](../html/index.html#L4336):
+([5250](../html/index.html#L5250)). It never factors in `state.difficultyMult`
+([2481](../html/index.html#L2481)), the mid-level ramp (up to `CONFIG.difficulty.max` = `1.6`,
+[1352](../html/index.html#L1352)) that's multiplied into the same per-frame displacement at
+[4355](../html/index.html#L4355):
 
 ```js
 var v = ball.speed * mult * state.difficultyMult * dt;
@@ -716,7 +716,7 @@ in a stalled tab. It also predates #32: level 5 at its original speed (`1.48`) a
 
 **Recommended fix:** a swept check for the paddle only (bricks are exempt — a missed brick costs
 nothing, the ball just continues), inserted before the existing overlap test at
-[4351](../html/index.html#L4351):
+[4370](../html/index.html#L4370):
 
 ```js
 // #38: on a slow frame a fast ball (level speed x fast power-up x the
@@ -743,21 +743,21 @@ should be replaced with a behavioural test that drives this exact worst case (le
 `difficultyMult` at its cap, one 33ms frame) and asserts the ball still bounces, plus a `#38`
 regression test in `regressions.js` per the project's fix loop. The level-speed ceiling that
 constrained #32's tuning (~2.25) stops being a correctness constraint once the sweep exists; the
-comment at [917-925](../html/index.html#L917-L925) claiming level 10 is "kept under the ceiling" should
+comment at [923-931](../html/index.html#L923-L931) claiming level 10 is "kept under the ceiling" should
 be corrected either way, since it's not accurate today.
 
 ### 39. ✅ FIXED — Stale "1/5" HUD markup fallback (S)
 > **Fixed 2026-08-14.** The markup now reads `<div class="hud-value" id="hud-level">1/10</div>`
-> ([650](../html/index.html#L650)), matching the two overlay-eyebrow fallbacks #32 already updated. A
+> ([652](../html/index.html#L652)), matching the two overlay-eyebrow fallbacks #32 already updated. A
 > `#39` regression test in `test/suites/regressions.js` checks the raw source text directly (not the
 > post-boot DOM, since `updateHud()` overwrites this on the very first frame regardless of what the
 > static markup said) so a future level-count change can't let this one quietly go stale again.
 
-The static HUD counter at [650](../html/index.html#L650) —
+The static HUD counter at [652](../html/index.html#L652) —
 `<div class="hud-value" id="hud-level">1/5</div>` — was not updated when #32 took the game to 10
 levels, even though the #32 fix explicitly updated the two parallel overlay-eyebrow fallbacks at
-[677](../html/index.html#L677) and [686](../html/index.html#L686) for the identical reason (both read
-"Niveau 1 / 10" now). `updateHud()` ([4141](../html/index.html#L4141)) overwrites it with the real
+[679](../html/index.html#L679) and [688](../html/index.html#L688) for the identical reason (both read
+"Niveau 1 / 10" now). `updateHud()` ([4160](../html/index.html#L4160)) overwrites it with the real
 `n/LEVELS.length` on the first frame, so this is only visible for the one frame before JS runs — but
 that's exactly the case the #32 fix already reasoned about and fixed for the other two instances.
 
@@ -784,7 +784,7 @@ Neither was extended when #32 added levels 6–10, so those levels' collision/ph
 (no ball resting inside a live brick, no sub-floor `|dy|`, etc.) are never exercised by this suite.
 That matters here specifically because levels 6–10 introduce much denser `#`/`S` checkerboards than
 levels 1–5 — level 10's rows 1–2 are 100% wall/silver with no empty cells
-([887](../html/index.html#L887)) — which is exactly the kind of brick-adjacency layout the
+([893](../html/index.html#L893)) — which is exactly the kind of brick-adjacency layout the
 smallest-penetration collision resolver (#10) was written to handle, and the new density is untested
 territory for it.
 
@@ -804,34 +804,34 @@ levels, not depth on any one of them.
 
 ### 42. ✅ FIXED — Hall of fame: prompt for a name at game over, show the top 10 (L)
 > **Fixed 2026-08-14.** Both phases sketched in the "open design questions" below are in: `nameentry`
-> (a text input + submit button, markup at [766-775](../html/index.html#L766-L775)) and `halloffame`
-> (the top-10 board + a continue button, [777-783](../html/index.html#L777-L783)), each with its own
-> `PHASE_OVERLAY` entry ([2979-2980](../html/index.html#L2979-L2980)) rather than bolting an input onto
-> `overlay-victory`/`overlay-gameover` directly. `endGame()` ([4534-4550](../html/index.html#L4534-L4550))
+> (a text input + submit button, markup at [768-777](../html/index.html#L768-L777)) and `halloffame`
+> (the top-10 board + a continue button, [779-785](../html/index.html#L779-L785)), each with its own
+> `PHASE_OVERLAY` entry ([2991-2992](../html/index.html#L2991-L2992)) rather than bolting an input onto
+> `overlay-victory`/`overlay-gameover` directly. `endGame()` ([4561-4577](../html/index.html#L4561-L4577))
 > detours through `nameentry` — remembering which final screen to return to afterward in
 > `state.returnPhase` (generalized from a `pendingWon` boolean by #43) — whenever
 > `qualifiesForHallOfFame(state.score)`
-> ([4579-4581](../html/index.html#L4579-L4581)) is true: strictly greater than 0, and either the board
+> ([4606-4608](../html/index.html#L4606-L4608)) is true: strictly greater than 0, and either the board
 > has room or the score beats its current lowest entry via `hallOfFameRank()`
-> ([4567-4572](../html/index.html#L4567-L4572)) — a tie with the lowest entry does not bump it. The
+> ([4594-4599](../html/index.html#L4594-L4599)) — a tie with the lowest entry does not bump it. The
 > board is a capped, sorted `{name, score}` list under a new `neonbreak-hall-of-fame` key
-> ([2293](../html/index.html#L2293)), round-tripped through `loadHallOfFame()`/`saveHallOfFame()`
-> ([2326-2339](../html/index.html#L2326-L2339)) via the same guarded `storageGet`/`storageSet` pair #2
+> ([2303](../html/index.html#L2303)), round-tripped through `loadHallOfFame()`/`saveHallOfFame()`
+> ([2336-2349](../html/index.html#L2336-L2349)) via the same guarded `storageGet`/`storageSet` pair #2
 > already uses — a throw, or corrupted/foreign JSON under that key, degrades to an empty board rather
 > than taking the game down.
 >
 > A submitted name is trimmed, capped to `CONFIG.hallOfFame.nameMax` (12 characters,
-> [1426-1444](../html/index.html#L1426-L1444)), and falls back to a translated `"???"` placeholder when
-> empty (`submitHallOfFameName()`, [4652-4681](../html/index.html#L4652-L4681)). `renderHallOfFame()`
-> ([4688-4713](../html/index.html#L4688-L4713)) rebuilds the board through `innerHTML` rather than
+> [1434-1452](../html/index.html#L1434-L1452)), and falls back to a translated `"???"` placeholder when
+> empty (`submitHallOfFameName()`, [4679-4708](../html/index.html#L4679-L4708)). `renderHallOfFame()`
+> ([4715-4740](../html/index.html#L4715-L4740)) rebuilds the board through `innerHTML` rather than
 > `textContent` as sketched below — the test harness's DOM stub has no `createElement`/`appendChild`
 > to build real nodes with — but every interpolated value (the name; the score too, for uniformity)
-> goes through a small `escapeHtml()` helper first ([893-895](../html/index.html#L893-L895)), so a name
+> goes through a small `escapeHtml()` helper first ([899-901](../html/index.html#L899-L901)), so a name
 > like `<img src=x onerror=...>` still can't be interpreted as markup. `isButtonFocused()` is renamed
 > to `isTypingTarget()` and widened to also cover a focused `<input>`
-> ([2731-2734](../html/index.html#L2731-L2734)), so Space still reaches the name field instead of being
+> ([2743-2746](../html/index.html#L2743-L2746)), so Space still reaches the name field instead of being
 > hijacked for launch/laser; Enter submits directly from the field
-> ([2781-2783](../html/index.html#L2781-L2783)) since nothing else in this file uses a `<form>`.
+> ([2793-2795](../html/index.html#L2793-L2795)) since nothing else in this file uses a `<form>`.
 >
 > Covered by ten `#42a`–`#42j` cases in `regressions.js` — qualification gating including the score-0
 > and tie edge cases, sorted insertion, the empty-name fallback, HTML-escaping, the win/loss branch
@@ -840,23 +840,23 @@ levels, not depth on any one of them.
 > qualifying score (`state.js`, `rules.js`, `i18n.js`, `persistence.js`) now seed a full board via the
 > `storage` boot option so they keep exercising what they were actually about, not the hall of fame.
 
-Feature request: when a run ends (`endGame()`, [4534](../html/index.html#L4534)) with a score that
+Feature request: when a run ends (`endGame()`, [4561](../html/index.html#L4561)) with a score that
 qualifies, prompt the player for their name, then show a top-10 leaderboard of name+score pairs.
 
 Today only a single number persists across sessions — `state.best`, round-tripped through
-`loadBest()`/`saveBest()` ([2309-2310](../html/index.html#L2309-L2310)) under `BEST_KEY`
-([2290](../html/index.html#L2290)), both guarded by `storageGet`/`storageSet`
-([2300-2309](../html/index.html#L2300-L2309)) per #2. This replaces "a number" with "a list":
+`loadBest()`/`saveBest()` ([2319-2320](../html/index.html#L2319-L2320)) under `BEST_KEY`
+([2300](../html/index.html#L2300)), both guarded by `storageGet`/`storageSet`
+([2310-2319](../html/index.html#L2310-L2319)) per #2. This replaces "a number" with "a list":
 a new `localStorage` key (e.g. `neonbreak-hall-of-fame`) holding a JSON array of `{ name, score }`,
 capped at 10, sorted descending, read/written through the same guarded helpers so a throwing
 `localStorage` degrades the same way #2 already handles for the best score.
 
-**Where it hooks in:** both `endGame(true)` and `endGame(false)` ([4534](../html/index.html#L4534)) —
+**Where it hooks in:** both `endGame(true)` and `endGame(false)` ([4561](../html/index.html#L4561)) —
 a run can end either by winning or by running out of lives, and both should qualify. The natural gate
 is "does this score beat the lowest of the current top 10 (or is the list not yet full)?" — most runs
 won't qualify, and skipping the prompt entirely for those keeps the existing victory/gameover flow
-(`PHASE_OVERLAY` [2966-2980](../html/index.html#L2966-L2980), `overlay-victory`/`overlay-gameover`
-markup [734-761](../html/index.html#L734-L761)) untouched for the common case.
+(`PHASE_OVERLAY` [2978-2992](../html/index.html#L2978-L2992), `overlay-victory`/`overlay-gameover`
+markup [736-763](../html/index.html#L736-L763)) untouched for the common case.
 
 **Open design questions, not pre-decided:**
 - *New phase(s) vs. extending the existing overlays.* The cleanest fit with the existing
@@ -870,11 +870,11 @@ markup [734-761](../html/index.html#L734-L761)) untouched for the common case.
   for every other piece of user-facing text, but this is the first *player-supplied* string in the
   game.
 - *i18n.* Every new string (the name-entry prompt, its input placeholder, the hall-of-fame title, an
-  empty-list message) needs a key in both `STRINGS.fr` and `STRINGS.en` ([1900](../html/index.html#L1900))
+  empty-list message) needs a key in both `STRINGS.fr` and `STRINGS.en` ([1908](../html/index.html#L1908))
   — the `i18n` suite already fails the build if one language's table is missing a key the other has,
   so this is enforced automatically once the keys exist.
 - *Keyboard/focus.* The name-entry overlay's input should get focus the way every other overlay's
-  primary button does today (`showOverlay()` [3013](../html/index.html#L3013), #26), and
+  primary button does today (`showOverlay()` [3025](../html/index.html#L3025), #26), and
   submitting needs both an Enter-in-the-input path and a click path — mirroring how
   `handleLaunchOrResume()` already serves keyboard, mouse, and touch from one entry point.
 
@@ -885,18 +885,18 @@ containing HTML-special characters renders as literal text, not markup.
 
 ### 43. ✅ FIXED — View the hall of fame from the start screen, before playing (S)
 > **Fixed 2026-08-14.** A second, lower-emphasis button on `overlay-start`
-> ([709-710](../html/index.html#L709-L710), styled with a new `.btn-ghost` modifier
-> [421-426](../html/index.html#L421-L426)) opens the board on demand — its handler
-> ([3171-3191](../html/index.html#L3171-L3191)) sets `state.returnPhase = "start"` and calls
+> ([711-712](../html/index.html#L711-L712), styled with a new `.btn-ghost` modifier
+> [423-428](../html/index.html#L423-L428)) opens the board on demand — its handler
+> ([3183-3203](../html/index.html#L3183-L3203)) sets `state.returnPhase = "start"` and calls
 > `setPhase("halloffame")` directly, never `newGame()`, so score/lives/level are untouched. The
 > board itself needed no changes — `renderHallOfFame()` already renders `halloffame.empty` for a
 > fresh install with nothing on it yet, exactly as sketched below.
 >
 > `state.pendingWon` (a `true`/`false`/`null` flag) is generalized into `state.returnPhase`
-> (`"start"` / `"victory"` / `"gameover"`, [2486-2491](../html/index.html#L2486-L2491)): `endGame()`
-> ([4548](../html/index.html#L4548)) sets it to `won ? "victory" : "gameover"` before the post-game
+> (`"start"` / `"victory"` / `"gameover"`, [2497-2502](../html/index.html#L2497-L2502)): `endGame()`
+> ([4575](../html/index.html#L4575)) sets it to `won ? "victory" : "gameover"` before the post-game
 > detour exactly as `pendingWon` did, and the continue button
-> ([3230-3232](../html/index.html#L3230-L3232)) just does `setPhase(state.returnPhase)` — one field
+> ([3242-3244](../html/index.html#L3242-L3244)) just does `setPhase(state.returnPhase)` — one field
 > now serves both entry points into `halloffame` instead of the continue button special-casing
 > "opened from the start screen" as a third, unnamed case. `PHASE_OVERLAY`'s `start`/`halloffame`
 > entries needed no changes, exactly as anticipated below.
@@ -991,7 +991,7 @@ back to `start`, not `gameover`; and a case confirming the existing post-game ro
 
 **Requested directly by the user.** Today's board (#42, #43 in [done.md](done.md)) is private to each
 browser: it lives in `localStorage` under `neonbreak-hall-of-fame`
-([2293](../html/index.html#L2293)), so two players never see each other's scores, and the same person
+([2303](../html/index.html#L2303)), so two players never see each other's scores, and the same person
 sees a different board on their phone than on their laptop. It is also per-origin, which means
 `blokrush.pages.dev` and `blokrush.sebkiller.com` already keep separate boards.
 
@@ -1047,7 +1047,7 @@ required, and it must not mean wiping the board.
 #### Moderation and safety
 
 Names become world-visible, which they are not today. `renderHallOfFame()` already escapes
-interpolated values ([4709-4710](../html/index.html#L4709-L4710)), so XSS is handled, but a public
+interpolated values ([4736-4737](../html/index.html#L4736-L4737)), so XSS is handled, but a public
 board needs length limits enforced server-side (not just `CONFIG.hallOfFame.nameMax`), some profanity
 handling, and a decision on whether to store any IP or identifier for abuse handling — which carries
 its own privacy obligations.
@@ -1186,17 +1186,17 @@ hand-authored levels for free.
 ### 58. ✅ FIXED — Screen shake, hit-stop, and impact scaling (S)
 
 > **Fixed 2026-08-14.** All three, tuned in `CONFIG.impact`
-> ([1383-1395](../html/index.html#L1383-L1395)) and driven from three timers on `state`
-> ([2507-2512](../html/index.html#L2507-L2512)): a camera shake on an explosion
-> ([4288-4289](../html/index.html#L4288-L4289)) and on a lost ball
-> ([4545](../html/index.html#L4545)), 55 ms of frozen simulation with the blast, and a paddle squash
-> on every steered bounce ([4485](../html/index.html#L4485)). The whole layer lives in one block —
-> [2709-2763](../html/index.html#L2709-L2763).
+> ([1391-1403](../html/index.html#L1391-L1403)) and driven from three timers on `state`
+> ([2518-2523](../html/index.html#L2518-L2523)): a camera shake on an explosion
+> ([4307-4308](../html/index.html#L4307-L4308)) and on a lost ball
+> ([4572](../html/index.html#L4572)), 55 ms of frozen simulation with the blast, and a paddle squash
+> on every steered bounce ([4504](../html/index.html#L4504)). The whole layer lives in one block —
+> [2721-2775](../html/index.html#L2721-L2775).
 >
 > **It is presentation, and the boundary is enforced rather than described.** The shake is a
-> `ctx.translate` around the whole scene in `draw()` ([5190-5195](../html/index.html#L5190-L5195)),
+> `ctx.translate` around the whole scene in `draw()` ([5222-5227](../html/index.html#L5222-L5227)),
 > so nothing the game simulates moves because of it, and the squash is applied to the paddle's drawn
-> rectangle only ([5088-5098](../html/index.html#L5088-L5098)) — `state.paddle.h` still governs
+> rectangle only ([5120-5130](../html/index.html#L5120-L5130)) — `state.paddle.h` still governs
 > collision, so the paddle cannot get easier or harder to hit by flexing.
 >
 > **The shake offset is derived from its own timer, not `rand()`** — two fast, incommensurable sines.
@@ -1204,13 +1204,13 @@ hand-authored levels for free.
 > resolutions) depend on how many frames it happened to paint, which is a bug that would have
 > surfaced as unreproducible seeded tests long after the cause was forgotten. `#58f` pins it.
 >
-> **Hit-stop is set, never accumulated** ([2689-2694](../html/index.html#L2689-L2694)). Summing it
+> **Hit-stop is set, never accumulated** ([2701-2706](../html/index.html#L2701-L2706)). Summing it
 > across a five-brick explosive chain would put the game to sleep for a third of a second and read as
 > a hang. It is also spent from real elapsed time and cleared on a life reset
-> ([2602-2604](../html/index.html#L2602-L2604)), so no path leaves the simulation frozen.
+> ([2614-2616](../html/index.html#L2614-L2616)), so no path leaves the simulation frozen.
 >
 > `drawBackground()` now bleeds past the play area by the largest possible offset
-> ([4915-4923](../html/index.html#L4915-L4923)); an exactly sized fill leaves a strip of the
+> ([4942-4950](../html/index.html#L4942-L4950)); an exactly sized fill leaves a strip of the
 > previous frame standing along whichever edge the shake moved away from.
 >
 > Gated on the `reduceMotion` flag #25 already established — under `prefers-reduced-motion` none of
@@ -1235,43 +1235,43 @@ above), which is already wired up.
 
 > **Fixed 2026-08-15.** All three parts, still on nothing but oscillators — no assets, no library,
 > no new UI. `beep()` is now a one-line wrapper over `tone()`
-> ([3279-3309](../html/index.html#L3279-L3309)), the single primitive everything audible is built
+> ([3291-3321](../html/index.html#L3291-L3321)), the single primitive everything audible is built
 > from: a note at a scheduled time, optionally gliding to a second frequency (`slide`) or doubled by
 > a detuned twin (`detune`).
 >
 > **The game is in a key.** `noteFreq()`, a minor-pentatonic `MUSIC_SCALE` and one root per level in
-> `MUSIC_KEYS` ([3401-3403](../html/index.html#L3401-L3403)) pitch the music, the brick voices and
+> `MUSIC_KEYS` ([3413-3415](../html/index.html#L3413-L3415)) pitch the music, the brick voices and
 > the combo ladder from the same place, so a hit lands in tune with the bed rather than beside it —
 > and each level sounds like a different level without a single new asset.
 >
-> **A voice per brick type.** `BRICK_VOICE` ([3456-3467](../html/index.html#L3456-L3467)) gives each
+> **A voice per brick type.** `BRICK_VOICE` ([3468-3479](../html/index.html#L3468-L3479)) gives each
 > type its own timbre, register and envelope: a wall thuds low and slides down, silver rings as two
 > detuned squares, a mystery brick sparkles upward as it resolves, an explosive drops. Type is the
 > only thing that changes what a hit *does* (#49/#51/#52), so it is now also the only thing that
-> changes what a hit sounds like. `brickTone()` ([3471-3479](../html/index.html#L3471-L3479))
+> changes what a hit sounds like. `brickTone()` ([3483-3491](../html/index.html#L3483-L3491))
 > replaces the four hand-tuned `beep()` calls that used to be scattered through `brickHit()`
-> ([4335-4388](../html/index.html#L4335-L4388)).
+> ([4354-4407](../html/index.html#L4354-L4407)).
 >
-> **A ladder for streaks.** `ladderSemi()` ([3449-3451](../html/index.html#L3449-L3451)) climbs a
+> **A ladder for streaks.** `ladderSemi()` ([3461-3463](../html/index.html#L3461-L3463)) climbs a
 > step of the scale per brick destroyed without a paddle touch, wrapping octaves and holding after
 > two — past that the notes stop reading as notes. It is added only when the brick was destroyed,
 > because only a destroyed brick builds the combo it counts, and it is read *after* `state.combo` is
-> raised ([4363](../html/index.html#L4363)) so a hit sounds on the rung it just earned.
+> raised ([4382](../html/index.html#L4382)) so a hit sounds on the rung it just earned.
 >
-> **The bed.** Four voices over a 16-step bar ([3574-3630](../html/index.html#L3574-L3630)), queued
-> by `updateMusic()` ([3682-3703](../html/index.html#L3682-L3703)) from `frame()`
-> ([5226](../html/index.html#L5226)) and tuned in `CONFIG.music`
-> ([1366-1372](../html/index.html#L1366-L1372)). Three things about it are deliberate:
+> **The bed.** Four voices over a 16-step bar ([3586-3642](../html/index.html#L3586-L3642)), queued
+> by `updateMusic()` ([3694-3715](../html/index.html#L3694-L3715)) from `frame()`
+> ([5262](../html/index.html#L5262)) and tuned in `CONFIG.music`
+> ([1374-1380](../html/index.html#L1374-L1380)). Three things about it are deliberate:
 >
 > - **Frames decide what, the audio clock decides when.** A note placed at `frame()` time lands
 >   wherever the frame fell, which at 60 Hz is up to 16 ms off the beat and audibly so. Frames only
 >   queue steps up to `lookahead` ahead of `actx.currentTime`; WebAudio places them.
-> - **A stall resyncs rather than catching up** ([3692](../html/index.html#L3692)). A backgrounded
+> - **A stall resyncs rather than catching up** ([3704](../html/index.html#L3704)). A backgrounded
 >   tab leaves the audio clock tens of seconds ahead of the bar; without this the next frame would
 >   queue every missed step at once — a burst, not music, and an unbounded loop besides. `#59f` pins
 >   it.
 > - **Voices arrive on the beat they are earned and leave slowly** — `nextIntensity()`
->   ([3669-3676](../html/index.html#L3669-L3676)) rises instantly to whatever `voiceCombo` tier the
+>   ([3681-3688](../html/index.html#L3681-L3688)) rises instantly to whatever `voiceCombo` tier the
 >   streak has reached and falls at `voiceDecay` voices per second. Instant decay would flicker the
 >   whole arrangement on and off, since a combo dies on *every* paddle touch — several times a level,
 >   by design. `intensity` is a float, so a voice fades in and out rather than switching.
@@ -1279,7 +1279,7 @@ above), which is already wired up.
 > Like #58's impact layer, this reads game state and writes none of it, and — same hazard, same fix —
 > it takes nothing from the RNG stream (`#59g`): a note chosen by `rand()` would make what the game
 > rolls depend on how long it had been playing, and seeded physics runs would stop reproducing.
-> Mute needed no change: `audioCtx()` ([3260-3272](../html/index.html#L3260-L3272)) returns null
+> Mute needed no change: `audioCtx()` ([3272-3284](../html/index.html#L3272-L3284)) returns null
 > while muted, which stops the bed at its source rather than turning it down.
 >
 > The harness gained a real audio stub. The old one accepted calls and discarded them, which was
@@ -1298,25 +1298,25 @@ toggle and its persisted state cover the opt-out.
 ### 60. ✅ FIXED — Background parallax and per-level themes (S/M)
 
 > **Fixed 2026-08-15.** Five acts of two levels each. `THEMES`
-> ([964-980](../html/index.html#L964-L980)) carries a sky gradient, a grid tint, a horizon tint and
-> a star colour per act; `themeFor()` ([982-984](../html/index.html#L982-L984)) maps the level onto
+> ([970-986](../html/index.html#L970-L986)) carries a sky gradient, a grid tint, a horizon tint and
+> a star colour per act; `themeFor()` ([988-990](../html/index.html#L988-L990)) maps the level onto
 > it, and `buildLevel()` resolves both the palette and the star field once per level
-> ([2572-2573](../html/index.html#L2572-L2573)) rather than per frame.
+> ([2583-2584](../html/index.html#L2583-L2584)) rather than per frame.
 >
 > **Brick colours are deliberately not themed.** A brick's colour *is* its type (#49/#51/#52), so
 > re-tinting the field's foreground per act would make the one thing the player has to read at a
 > glance the one thing that keeps moving. Only the background changes.
 >
 > **The parallax is three star layers plus a scrolling horizon**
-> ([4895-4912](../html/index.html#L4895-L4912)), all derived from one number — `state.bgScroll`,
-> seconds of real time accumulated in `frame()` ([5231](../html/index.html#L5231)). Nearer layers
-> drift faster (`STAR_LAYERS`, [988-992](../html/index.html#L988-L992)), which is the whole effect;
+> ([4922-4939](../html/index.html#L4922-L4939)), all derived from one number — `state.bgScroll`,
+> seconds of real time accumulated in `frame()` ([5267](../html/index.html#L5267)). Nearer layers
+> drift faster (`STAR_LAYERS`, [994-998](../html/index.html#L994-L998)), which is the whole effect;
 > deriving every offset from the same accumulator is what stops the layers from sliding out of
 > register after a stall. Stars are drawn a layer at a time, so the field costs three fill-style
 > changes a frame rather than fifty, and the sky gradient is rebuilt only when the act changes
-> ([4881-4893](../html/index.html#L4881-L4893)) — `createLinearGradient` allocates.
+> ([4908-4920](../html/index.html#L4908-L4920)) — `createLinearGradient` allocates.
 >
-> **The field is generated, not rolled** ([1009-1021](../html/index.html#L1009-L1021)): a Lehmer
+> **The field is generated, not rolled** ([1015-1027](../html/index.html#L1015-L1027)): a Lehmer
 > generator seeded from the level index. Two reasons, and both are load-bearing — a level that laid
 > out differently on a retry would read as a glitch rather than as a retry, and drawing from
 > `Math.random()` would put the paint into the same RNG stream that drop chances and mystery
@@ -1340,22 +1340,22 @@ than only in the HUD counter, which is how *Shatter* and *Wizorb* sell their act
 
 > **Fixed 2026-08-15.** The run is now `CONFIG.progression.totalLevels` = 100 levels long, ending in
 > the `victory` the game already had. `LEVELS` still authors the first ten; `generateLevel()`
-> ([1189-1237](../html/index.html#L1189-L1237)) builds the rest from the level index alone.
+> ([1195-1243](../html/index.html#L1195-L1243)) builds the rest from the level index alone.
 >
-> **One accessor hides the seam.** `levelDef(idx)` ([1239-1248](../html/index.html#L1239-L1248))
+> **One accessor hides the seam.** `levelDef(idx)` ([1245-1254](../html/index.html#L1245-L1254))
 > returns the authored entry or a generated one of the same `{ rows, speed }` shape, memoised a
 > single slot deep because `resetPaddleAndBall()` re-reads it on every lost ball. Its two callers are
-> `buildLevel()` ([2543](../html/index.html#L2543)) and `resetPaddleAndBall()`
-> ([2587](../html/index.html#L2587)), and neither can tell the difference.
-> `CONFIG.progression.totalLevels` ([1307-1314](../html/index.html#L1307-L1314)) replaced
-> `LEVELS.length` in `checkLevelClear()` ([4618](../html/index.html#L4618)), `renderDynamicText()`
-> ([2969](../html/index.html#L2969)) and `updateHud()` ([4910](../html/index.html#L4910)), and the
-> HUD's pre-JS fallback became `1/100` ([676](../html/index.html#L676)) — #39's point about a stale
+> `buildLevel()` ([2554](../html/index.html#L2554)) and `resetPaddleAndBall()`
+> ([2599](../html/index.html#L2599)), and neither can tell the difference.
+> `CONFIG.progression.totalLevels` ([1314-1321](../html/index.html#L1314-L1321)) replaced
+> `LEVELS.length` in `checkLevelClear()` ([4645](../html/index.html#L4645)), `renderDynamicText()`
+> ([2981](../html/index.html#L2981)) and `updateHud()` ([4937](../html/index.html#L4937)), and the
+> HUD's pre-JS fallback became `1/100` ([678](../html/index.html#L678)) — #39's point about a stale
 > fallback applies unchanged. Putting the length in `CONFIG` rather than in a bare constant is what
 > left the test seam untouched: `CONFIG` was already exposed.
 >
 > **Deterministic, never from `Math.random()`.** The inline Lehmer generator #60 used for the star
-> field is now a shared `seededRandom(seed)` ([1001-1005](../html/index.html#L1001-L1005)), seeded from
+> field is now a shared `seededRandom(seed)` ([1007-1011](../html/index.html#L1007-L1011)), seeded from
 > the level index in both places. Level 47 is the same layout for every player and reproducible in a
 > test (`#41d`), and rolling from the shared stream would have made drop chances and mystery
 > resolutions depend on how many levels had been generated — the hazard `#58f`, `#59g` and `#60d`
@@ -1363,26 +1363,26 @@ than only in the HUD counter, which is how *Shatter* and *Wizorb* sell their act
 >
 > **Archetypes, not noise.** Per-cell randomness produces mush; the authored levels are patterned.
 > One archetype is picked per level from a library of seven — solid bands, checker, columns, pyramid,
-> diamond, fortress, arch ([1055-1075](../html/index.html#L1055-L1075)) — and each row is built for the
+> diamond, fortress, arch ([1061-1081](../html/index.html#L1061-L1081)) — and each row is built for the
 > left five cells and mirrored. Symmetry is most of what makes a layout read as authored. Type mix
 > escalates with depth `d = idx - LEVELS.length`: silver from the start rising to 30% of cells, walls
 > from d≥3 capped at 12% and never in the bottom row, 0–3 explosives from d≥2, 1–4 mysteries from
 > d≥5, 0–2 regenerating from d≥10. The three budgeted types are scattered *after* the mirror
-> ([1151-1169](../html/index.html#L1151-L1169)) so their counts stay what the table asks for rather than
+> ([1157-1175](../html/index.html#L1157-L1175)) so their counts stay what the table asks for rather than
 > silently doubling — a few asymmetric accents cost a layout nothing, a doubled explosive budget
 > would. Rows grow `6 + floor(d/12)`, capped at the authored maximum of 10.
 >
 > **Every destructible brick is reachable.** A brick walled off from the ball is a softlock:
 > `remainingBricks` never falls to zero and the run is dead with nothing left to hit. `ensureReachable()`
-> ([1131-1147](../html/index.html#L1131-L1147)) flood-fills up from the open space below the layout —
+> ([1137-1153](../html/index.html#L1137-L1153)) flood-fills up from the open space below the layout —
 > four-neighbour, empty cells and destructible bricks passable (a destructible brick opens its own
 > cell once it is gone), `#` solid — and repairs rather than re-rolls, downgrading whichever wall
-> faces open space ([1108-1127](../html/index.html#L1108-L1127)) and trying again. Termination is
+> faces open space ([1114-1133](../html/index.html#L1114-L1133)) and trying again. Termination is
 > guaranteed, since with no walls left everything is reachable, and a repair pass is deterministic,
 > so it costs nothing in seed stability. `#41c` asserts the invariant with a flood fill written
 > independently in the test rather than by calling the game's own validator.
 >
-> **Both curves saturate rather than compound** ([1174-1187](../html/index.html#L1174-L1187)), and both
+> **Both curves saturate rather than compound** ([1180-1193](../html/index.html#L1180-L1193)), and both
 > are anchored on the authored table so they pick up exactly where `LEVELS` leaves off. Speed
 > approaches 2.8 from level 10's 2.08 with a ~25-level time constant — 2.32 at 20, 2.65 at 50, 2.78
 > at 100 — deliberately modest, because at the cap the ball already crosses ~51px in a worst-case
@@ -1391,10 +1391,10 @@ than only in the HUD counter, which is how *Shatter* and *Wizorb* sell their act
 > collision is not swept: **layout carries the back half of the difficulty, not speed.**
 > `levelMultiplier(n)` stays exactly `n` through level 10 — the existing scoring tests pin that —
 > then saturates toward 20 with a ~30-level constant, replacing the `(state.levelIndex + 1)` factor
-> in `brickHit()` ([4267](../html/index.html#L4267)).
+> in `brickHit()` ([4286](../html/index.html#L4286)).
 >
 > **Relief:** three lives across 100 levels is not survivable, so clearing every 10th level hands one
-> back, capped at `state.maxLives` ([4523-4529](../html/index.html#L4523-L4529)). Awarded on the way
+> back, capped at `state.maxLives` ([4550-4556](../html/index.html#L4550-L4556)). Awarded on the way
 > to the next level rather than unconditionally, so the last level of the run doesn't hand out one
 > nobody gets to spend.
 >
@@ -1467,26 +1467,26 @@ fix, none after; the other nine authored levels were clean both ways.
 > number and starts it; the run then continues exactly as normal.
 >
 > **The chord** is one check in the existing `keydown` handler
-> ([2760-2765](../html/index.html#L2760-L2765)), reading the `state.keys` set the paddle already
+> ([2772-2777](../html/index.html#L2772-L2777)), reading the `state.keys` set the paddle already
 > uses — which is cleared on `blur`, so a chord broken by alt-tab cannot get stuck half-down. Two
 > details it turns on. It fires on whichever of the three keys *completes* the chord rather than on
 > any keystroke while they happen to be held, or still having them down after a jump would re-open
 > the prompt on the next key pressed. And its guard is `isTextEntryTarget()`
-> ([2739-2742](../html/index.html#L2739-L2742)), deliberately narrower than the existing
+> ([2751-2754](../html/index.html#L2751-L2754)), deliberately narrower than the existing
 > `isTypingTarget()`: it only has to stand aside for a text field, and since every overlay focuses
 > its own button (#26), reusing `isTypingTarget()` would have meant the chord never fired from a
 > menu at all — which is most of where it is wanted.
 >
 > **The prompt is a real phase**, `leveljump` in `PHASE_OVERLAY`
-> ([2990](../html/index.html#L2990)), not a modal bolted on beside the phase machine. That is the
+> ([3002](../html/index.html#L3002)), not a modal bolted on beside the phase machine. That is the
 > architecture's rule, and it buys three things: the simulation stops while the prompt is up because
 > `frame()` only updates on `playing`/`ready`; `showOverlay()` handles `aria-hidden` and focuses the
 > field the way `nameentry` does; and its text is ordinary `data-i18n` rather than a special case.
 > While it is showing it owns the keyboard — `Enter` submits, `Escape` dismisses, and nothing else in
-> the handler gets a look in ([2750-2755](../html/index.html#L2750-L2755)).
+> the handler gets a look in ([2762-2767](../html/index.html#L2762-L2767)).
 >
 > `openLevelJump()`/`cancelLevelJump()`/`submitLevelJump()`
-> ([2915-2953](../html/index.html#L2915-L2953)) are the whole of it. Cancelling restores the phase
+> ([2927-2965](../html/index.html#L2927-L2965)) are the whole of it. Cancelling restores the phase
 > the prompt interrupted, and **cancelling from `playing` lands on `paused`** — returning to
 > `playing` would drop the player back into a live ball the instant the overlay closed, which is the
 > reason `autoPause()` exists. Validation is strict rather than `parseInt`: `"12abc"` and `"1e3"` are
@@ -1495,20 +1495,20 @@ fix, none after; the other nine authored levels were clean both ways.
 > ball and lands on `ready`, and the `levelclear` → next-level loop reads `state.levelIndex + 1`.
 >
 > **A jumped run is out of the running.** `state.jumped` is set by the jump, sticky until
-> `newGame()`, and checked in both `endGame()` ([4547](../html/index.html#L4547)) and
-> `maybeSaveBest()` ([4487](../html/index.html#L4487)). The world board can never be reset (#67) and
+> `newGame()`, and checked in both `endGame()` ([4574](../html/index.html#L4574)) and
+> `maybeSaveBest()` ([4506](../html/index.html#L4506)). The world board can never be reset (#67) and
 > brick value saturates toward 20× (#41), so jumping straight to level 100 would otherwise be the
 > cheapest high score in the game; excluding the local best too stops one test jump parking an
 > unbeatable number on the player's own board. The overlay says so in as many words
-> ([815](../html/index.html#L815)) — this is client-side JavaScript anyone can read, so it is a
+> ([817](../html/index.html#L817)) — this is client-side JavaScript anyone can read, so it is a
 > convenience, not a protected mode, and the UI should not pretend otherwise.
 >
 > Jumping from outside a run (`start`, a finished run, the board opened on demand) resets score and
 > lives and refreshes the session token the way `newGame()` does, since there is no run behind it;
-> jumping mid-run keeps both. `RUN_PHASES` ([2913](../html/index.html#L2913)) is the distinction.
+> jumping mid-run keeps both. `RUN_PHASES` ([2925](../html/index.html#L2925)) is the distinction.
 >
 > **One bug this surfaced in existing code.** `showOverlay()` blurred a leftover focused control only
-> when it was a `BUTTON` ([3028-3031](../html/index.html#L3028-L3031)). That was harmless while
+> when it was a `BUTTON` ([3040-3043](../html/index.html#L3040-L3043)). That was harmless while
 > `nameentry` was the only input-bearing overlay, because every phase it leads to focuses its own
 > button next — but `leveljump` leads straight to `ready`, which has no button, so the jump field
 > kept focus and went on swallowing `Space` through `isTypingTarget()`, and the ball could not be
@@ -1529,11 +1529,11 @@ after it, and level 100 still ends in `victory`.
 > **Fixed 2026-08-16.** Twenty achievements, four tiers, exactly the roster below — shipped whole
 > rather than as a first few.
 >
-> **The roster is a data table of predicates** ([2214](../html/index.html#L2214)), each a plain read
+> **The roster is a data table of predicates** ([2224](../html/index.html#L2224)), each a plain read
 > of `state`. There is no event bus: every condition is either something state already holds (the
 > combo, the lives, the balls in play) or a counter kept in `state.achStats`
-> ([2255](../html/index.html#L2255)) by whichever update function owns the event. That is what lets
-> `checkAchievements()` ([4724](../html/index.html#L4724)) run from the ordinary per-frame path
+> ([2265](../html/index.html#L2265)) by whichever update function owns the event. That is what lets
+> `checkAchievements()` ([4751](../html/index.html#L4751)) run from the ordinary per-frame path
 > beside `updateHud()` instead of from twenty call sites — plus the three moments a frame cannot
 > see: a level cleared, a run ended, a score submitted.
 >
@@ -1549,17 +1549,17 @@ after it, and level 100 still ends in `victory`.
 > awards points, lives or power-ups: the moment one did, this would be a second scoring system and
 > the hall of fame would stop meaning one thing.
 >
-> **Per browser, as decided below** — `neonbreak-achievements` ([2294](../html/index.html#L2294))
+> **Per browser, as decided below** — `neonbreak-achievements` ([2304](../html/index.html#L2304))
 > holding an array of ids and nothing else, which is what keeps lifetime counters off the roster.
-> Everything else is per run and dies with it. `loadAchievements()` ([2345](../html/index.html#L2345))
+> Everything else is per run and dies with it. `loadAchievements()` ([2355](../html/index.html#L2355))
 > drops ids no longer in the roster, so retiring one cannot leave a row nothing can render, and
 > storage that throws outright (private browsing) still unlocks and still shows — only remembering
 > fails (`#65h`).
 >
-> **A jumped run earns nothing** (#69), and the screen says so ([787](../html/index.html#L787)) —
+> **A jumped run earns nothing** (#69), and the screen says so ([789](../html/index.html#L789)) —
 > #72's lesson applied before the bug could be written.
 >
-> **The banner is DOM, not canvas** ([699](../html/index.html#L699)), stacked above the overlays:
+> **The banner is DOM, not canvas** ([701](../html/index.html#L701)), stacked above the overlays:
 > most of the roster lands at a level clear or at the end of a run, which is exactly where a canvas
 > banner would sit behind the panel covering the field. It is a queue rather than overlapping
 > banners — a cascade that clears a level unlocks three at once — and it is cached like the HUD so an
@@ -1618,8 +1618,8 @@ should be unlocked before anyone goes looking for a list.
 
 | Achievement | Unlocks when | Needs |
 |---|---|---|
-| First Crack | The first brick of the first run comes apart | — `brickHit()` ([4237](../html/index.html#L4237)) |
-| Warm Cabinet | Level 10 is cleared | — `checkLevelClear()` ([4494](../html/index.html#L4494)) |
+| First Crack | The first brick of the first run comes apart | — `brickHit()` ([4256](../html/index.html#L4256)) |
+| Warm Cabinet | Level 10 is cleared | — `checkLevelClear()` ([4513](../html/index.html#L4513)) |
 | Full House | You hold `maxLives` lives at once | — `state.lives`, which #41's milestone life feeds |
 
 **II — skill.** The ones a player can aim at.
@@ -1637,22 +1637,22 @@ having noticed. This is the tier that earns its keep.
 
 | Achievement | Unlocks when | Needs |
 |---|---|---|
-| Chain Reaction | Six or more bricks go up in a single explosive cascade | A count threaded through `explode()` ([4173](../html/index.html#L4173)) |
-| Sharpshooter | 25 bricks destroyed by laser bolts in one run | A run counter on the laser hit path ([2883](../html/index.html#L2883)) |
+| Chain Reaction | Six or more bricks go up in a single explosive cascade | A count threaded through `explode()` ([4192](../html/index.html#L4192)) |
+| Sharpshooter | 25 bricks destroyed by laser bolts in one run | A run counter on the laser hit path ([2895](../html/index.html#L2895)) |
 | Three at Once | Three or more balls in play at the same moment | — `state.balls.length` |
-| Whack-a-Brick | A regenerating brick is destroyed after coming back at least once | The brick's `regenLeft` against its starting value ([4237](../html/index.html#L4237)) |
-| Curiosity | 25 mystery bricks resolved in one run | A run counter in `resolveMystery()` ([4220](../html/index.html#L4220)) |
+| Whack-a-Brick | A regenerating brick is destroyed after coming back at least once | The brick's `regenLeft` against its starting value ([4256](../html/index.html#L4256)) |
+| Curiosity | 25 mystery bricks resolved in one run | A run counter in `resolveMystery()` ([4239](../html/index.html#L4239)) |
 | Silver Service | 50 silver bricks destroyed in one run | A run counter |
-| Discerning | Five levels in a row cleared without catching `narrow` or `fast` | A counter reset in `applyPowerup()` ([3768](../html/index.html#L3768)) |
+| Discerning | Five levels in a row cleared without catching `narrow` or `fast` | A counter reset in `applyPowerup()` ([3780](../html/index.html#L3780)) |
 
 **IV — the long tail.** Rare by construction. The last one may never be earned by anybody, which is
 the point of having it.
 
 | Achievement | Unlocks when | Needs |
 |---|---|---|
-| Immortalised | A run lands on the hall of fame | — `qualifiesForHallOfFame()` ([4579](../html/index.html#L4579)) |
+| Immortalised | A run lands on the hall of fame | — `qualifiesForHallOfFame()` ([4606](../html/index.html#L4606)) |
 | World Class | A run lands on the *global* board (#67) | The API's answer — so it can only ever unlock when the network answered, which is worth saying out loud rather than looking like a bug |
-| Six Figures | A run ends on 100,000 or more | — `endGame()` ([4534](../html/index.html#L4534)) |
+| Six Figures | A run ends on 100,000 or more | — `endGame()` ([4561](../html/index.html#L4561)) |
 | Cabinet Beaten | The campaign is finished — `victory` | — |
 | Untouchable | The campaign is finished without losing a single ball | Iron Ten's counter, unbroken for 100 levels |
 
@@ -1680,7 +1680,7 @@ plainly, because "persisted goals" invites the assumption that a player carries 
   and is single-use. `ip_hash` exists but only to rate-limit, in a table never joined to `scores`,
   and an IP is shared, dynamic and personal data — it must not become a user id.
 - **Private browsing loses them silently.** `storageGet`/`storageSet` swallow throws
-  ([2300](../html/index.html#L2300)), so unlocks work for the session and are never remembered. That
+  ([2310](../html/index.html#L2310)), so unlocks work for the session and are never remembered. That
   is the correct behaviour and needs no special case, but the overlay should not claim otherwise.
 
 **What was weighed and rejected.** A **claim code** — an opaque id generated locally, pasteable on
@@ -1699,9 +1699,9 @@ whole argument, and it is why the cheap answer is also the right one here.
 #### Direction
 
 - **Counters on `state`, not an event bus.** Every cross-cutting thing in this file is already a
-  field on `state` ([2439](../html/index.html#L2439)) read by a per-frame function, and an emitter
+  field on `state` ([2449](../html/index.html#L2449)) read by a per-frame function, and an emitter
   layer would be the only place in the game where control flows the other way. A single
-  `checkAchievements()`, called where `updateHud()` already is ([4807](../html/index.html#L4807))
+  `checkAchievements()`, called where `updateHud()` already is ([4834](../html/index.html#L4834))
   plus once at level clear and once at `endGame()`, covers every row above. The genuinely transient
   conditions — a six-brick cascade — become a counter the check reads, not an event it subscribes to.
 - **Unlocking is presentation, and must stay presentation.** The rule #58, #59 and #60 all hold to:
@@ -1713,26 +1713,26 @@ whole argument, and it is why the cheap answer is also the right one here.
   achievements overlay needs the same `run.jumped` line the end screens now carry, or the feature
   looks broken to the one player most likely to be testing it.
 - **One persisted array, and no numbers in it.** `ACH_KEY = "neonbreak-achievements"`, alongside the
-  four existing keys ([2290](../html/index.html#L2290)) — per browser, per the section above, and
+  four existing keys ([2300](../html/index.html#L2300)) — per browser, per the section above, and
   **`neonbreak-`, not `blokrush-`**: the namespace is asserted by `persistence.js` precisely so it
   does not get tidied up. Everything above
   is either a run counter (thrown away with the run) or an unlocked id, so the file is an array of
   strings and nothing else. That is what keeps lifetime counters off the roster: they would mean
   writing to storage on every silver brick, and the alternative — batching the flush — is a whole
   consistency problem for a feature nobody asked to be exact. Being parsed rather than read raw, it
-  needs `loadHallOfFame()`-style shape validation ([2326](../html/index.html#L2326)): an array of
+  needs `loadHallOfFame()`-style shape validation ([2336](../html/index.html#L2336)): an array of
   strings, unknown ids dropped on load, so retiring an achievement later cannot corrupt the file.
 - **The display surface is #73's, twice over.** A new `achievements` phase in `PHASE_OVERLAY`
-  ([2966](../html/index.html#L2966)) with its own overlay, opened through the `state.returnPhase`
-  pattern `viewHallOfFame(from)` ([3178](../html/index.html#L3178)) just generalised, from the start
+  ([2978](../html/index.html#L2978)) with its own overlay, opened through the `state.returnPhase`
+  pattern `viewHallOfFame(from)` ([3190](../html/index.html#L3190)) just generalised, from the start
   screen and both end screens. Locked entries should show their condition rather than a row of
   question marks: a goal nobody can read is not a goal.
-- **The toast is `spawnFloatingText()` moved** ([2663](../html/index.html#L2663)) — the same idea
+- **The toast is `spawnFloatingText()` moved** ([2675](../html/index.html#L2675)) — the same idea
   pinned to a screen position instead of to a brick. Two things it must get right: several
   achievements can unlock in the same frame, so it is a queue rather than overlapping toasts; and it
   respects `prefers-reduced-motion` like every other moving thing (#58).
 - **Forty strings, in both tables.** Twenty names and twenty conditions, in `STRINGS.fr`
-  ([1901](../html/index.html#L1901)) and `STRINGS.en` ([2034](../html/index.html#L2034)). The `i18n`
+  ([1909](../html/index.html#L1909)) and `STRINGS.en` ([2043](../html/index.html#L2043)). The `i18n`
   suite fails on any key present in one table and not the other, so this is mechanical — but it is
   most of the work, and it is the reason the estimate moved.
 
@@ -1759,30 +1759,30 @@ whole argument, and it is why the cheap answer is also the right one here.
 >
 > **The phrase.** `MUSIC_BARS` is 8 and a voice no longer has one pattern but several, with `form`
 > saying which it plays in each bar — a tracker's order list
-> ([3565-3607](../html/index.html#L3565-L3607)). Eight bars is ~15 seconds against 1.8, which is most
-> of the perceived fix on its own. `MUSIC_FORM` ([3569](../html/index.html#L3569)) is the other half:
+> ([3577-3619](../html/index.html#L3577-L3619)). Eight bars is ~15 seconds against 1.8, which is most
+> of the perceived fix on its own. `MUSIC_FORM` ([3581](../html/index.html#L3581)) is the other half:
 > one degree of the act's scale per bar, transposing every voice together, so the phrase has harmony
 > and not just rhythm. `scheduleStep()` took a `bar` argument
-> ([3643-3665](../html/index.html#L3643-L3665)) and is otherwise the function it was — the change is
+> ([3655-3677](../html/index.html#L3655-L3677)) and is otherwise the function it was — the change is
 > to the data table, exactly as the write-up below predicted.
 >
 > **Percussion.** A kick on every bar whatever the combo, and a hat bought with the first combo tier
-> ([3614-3630](../html/index.html#L3614-L3630)). That is what lets the melodic voices drop out of a
+> ([3626-3642](../html/index.html#L3626-L3642)). That is what lets the melodic voices drop out of a
 > bar without the bed falling apart, which is what stops a loop sounding like a loop. The kick is a
 > pitch drop and so is still an oscillator; the hat is filtered noise, and `noise()`
-> ([3334](../html/index.html#L3334)) over a cached buffer ([3321](../html/index.html#L3321)) is the
+> ([3346](../html/index.html#L3346)) over a cached buffer ([3333](../html/index.html#L3333)) is the
 > one piece of genuinely new audio machinery here. The buffer is filled from `seededRandom()`, never
 > `Math.random()` — see below.
 >
-> **Material per act.** `MUSIC_ACTS` ([3376-3387](../html/index.html#L3376-L3387)) gives each of #60's
+> **Material per act.** `MUSIC_ACTS` ([3388-3399](../html/index.html#L3388-L3399)) gives each of #60's
 > five acts its own scale, its own tempo and its own timbre for every voice, keyed off the same
 > `THEME_LEVELS` the backdrop uses — so the score turns over exactly when the field does. Act I is the
 > bed #59 shipped, unchanged. `CONFIG.music.tempo` stays the single knob that moves everything: an act
-> scales it rather than replacing it ([3392](../html/index.html#L3392)). Every scale is five notes, so
-> the combo ladder is the same length in all of them ([3398](../html/index.html#L3398)) — it now reads
+> scales it rather than replacing it ([3404](../html/index.html#L3404)). Every scale is five notes, so
+> the combo ladder is the same length in all of them ([3410](../html/index.html#L3410)) — it now reads
 > the act's scale too, which is what keeps a brick hit in tune with the bed behind it.
 >
-> **`musicBar` lives outside `music`** ([3641](../html/index.html#L3641)). The bed stops on every
+> **`musicBar` lives outside `music`** ([3653](../html/index.html#L3653)). The bed stops on every
 > serve, every level break and every lost ball; a phrase that restarted each time would leave a player
 > who dies often hearing bar 1 and nothing else. The step does restart, which puts the re-entry on a
 > bar line rather than mid-bar.
@@ -1800,23 +1800,23 @@ whole argument, and it is why the cheap answer is also the right one here.
 
 #59 shipped a music bed and it works, but it wears out fast. The reason is arithmetic rather than
 taste: the bed is **one 16-step bar looped forever**. `MUSIC_STEPS` is 16
-([3565](../html/index.html#L3565)) and `updateMusic()` advances `music.step` modulo it
-([3682-3702](../html/index.html#L3682-L3702)), so at `CONFIG.music.tempo` 132 a step is
+([3577](../html/index.html#L3577)) and `updateMusic()` advances `music.step` modulo it
+([3694-3714](../html/index.html#L3694-L3714)), so at `CONFIG.music.tempo` 132 a step is
 `60 / 132 / 4` = 0.114 s and the whole loop is **1.8 seconds long**. A single level is minutes of the
 same two seconds, and #41 made a full run a hundred levels.
 
 Nothing else varies enough to cover for that:
 
-- **The material never changes.** `MUSIC_VOICES` ([3574-3607](../html/index.html#L3574-L3607)) is
+- **The material never changes.** `MUSIC_VOICES` ([3586-3619](../html/index.html#L3586-L3619)) is
   four fixed voices with fixed `steps` arrays. What combo buys is *which voices sound*
-  (`nextIntensity`, [3669-3676](../html/index.html#L3669-L3676)) — four states of the same bar, not
+  (`nextIntensity`, [3681-3688](../html/index.html#L3681-L3688)) — four states of the same bar, not
   four different bars.
 - **Per-level variation is transposition only.** `musicRoot()` picks a root from ten keys by
-  `state.levelIndex % 10` ([3363-3364](../html/index.html#L3363-L3364)), so level 11 is level 1 again
+  `state.levelIndex % 10` ([3375-3376](../html/index.html#L3375-L3376)), so level 11 is level 1 again
   in the same key, and a 100-level run cycles those ten keys ten times.
 - **One scale and one tempo for the entire game** — `MUSIC_SCALE` is a single minor pentatonic
-  ([3378](../html/index.html#L3378)) and `tempo` is one number in `CONFIG.music`
-  ([1366-1372](../html/index.html#L1366-L1372)).
+  ([3390](../html/index.html#L3390)) and `tempo` is one number in `CONFIG.music`
+  ([1374-1380](../html/index.html#L1374-L1380)).
 - **There is no percussion at all.** Four pitched voices carry both the harmony and the pulse, which
   is why the pulse has to be so regular.
 
@@ -1825,7 +1825,7 @@ Loop *length* is most of the perceived fix, well ahead of harmonic sophisticatio
 inside the current bar.
 
 Also worth watching: `scheduleStep()` creates a gain node and an oscillator per note
-([3288-3301](../html/index.html#L3288-L3301)), so a denser arrangement is more allocation per bar. It
+([3300-3313](../html/index.html#L3300-L3313)), so a denser arrangement is more allocation per bar. It
 is queued in `lookahead` batches rather than per frame, so this is not a per-frame cost, but a
 percussion voice on every step is 16 more nodes a bar than the current busiest voice.
 
@@ -1834,13 +1834,13 @@ percussion voice on every step is 16 more nodes a bar than the current busiest v
 > **Fixed 2026-08-15.** The ball draining off the bottom now bursts, sounds, and — the part that made
 > the rest possible — takes a moment.
 >
-> **The beat.** `loseLife()` ([4441-4464](../html/index.html#L4441-L4464)) no longer transitions; it
+> **The beat.** `loseLife()` ([4460-4483](../html/index.html#L4460-L4483)) no longer transitions; it
 > sets `state.lifeLost = {remaining, ended}` and moves to a new `lifelost` phase
-> ([2972](../html/index.html#L2972)), which `frame()` spends a frame at a time
-> ([5252-5255](../html/index.html#L5252-L5255)) before calling `finishLifeLost()`
-> ([4469-4478](../html/index.html#L4469-L4478)) — the other half of the old function, serving again or
+> ([2984](../html/index.html#L2984)), which `frame()` spends a frame at a time
+> ([5288-5291](../html/index.html#L5288-L5291)) before calling `finishLifeLost()`
+> ([4488-4497](../html/index.html#L4488-L4497)) — the other half of the old function, serving again or
 > ending the run. `CONFIG.impact.lifeLostBeat` is 0.7 s
-> ([1398](../html/index.html#L1398)). Making it a phase rather than a counter checked beside the
+> ([1406](../html/index.html#L1406)). Making it a phase rather than a counter checked beside the
 > phase machine is what keeps the rest honest: `lifelost` shows no overlay (so the field stays
 > visible), nothing simulates during it because `frame()` only runs the update block on `playing`,
 > and the transition still goes through `setPhase()`.
@@ -1848,14 +1848,14 @@ percussion voice on every step is 16 more nodes a bar than the current busiest v
 > `ended` is decided when the ball is lost, not when the beat runs out, so a life spent on the last
 > ball still ends the run even if something else changes `state.lives` in between.
 >
-> **The burst** is two calls ([4455-4456](../html/index.html#L4455-L4456)): white for the ball coming
+> **The burst** is two calls ([4474-4475](../html/index.html#L4474-L4475)): white for the ball coming
 > apart, the way every brick burst is its own colour, and red for the life indicator that just went
 > out — which is the part the player actually has to read. It is pinned to the bottom edge at the
-> ball's last x ([4431](../html/index.html#L4431)), because by the time `loseLife()` runs the ball is
+> ball's last x ([4450](../html/index.html#L4450)), because by the time `loseLife()` runs the ball is
 > already 30 px below the canvas and a burst down there is a burst nobody sees. Particles already
 > keep updating outside `playing`, so this needed no new draw path.
 >
-> **The sting** ([3447-3466](../html/index.html#L3447-L3466)) is four notes falling through the
+> **The sting** ([3459-3478](../html/index.html#L3459-L3478)) is four notes falling through the
 > level's own scale, pitched from `musicRoot()` like everything else in #59 — that is the difference
 > between a sting and a buzzer — and placed against the audio clock rather than fired as four
 > `beep()`s at frame time, which would put each note wherever its frame happened to fall. The last
@@ -1864,7 +1864,7 @@ percussion voice on every step is 16 more nodes a bar than the current busiest v
 >
 > **`prefers-reduced-motion` changes the visuals and not the pacing.** The shake stays suppressed and
 > `burst()` thins itself out as it already did, but the beat is deliberately *not* conditional
-> ([1391-1398](../html/index.html#L1391-L1398)): it is pacing, not motion, and #58's rule is that the
+> ([1399-1406](../html/index.html#L1399-L1406)): it is pacing, not motion, and #58's rule is that the
 > feedback layer can be switched off without the game changing — a beat that vanished under the
 > setting would make the game's rhythm depend on it. `#71b` asserts the burst thins, the shake stays
 > off, and the beat lasts exactly as many frames either way.
@@ -1892,20 +1892,20 @@ same frame the ball left the field, so the ball vanishes and the "Ready?" overla
 ### 72. ✅ FIXED — A jumped run is disqualified silently (S)
 
 > **Fixed 2026-08-16.** The exclusion is now stated on the screen where it bites. `victory` and
-> `gameover` each carry a `.run-flag` line ([741](../html/index.html#L741),
-> [756](../html/index.html#L756)) filled from one new string, `run.jumped`
-> ([1927](../html/index.html#L1927), [2060](../html/index.html#L2060)), which says both halves of it:
+> `gameover` each carry a `.run-flag` line ([743](../html/index.html#L743),
+> [758](../html/index.html#L758)) filled from one new string, `run.jumped`
+> ([1935](../html/index.html#L1935), [2069](../html/index.html#L2069)), which says both halves of it:
 > the run is out of the hall of fame, and playing again gives an eligible one.
 >
-> It is written in `renderDynamicText()` ([3087-3089](../html/index.html#L3087-L3089)) rather than in
+> It is written in `renderDynamicText()` ([3099-3101](../html/index.html#L3099-L3101)) rather than in
 > `endGame()`, which is where every other conditional string is already rebuilt from state — so it
 > also follows a mid-game language switch, and `newGame()` clearing `state.jumped` clears the line
 > with it without anyone having to remember to. Both overlays get it because a jumped run that clears
 > level 100 reaches `victory`, not `gameover`. Empty on an ordinary run, and `.run-flag:empty`
-> ([400](../html/index.html#L400)) takes the element out of the layout entirely so the end screens are
+> ([402](../html/index.html#L402)) takes the element out of the layout entirely so the end screens are
 > unchanged for everyone else.
 >
-> **The prompt's warning now reads as one.** `.jump-warn` ([457](../html/index.html#L457)) was 11px
+> **The prompt's warning now reads as one.** `.jump-warn` ([459](../html/index.html#L459)) was 11px
 > dim grey — the least prominent thing on the overlay it was warning about. It is now the same amber
 > and the same size as the end-of-run line, which is the point: one message, stated twice, looking
 > the same both times.
@@ -1922,7 +1922,7 @@ full playthrough in a real browser reaches `nameentry`, accepts a name and lands
 as it should. What actually happened is #69's exclusion rule firing without saying so.
 
 `state.jumped` is set by the level jump and gates `endGame()`
-([4547](../html/index.html#L4547)) and `maybeSaveBest()` ([4487](../html/index.html#L4487)). The
+([4574](../html/index.html#L4574)) and `maybeSaveBest()` ([4506](../html/index.html#L4506)). The
 effect, on two runs identical apart from the shortcut:
 
 | | Without S+E+B | With S+E+B |
@@ -1933,7 +1933,7 @@ effect, on two runs identical apart from the shortcut:
 **The rule stays** — the world board can never be reset (#67) and brick value saturates toward 20×
 (#41), so jumping to level 90 would otherwise be the cheapest high score in the game. The defect is
 that nothing says it happened. The only notice is one line of 11px dim text on the jump prompt
-([812](../html/index.html#L812), `.jump-warn` at [457](../html/index.html#L457)), read once, several
+([814](../html/index.html#L814), `.jump-warn` at [459](../html/index.html#L459)), read once, several
 minutes before it matters. By the time the run ends the player has forgotten it — and the observed
 behaviour is indistinguishable from the hall of fame being broken, which is exactly how it got
 reported.
@@ -1943,33 +1943,33 @@ It is also the developer's own testing tool that disables the feature they are m
 ### 73. ✅ FIXED — A "high scores" button on the end screens (S)
 
 > **Fixed 2026-08-16.** `overlay-victory` and `overlay-gameover` each gained a secondary
-> `btn-ghost` button beside the restart one ([747](../html/index.html#L747),
-> [759](../html/index.html#L759)), so the board is reachable from the screen a run just ended on
+> `btn-ghost` button beside the restart one ([749](../html/index.html#L749),
+> [761](../html/index.html#L761)), so the board is reachable from the screen a run just ended on
 > instead of costing a restart that replaces the score you wanted to compare against.
 >
-> The three entry points now share `viewHallOfFame(from)` ([3178-3182](../html/index.html#L3178-L3182))
+> The three entry points now share `viewHallOfFame(from)` ([3190-3194](../html/index.html#L3190-L3194))
 > rather than repeating #43's three lines twice more. That is what keeps `state.returnPhase`
 > honest: it is only ever meaningful because every route into `halloffame` sets it, and a route that
 > forgot would send `setPhase(null)`. Re-rendering before the transition is not decoration either —
 > the run that just ended may have changed the board, and the world list can have been swapped in
 > underneath it (#67).
 >
-> **Restart stays the primary control.** `PHASE_OVERLAY` ([2984-2985](../html/index.html#L2984-L2985))
+> **Restart stays the primary control.** `PHASE_OVERLAY` ([2996-2997](../html/index.html#L2996-L2997))
 > still focuses `btn-restart` / `btn-restart-win`, per #26's rule that each overlay focuses its own
 > call to action; `#73a`/`#73b` assert the new button does not take it.
 >
-> **`start.viewHof` became `hof.view`** ([1912](../html/index.html#L1912),
-> [2045](../html/index.html#L2045)) across both tables and all three markup sites. The text was
+> **`start.viewHof` became `hof.view`** ([1920](../html/index.html#L1920),
+> [2054](../html/index.html#L2054)) across both tables and all three markup sites. The text was
 > already right for all three screens — the key was the part that would have gone stale, naming one
 > screen while appearing on three.
 
 Losing a run leaves only "Rejouer". The board is reachable from the start screen (#43,
-[710](../html/index.html#L710)) but not from the two screens where a player has just finished a run
+[712](../html/index.html#L712)) but not from the two screens where a player has just finished a run
 and most wants to see where it landed — so checking costs a restart, and the score you wanted to
 compare against is the one you just replaced on screen.
 
-Add a secondary button to `overlay-gameover` ([751-761](../html/index.html#L751-L761)) and
-`overlay-victory` ([734-749](../html/index.html#L734-L749)) beside the existing restart button.
+Add a secondary button to `overlay-gameover` ([753-763](../html/index.html#L753-L763)) and
+`overlay-victory` ([736-751](../html/index.html#L736-L751)) beside the existing restart button.
 
 Who it is actually for: a *qualifying* run already passes through the board on the way out, since
 `endGame()` detours through `nameentry` → `halloffame`. So the button mostly serves runs that did not
@@ -1979,68 +1979,68 @@ for a jumped run (#69/#72), which never gets the detour at all.
 ### 44. ✅ FIXED — Ten boss levels, one at every level ending in 0 (L)
 
 > **Fixed 2026-08-17.** Levels 10, 20, … 100 are no longer brick grids — each is one of ten bosses
-> (`BOSSES`, [1547-1856](../html/index.html#L1547-L1856)), fought inside the ordinary `playing` phase
-> rather than a new one. `isBossLevel(idx)` ([1038](../html/index.html#L1038)) and `bossDefIndex(idx)`
-> ([1040](../html/index.html#L1040)) are the two predicates everything else is built from;
-> `levelDef()` ([1240](../html/index.html#L1240)) routes a boss level through `bossLevelDef()`
-> ([1232](../html/index.html#L1232)), which returns the same `{ rows, speed }` shape every other
-> source does, plus a `boss` field — so `buildLevel()` ([2542](../html/index.html#L2542)) and
-> `resetPaddleAndBall()` ([2580](../html/index.html#L2580)) needed only a few lines each, and no
+> (`BOSSES`, [1555-1864](../html/index.html#L1555-L1864)), fought inside the ordinary `playing` phase
+> rather than a new one. `isBossLevel(idx)` ([1044](../html/index.html#L1044)) and `bossDefIndex(idx)`
+> ([1046](../html/index.html#L1046)) are the two predicates everything else is built from;
+> `levelDef()` ([1246](../html/index.html#L1246)) routes a boss level through `bossLevelDef()`
+> ([1238](../html/index.html#L1238)), which returns the same `{ rows, speed }` shape every other
+> source does, plus a `boss` field — so `buildLevel()` ([2553](../html/index.html#L2553)) and
+> `resetPaddleAndBall()` ([2591](../html/index.html#L2591)) needed only a few lines each, and no
 > other caller learned what a boss is.
 >
 > **A boss is one or more rectangular "parts."** Almost always the whole visible body; Carapace's six
 > plates and core, Gemini's two halves and Omega's three phases are the exceptions. A part is exactly
 > the `{x,y,w,h}` shape a brick or the paddle already is, so collision reuses
 > `circleRectCollide`/`brickPenetration`/`resolveBrickCollision` unchanged — `updateBalls()`'s brick
-> loop just gained an `else` branch (`hitTestBossPart`, [3968](../html/index.html#L3968)) for when no
+> loop just gained an `else` branch (`hitTestBossPart`, [3987](../html/index.html#L3987)) for when no
 > ordinary brick was hit. Damage goes through `bossPartHit()`
-> ([3999](../html/index.html#L3999)): a hit on a part that is solid but not currently vulnerable
+> ([4018](../html/index.html#L4018)): a hit on a part that is solid but not currently vulnerable
 > (Aegis' deflector up, a Carapace/Omega plate still guarding the core) bounces the ball and reads on
 > screen without scoring, the same way Phantom's fade skips collision entirely instead
 > (`part.solid = false`).
 >
 > **Two hazard shapes.** `spawnBossShot()`/`updateBossShots()`
-> ([4071](../html/index.html#L4071)) is a small projectile system aimed at the paddle instead of up
+> ([4090](../html/index.html#L4090)) is a small projectile system aimed at the paddle instead of up
 > from it — reusing the same `onPaddle` effect names (`narrow`, `narrow5`, `life`) `applyBossHazard()`
-> ([4051](../html/index.html#L4051)) applies through the existing `widthEffect`/`lives` state every
+> ([4070](../html/index.html#L4070)) applies through the existing `widthEffect`/`lives` state every
 > other hazard already goes through. `spawnMinion()`/`updateMinions()`
-> ([4106-4141](../html/index.html#L4106-L4141)) is a small enemy the ball can destroy in flight,
+> ([4125-4160](../html/index.html#L4125-L4160)) is a small enemy the ball can destroy in flight,
 > kept as its own array rather than flagged bricks (the original sketch in `feature-ideas.md`) —
 > `brickHit()`'s combo/score/drop/achievement bookkeeping does not apply to a minion, and duplicating
 > it inline would have been the second scoring system #65 explicitly rules out.
 >
 > **The boss is the only thing that gates level completion on one of these levels.**
 > `buildLevel()`'s brick loop never counts an arena's cover bricks toward `remainingBricks` when
-> `def.boss` is set, so `checkLevelClear()` ([4494](../html/index.html#L4494)) only needed one added
+> `def.boss` is set, so `checkLevelClear()` ([4513](../html/index.html#L4513)) only needed one added
 > branch — `if (state.boss) { if (!state.boss.dead) return; }` — ahead of its existing
 > `remainingBricks` check, and #16's "a counter, not a scan" invariant holds for both. Boss hit points
 > live on `state.boss`, untouched by `resetPaddleAndBall()`, so they survive a lost ball exactly as
 > planned; only `state.bossShots`/`state.minions` clear per life, alongside drops and lasers.
 >
-> **Arenas are ordinary levels.** `bossArena()` ([1545](../html/index.html#L1545)) prepends four blank
+> **Arenas are ordinary levels.** `bossArena()` ([1553](../html/index.html#L1553)) prepends four blank
 > rows to whatever cover bricks a boss wants — four rather than the two first tried, because Carapace's
 > core (bottom `y=130`) and Omega's descent both overshoot a two-row band, and a full-width cover row
 > that physically overlaps the boss silently wins the collision the boss was supposed to. The escalation
 > from empty arenas to full fields matches the roster below.
 >
 > **Omega is the composite**, not a fourth new mechanic: `spawnOmegaPhase()`
-> ([1860-1889](../html/index.html#L1860-L1889)) rebuilds `b.parts` for whichever of Carapace's
+> ([1868-1897](../html/index.html#L1868-L1897)) rebuilds `b.parts` for whichever of Carapace's
 > plates-and-core, blinking Aegis-lite halves, or a tracking-and-descending body is next, and
 > `onDepleted()` gates the transition behind a 1.5s invulnerable roar (`b.transition`, ticked centrally
-> in `updateBoss()`, [3887](../html/index.html#L3887)) rather than a new phase-machine entry — #18's
+> in `updateBoss()`, [3906](../html/index.html#L3906)) rather than a new phase-machine entry — #18's
 > lesson applied rather than relearned. The third phase's defeat reaches `bossDefeated()`
-> ([3976](../html/index.html#L3976)) exactly like every other boss's, so `checkLevelClear()` needed no
+> ([3995](../html/index.html#L3995)) exactly like every other boss's, so `checkLevelClear()` needed no
 > special case for the campaign's last level.
 >
 > **Score parity via one constant, not per-boss tuning.** Every vulnerable hit scores
-> `BOSS_HIT_BASE` ([1533](../html/index.html#L1533)) × `levelMultiplier(n)` × the same combo
+> `BOSS_HIT_BASE` ([1541](../html/index.html#L1541)) × `levelMultiplier(n)` × the same combo
 > multiplier `brickHit()` uses — a boss hit continues the existing combo streak — plus a flat
 > `killBonus` per boss (400 → 4000) on defeat.
 >
-> **Retiring the authored level 10.** `LEVELS` ([909](../html/index.html#L909)) dropped from ten
+> **Retiring the authored level 10.** `LEVELS` ([915](../html/index.html#L915)) dropped from ten
 > entries to nine; `levelSpeed()`/`levelMultiplier()` re-anchor on it automatically since both already
 > read `LEVELS.length` rather than a literal. `generateLevel()`'s escalation counter needed
-> `layoutIndex(idx)` ([1050](../html/index.html#L1050)) — the ordinal of a level among the non-boss
+> `layoutIndex(idx)` ([1056](../html/index.html#L1056)) — the ordinal of a level among the non-boss
 > ones alone — so a boss cadence between two generated levels does not eat one of their difficulty
 > steps; the seed a layout is drawn from stays keyed on the real level index, so no layout moved.
 > `#68`'s regression test pinned the old level 10's specific row shape directly and had to be
@@ -2051,9 +2051,9 @@ for a jumped run (#69/#72), which never gets the detour at all.
 > `bossDefeated()`.
 >
 > **Simplified from the original sketch, on purpose.** No intro card or held-ball beat: a fight starts
-> the instant `playing` does, with a `CONFIG.boss.fireGrace` ([1437](../html/index.html#L1437))
+> the instant `playing` does, with a `CONFIG.boss.fireGrace` ([1445](../html/index.html#L1445))
 > delaying only the first hazard — the name-and-hp strip `drawBoss()`
-> ([5009](../html/index.html#L5009)) draws every frame is what tells the player this level is
+> ([5041](../html/index.html#L5041)) draws every frame is what tells the player this level is
 > different, immediately, with no extra state to add. No dedicated death beat either; a boss's last
 > part reaching zero hit points ends the fight in the same frame, the way a brick reaching zero always
 > has.
@@ -2080,26 +2080,26 @@ and finally the composite of all nine.
 > preceding it, and manual testing caught it immediately. This entry is the corrected version:
 > sequenced, not parallel.
 >
-> **`bossDefeated()`** ([3976](../html/index.html#L3976)) no longer clears the level itself — it
+> **`bossDefeated()`** ([3995](../html/index.html#L3995)) no longer clears the level itself — it
 > starts `state.boss.deathBeat` and returns. **`updateBossDeathBeat()`**
-> ([3998-4030](../html/index.html#L3998-L4030)) drives everything from there, in two stages:
+> ([4017-4049](../html/index.html#L4017-L4049)) drives everything from there, in two stages:
 >
-> - **`"explode"`** ([3973](../html/index.html#L3973): `BOSS_EXPLODE_DURATION`, 0.9s) — silent.
+> - **`"explode"`** ([3992](../html/index.html#L3992): `BOSS_EXPLODE_DURATION`, 0.9s) — silent.
 >   Escalating particle pulses (bigger and more frequent for a bigger boss, via `b.defIdx`) every
 >   0.12s, ending in one big finishing blast — two layered `burst()` calls (the boss's colour, then a
 >   white flash) and a shake, both scaled with `b.defIdx` exactly as the reverted attempt already had
 >   right. That blast is also where the fanfare starts.
-> - **`"fanfare"`** ([3974](../html/index.html#L3974): `BOSS_FANFARE_DURATION`, 5.0s) — holds until
+> - **`"fanfare"`** ([3993](../html/index.html#L3993): `BOSS_FANFARE_DURATION`, 5.0s) — holds until
 >   the fanfare finishes, then clears `deathBeat` and calls `checkLevelClear()` itself, which is what
 >   actually shows "level cleared".
 >
-> **`checkLevelClear()`** ([4592](../html/index.html#L4592)) gained one more clause in its existing
+> **`checkLevelClear()`** ([4619](../html/index.html#L4619)) gained one more clause in its existing
 > boss guard — `if (!state.boss.dead || state.boss.deathBeat) return;` — defensive rather than the
 > only thing enforcing the order, since `frame()` never calls it while a beat is running in the first
 > place (below).
 >
 > **`frame()` freezes the field while the beat plays**, the same idea #71's lost-ball beat already
-> applies to a shorter pause: `inDeathBeat` ([5366](../html/index.html#L5366)) skips
+> applies to a shorter pause: `inDeathBeat` ([5402](../html/index.html#L5402)) skips
 > `updatePaddle`/`updateBricks`/`updateBoss`/`updateBalls`/`updateDrops`/`updateLasers`/
 > `updateBossShots`/`updateMinions` entirely and runs `updateBossDeathBeat()` plus particles/floating
 > text instead — the paddle stops answering, the ball stops moving, and nothing is left to hit
@@ -2107,14 +2107,14 @@ and finally the composite of all nine.
 > call does.
 >
 > **The fanfare itself: 5 seconds, not 10, and several instruments rather than one melodic line.**
-> `BOSS_FANFARE` ([3488-3536](../html/index.html#L3488-L3536)) plays a rising call twice (an octave
+> `BOSS_FANFARE` ([3500-3548](../html/index.html#L3500-L3548)) plays a rising call twice (an octave
 > apart), a quick descending flourish, then a four-note chord that rings out — but every "call" hit
 > now layers three things at once: the sawtooth melody, the same call doubled an octave down
 > (`withBass`) for weight, and a triangle third above (`withPad`, detuned for shimmer) for harmony —
 > plus the exact kick (`freq:110, slide:38, sine`) and hat (`noise({freq:7000})`) recipes
 > `MUSIC_DRUMS` already uses for the ordinary bed, so the fanfare sounds like it belongs to the same
 > score rather than a separate jingle landing on top of it. `scaleSemi()`
-> ([3403](../html/index.html#L3403), factored out of `ladderSemi()`) still keeps every pitch in tune
+> ([3415](../html/index.html#L3415), factored out of `ladderSemi()`) still keeps every pitch in tune
 > with whichever act's scale the level sits in.
 >
 > **Presentation only**, same rule #58 and #65 both hold to — the death beat holds the *transition*,
@@ -2129,22 +2129,22 @@ and finally the composite of all nine.
 > outlives every particle it made), and the fanfare's length/instrumentation/mute behaviour.
 
 ### 76. ✅ FIXED — Hall of fame accepts an empty (or one/two-character) name (S)
-> **Fixed 2026-08-18.** `submitHallOfFameName()` ([4652-4681](../html/index.html#L4652-L4681)) now
+> **Fixed 2026-08-18.** `submitHallOfFameName()` ([4679-4708](../html/index.html#L4679-L4708)) now
 > rejects a trimmed name shorter than `CONFIG.hallOfFame.nameMin` (3,
-> [1426-1431](../html/index.html#L1426-L1431)) outright instead of substituting the `"???"`
+> [1434-1439](../html/index.html#L1434-L1439)) outright instead of substituting the `"???"`
 > placeholder — the phase stays on `nameentry`, nothing is written to either board, and an inline
-> message (`nameentry.error`, [770-773](../html/index.html#L770-L773) for the markup) explains why,
+> message (`nameentry.error`, [772-775](../html/index.html#L772-L775) for the markup) explains why,
 > the same shape #69's level-jump prompt already established for a rejected entry. The maximum moved
 > from 12 to 16 characters, `nameMax` and the input's `maxlength` kept in sync as before, and `NAME_MAX`
 > in [functions/api/scores.js](../functions/api/scores.js#L21) was raised to match — it re-clamps
 > independently of the client and had silently stayed at 12, which would have truncated a 13-16
 > character name on the global board while showing it in full on the local one.
 >
-> The submit button and the input's Enter handler ([2781](../html/index.html#L2781)) both route
+> The submit button and the input's Enter handler ([2793](../html/index.html#L2793)) both route
 > through `submitHallOfFameName()`, so fixing validation there closes both paths at once — no separate
 > Enter-key fix was needed. `state.nameEntryError`
-> ([2493-2496](../html/index.html#L2493-L2496)) is the flag driving the message, reset whenever
-> `endGame()` opens the prompt ([4549](../html/index.html#L4549)) so a stale rejection from a previous
+> ([2504-2507](../html/index.html#L2504-L2507)) is the flag driving the message, reset whenever
+> `endGame()` opens the prompt ([4576](../html/index.html#L4576)) so a stale rejection from a previous
 > run never carries over. The now-unreachable `nameentry.anonymous` placeholder string was removed from
 > both language tables rather than left dead.
 >
@@ -2161,7 +2161,7 @@ and finally the composite of all nine.
 > backend: it adds no network dependency to either the single-file game or the Worker, which is allowed
 > to degrade to "the leaderboard is empty" but not to "the leaderboard rejects everyone" if a moderation
 > API were ever down. `PROFANITY_LIST`/`normalizeForProfanity()`/`isProfaneName()`
-> ([4598-4644](../html/index.html#L4598-L4644)) are new in `index.html`, and `PROFANITY_LIST`/
+> ([4625-4671](../html/index.html#L4625-L4671)) are new in `index.html`, and `PROFANITY_LIST`/
 > `normalizeForProfanity()`/`filterProfanity()` ([124-166](../functions/api/scores.js#L124-L166)) mirror
 > them in `functions/api/scores.js` — the same "restated in both places" arrangement `NAME_MAX` already
 > has per #76, since the global board's `POST /api/scores` is a public endpoint a client-side-only check
@@ -2174,8 +2174,8 @@ and finally the composite of all nine.
 > unfolded accented character just like it strips punctuation.
 >
 > A match is a silent substitution, not a rejection: `submitHallOfFameName()`
-> ([4652-4681](../html/index.html#L4652-L4681)) swaps the name for
-> `CONFIG.hallOfFame.fallbackName` (`"Bisounours"`, [1424-1431](../html/index.html#L1424-L1431)) after
+> ([4679-4708](../html/index.html#L4679-L4708)) swaps the name for
+> `CONFIG.hallOfFame.fallbackName` (`"Bisounours"`, [1432-1439](../html/index.html#L1432-L1439)) after
 > the #76 length check passes, so the player sees no error and the substituted name is what reaches both
 > `insertHallOfFameEntry()` and `submitGlobalScore()` — one check covers the name that lands on both
 > boards. The server does the same at the equivalent point in `onRequestPost()`
@@ -2192,34 +2192,34 @@ and finally the composite of all nine.
 ### 79. ✅ FIXED — Boss defeat is an anticlimax: music keeps playing, the blast is generic and silent (M)
 
 > **Fixed 2026-08-18.** All three gaps closed together, since all three fire off the same moment —
-> `bossDefeated()`/`updateBossDeathBeat()` ([4051](../html/index.html#L4051)/
-> [4077](../html/index.html#L4077)).
+> `bossDefeated()`/`updateBossDeathBeat()` ([4070](../html/index.html#L4070)/
+> [4096](../html/index.html#L4096)).
 >
-> **The bed actually stops.** `updateMusic()` ([3740](../html/index.html#L3740)) now gates on
+> **The bed actually stops.** `updateMusic()` ([3752](../html/index.html#L3752)) now gates on
 > `state.phase === "playing" && !inDeathBeat` instead of the phase alone, computing `inDeathBeat`
 > itself rather than trusting a caller to pass it — the death beat deliberately stays in `"playing"`
 > (no paddle/ball to freeze around otherwise), and that was exactly the gap the old single-condition
 > gate fell through.
 >
 > **The explosion is anchored on the boss, not the screen.** `bossBounds(b)`
-> ([4035-4043](../html/index.html#L4035-L4043)) unions every part's `{x,y,w,h}` regardless of `alive`
+> ([4054-4062](../html/index.html#L4054-L4062)) unions every part's `{x,y,w,h}` regardless of `alive`
 > — a dead part keeps its geometry, only its flags change — and `bossDefeated()` snapshots it once
 > into `deathBeat.bounds`, valid for the whole beat since `updateBoss()` does not run while it plays.
 > Both the escalating pulses and the finishing blast in `updateBossDeathBeat()` scatter across that
 > box instead of `GAME_W / 2, GAME_H / 2`.
 >
-> **A distinct look for the occasion.** `fireBurst()` ([2666-2678](../html/index.html#L2666-L2678)) is
+> **A distinct look for the occasion.** `fireBurst()` ([2678-2690](../html/index.html#L2678-L2690)) is
 > `burst()`'s warm-flame counterpart — a fixed warm palette instead of the caller's color, shorter
-> life, and a `glow` flag `drawParticles()` ([5258-5272](../html/index.html#L5258-L5272)) picks up as
+> life, and a `glow` flag `drawParticles()` ([5294-5308](../html/index.html#L5294-L5308)) picks up as
 > a shadow-blur halo — used for both the pulses and the finishing blast in place of a plain `burst()`
 > call. `spawnLightning()`/`drawLightning()`
-> ([2685-2696](../html/index.html#L2685-L2696)/[5277-5293](../html/index.html#L5277-L5293)) add a
+> ([2697-2708](../html/index.html#L2697-L2708)/[5313-5329](../html/index.html#L5313-L5329)) add a
 > handful of jagged, multi-segment bolts (more for a bigger boss) radiating from the boss's center on
 > the finishing blast only — the midpoints are displaced off the straight line between the two ends,
 > tapering to none at the ends, so a bolt still lands on its target rather than reading as a laser.
 >
 > **The blast has its own sound.** `bossExplosionSound()`
-> ([3599-3606](../html/index.html#L3599-L3606)) layers a lowpass rumble, a highpass crack and a short
+> ([3611-3618](../html/index.html#L3611-L3618)) layers a lowpass rumble, a highpass crack and a short
 > sawtooth pitch-drop — the same "stack `noise()` at different bands for a sense of scale" trick the
 > hi-hat recipe already uses — fired once, alongside `bossFanfareTone()`, when the finishing blast
 > lands.
@@ -2229,6 +2229,51 @@ and finally the composite of all nine.
 > near the boss rather than at screen center, and that the finishing blast queues both a low
 > (`filterFreq < 200`) and a high (`filterFreq > 1000`) noise burst. All three were confirmed failing
 > against the unfixed code before the fix landed.
+
+### 53. ✅ FIXED — Fireball / through-ball (S)
+
+> **Fixed 2026-08-19.** `state.fireballEffect` ([2479](../html/index.html#L2479)) is a fifth timed
+> effect alongside `widthEffect`/`speedEffect`/`stickyEffect`/`laserEffect` — the same `{remaining}`
+> shape as `laserEffect`, decayed in `updateEffects()` ([3814-3816](../html/index.html#L3814-L3816)),
+> cleared on every fresh life in `resetPaddleAndBall()` ([2597](../html/index.html#L2597)), and granted
+> by a new `fireball` row in `POWERUPS` ([1266](../html/index.html#L1266), weight 2 like `laser`'s) and
+> a branch in `applyPowerup()` ([3866-3868](../html/index.html#L3866-L3868)).
+>
+> The single-hit-per-frame rule (#10) turned out not to need reworking, just a branch inside it. The
+> existing pick-the-least-penetrated-brick loop in `updateBalls()`
+> ([4516-4538](../html/index.html#L4516-L4538)) now short-circuits per iteration: while
+> `fireballEffect` is active, any alive brick the ball overlaps that isn't an indestructible `"#"` wall
+> goes straight to `brickHit()` and is skipped, never entered into the `hitPenetration` comparison — so
+> `resolveBrickCollision()` never runs for it and the ball keeps going, while every other brick it also
+> overlaps this frame gets the same treatment. A `"#"` wall is the only type that still feeds
+> `hitPenetration`, so it's unaffected either way and still bounces the ball exactly as before; so is a
+> boss part, since `hitTestBossPart()`/`bossPartHit()` further down only run when nothing set
+> `hitBrick`, and fireball changes nothing about what can set it to a boss part. With `fireballEffect`
+> inactive the new branch's condition is always false, so the loop's behaviour for every existing case —
+> including two adjacent bricks overlapping near a corner — is unchanged.
+>
+> The one purely cosmetic addition: `drawBalls()` ([5241-5257](../html/index.html#L5241-L5257)) reads
+> `state.fireballEffect` once per frame and swaps every ball's fill/glow to a flame palette while it's
+> active, so a fireball ball reads as different from an ordinary one even mid-bounce. A fifth
+> `.effect-bar` slot (`bar-fireball`, [839-841](../html/index.html#L839-L841)) and its
+> `updateEffectBar()` call in `renderEffectBars()` ([5001-5002](../html/index.html#L5001-L5002)) show
+> the timer; `.effect-bars`' reserved `height` ([221-231](../html/index.html#L221-L231)) grew from 38px
+> (two wrapped rows, the worst case for four bars) to 60px (three wrapped rows, the worst case for
+> five — the narrowest supported viewport only fits two 90px-basis bars per row). `powerup.fireball` was
+> added to both `STRINGS` tables ([2029](../html/index.html#L2029) fr,
+> [2163](../html/index.html#L2163) en).
+>
+> Two new `#53a`/`#53b` cases in `regressions.js` cover the two halves: three bricks stacked in the
+> ball's path all die in one frame with no bounce, and — with a control confirming fireball is actually
+> live in that same run, so the case doesn't trivially pass because fireball doesn't exist yet — the
+> ball still bounces off both an indestructible wall and a boss part while fireball is active. Both were
+> confirmed failing against the unfixed code before the fix landed.
+>
+> Left for later, along with the rest of the batch it was promoted with: `magnet`/bullet-time (#55),
+> paddle spin (#56), and laser-vs-bad-drop counterplay (#57) — see [todo.md](todo.md). The safety-net
+> shield (#54) and the `.effect-bars` capacity/i18n/weight bookkeeping those share with this one still
+> need re-deriving against whichever of them ships next; this fix only accounted for its own slot.
+
 
 ---
 

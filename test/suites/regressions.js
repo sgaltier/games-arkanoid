@@ -3274,5 +3274,92 @@ module.exports = {
         a.eq(g.T.state.phase, "gameover", "the second visit must not fall back to a stale returnPhase");
       },
     },
+    {
+      name: "#53a — a fireball ball destroys three bricks stacked in its path in a single frame, and none of them bounce it",
+      fn(a) {
+        const g = boot().start();
+        const ball = g.T.state.balls[0];
+        ball.attached = false;
+        const cx = 200, cy = 300;
+        // Three ordinary bricks stacked directly on top of one another, tall
+        // enough that a ball centred on the middle one already overlaps all
+        // three — a tiny nudge (like #30a's catch tests use) is enough to
+        // trigger this frame's collision pass without needing to land the
+        // ball at an exact computed position.
+        const mkBrick = (y) =>
+          ({ x: cx - 10, y, w: 20, h: 10, type: "1", hp: 1, alive: true, regenLeft: 0, regenTimer: 0 });
+        const stack = [mkBrick(cy - 15), mkBrick(cy - 5), mkBrick(cy + 5)];
+        g.T.state.bricks = stack;
+        g.T.state.remainingBricks = 100; // clear of the "level cleared" edge case
+
+        ball.x = cx;
+        ball.y = cy;
+        ball.dx = 0;
+        ball.dy = 1;
+        ball.speed = 1;
+        g.T.state.fireballEffect = { remaining: 5 };
+        g.frame();
+
+        a.ok(stack.every((b) => !b.alive), "all three stacked bricks should be destroyed in one fireball pass");
+        a.eq(ball.dx, 0, "a fireball should not bounce off ordinary bricks");
+        a.eq(ball.dy, 1, "a fireball should not bounce off ordinary bricks");
+      },
+    },
+    {
+      name: "#53b — a fireball ball still bounces off an indestructible \"#\" brick and off a boss part",
+      fn(a) {
+        const g = boot().start();
+        const ball = g.T.state.balls[0];
+        ball.attached = false;
+        g.T.state.fireballEffect = { remaining: 5 };
+
+        // Control: an ordinary brick in this same fireball run goes down without
+        // a bounce, like #53a — establishes that fireballEffect is actually doing
+        // something in this test, so the wall/boss assertions below fail pre-fix
+        // instead of trivially passing because fireball doesn't exist yet.
+        const ordinary = { x: 190, y: 150, w: 20, h: 20, type: "1", hp: 1, alive: true, regenLeft: 0, regenTimer: 0 };
+        g.T.state.bricks = [ordinary];
+        g.T.state.remainingBricks = 100;
+        ball.x = 200;
+        ball.y = ordinary.y + ordinary.h / 2;
+        ball.dx = 0;
+        ball.dy = 1;
+        ball.speed = 1;
+        g.frame();
+        a.eq(ordinary.alive, false, "sanity check: fireball should plow through an ordinary brick here");
+        a.eq(ball.dy, 1, "sanity check: an ordinary brick should not have bounced the fireball ball");
+
+        const wall = { x: 190, y: 250, w: 20, h: 20, type: "#", hp: Infinity, alive: true, regenLeft: 0, regenTimer: 0 };
+        g.T.state.bricks = [wall];
+        g.T.state.remainingBricks = 0;
+        ball.x = 200;
+        ball.y = wall.y - ball.r - 2;
+        ball.dx = 0;
+        ball.dy = 1;
+        ball.speed = 200;
+        g.frame();
+        a.eq(ball.dy, -1, "a fireball should still bounce off an indestructible wall");
+        a.eq(wall.alive, true, "an indestructible wall survives a fireball hit");
+
+        // Sentinel (boss 1) is always vulnerable, no shield/blink — see boss.js.
+        const gb = boot();
+        gb.el("btn-start").click(1);
+        gb.T.startLevel(9);
+        gb.key("Space");
+        gb.T.state.fireballEffect = { remaining: 5 };
+        const part = gb.T.state.boss.parts[0];
+        const hpBefore = part.hp;
+        const bossBall = gb.T.state.balls[0];
+        bossBall.attached = false;
+        bossBall.x = part.x + part.w / 2;
+        bossBall.y = part.y + part.h + bossBall.r - 2;
+        bossBall.dx = 0;
+        bossBall.dy = -1;
+        bossBall.speed = 1;
+        gb.frame();
+        a.eq(bossBall.dy, 1, "a fireball should still bounce off a boss part");
+        a.eq(part.hp, hpBefore - 1, "the boss part should take a normal single hit, not be plowed through");
+      },
+    },
   ],
 };
