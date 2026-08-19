@@ -48,6 +48,13 @@ function beatFrames(g) {
   return n;
 }
 
+// #80: these #70 tests used to buy the full arrangement with a maxed-out
+// combo; now intensity reads level progress, so this drops remainingBricks
+// to almost nothing instead — the same near-cleared level a player moments
+// from finishing would read. Not all the way to 0: that's checkLevelClear()'s
+// own trigger, and would end the level out from under the test.
+function maxProgress(g) { g.T.state.remainingBricks = 1; }
+
 // A board already full of higher scores, so ending a run goes straight to
 // gameover rather than detouring through nameentry (#42).
 const FULL_HOF = JSON.stringify(
@@ -2051,30 +2058,80 @@ module.exports = {
         a.gt(g.notes.length, paused, "and resuming must bring it back");
       },
     },
+    // #59b used to hold combo driving voices; #80 replaced that metric with
+    // level progress, so it's superseded by #80a-d below.
     {
-      name: "#59b — voices join as the combo climbs, and leave once it breaks",
+      name: "#80a — breaking bricks toward the end of a level raises intensity even with no combo",
       fn(a) {
         const g = boot().start();
         g.T.state.balls.forEach((b) => { b.attached = true; });
-        const over = (seconds) => {
-          const before = g.notes.length;
-          g.run(seconds);
-          return g.notes.length - before;
-        };
-
         g.T.state.combo = 0;
-        const bare = over(2);
-        g.T.state.combo = 20; // past every threshold in CONFIG.music.voiceCombo
-        const full = over(2);
-        a.gt(full, bare * 2, `a long streak should thicken the arrangement (${bare} -> ${full})`);
+        g.runAlive(3);
+        const early = g.T.musicIntensity();
 
-        // Voices leave slowly — a combo dies on every paddle touch, and an
-        // arrangement that dropped one each time would flicker.
-        g.T.state.combo = 0;
-        over(1);
-        a.gt(over(2), bare, "one paddle touch must not strip the arrangement instantly");
-        over(10);
-        a.lt(over(2), full, "but a streak that stays broken should thin back out");
+        const total = g.T.state.levelBrickTotal;
+        const target = Math.floor(total * 0.2);
+        g.T.state.bricks.filter((b) => b.hp !== Infinity && b.alive)
+          .slice(0, g.T.state.remainingBricks - target)
+          .forEach((b) => { b.alive = false; });
+        g.T.state.remainingBricks = target;
+        g.T.state.combo = 0; // still 0 — progress alone must be driving this
+        g.runAlive(3);
+        const late = g.T.musicIntensity();
+        a.gt(late, early, `progress alone should raise intensity (${early} -> ${late})`);
+      },
+    },
+    {
+      name: "#80b — a fresh level starts at the lowest intensity even with a high combo carried in",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.combo = 20; // would have maxed every old voiceCombo threshold
+        g.T.state.balls.forEach((b) => { b.attached = true; });
+        g.runAlive(3);
+        a.eq(g.T.musicIntensity(), 0,
+          "a level that just started has zero progress, so no voice past the bass should join");
+      },
+    },
+    {
+      name: "#80c — a regenerating brick eases intensity back down rather than cutting a voice instantly",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.balls.forEach((b) => { b.attached = true; });
+        const total = g.T.state.levelBrickTotal;
+        g.T.state.bricks.filter((b) => b.hp !== Infinity && b.alive)
+          .slice(0, total - Math.floor(total * 0.1))
+          .forEach((b) => { b.alive = false; });
+        g.T.state.remainingBricks = Math.floor(total * 0.1);
+        g.runAlive(3);
+        const full = g.T.musicIntensity();
+        a.gt(full, 0, "setup should have reached a nonzero intensity");
+
+        // A brick regenerating puts remainingBricks back up, dropping
+        // progress the same way a level that just started would read.
+        g.T.state.remainingBricks = total;
+        g.frame();
+        a.near(g.T.musicIntensity(), full, 0.05, "one tick must not cut a voice the instant progress drops");
+
+        g.runAlive(10);
+        a.lt(g.T.musicIntensity(), full, "given enough time the arrangement should thin back toward the lower target");
+      },
+    },
+    {
+      name: "#80d — a boss level's intensity climbs as its parts are damaged, independent of remainingBricks",
+      fn(a) {
+        const g = boot().start();
+        g.T.startLevel(9); // level 10 — the first boss, a single undefended part
+        g.T.setPhase("playing");
+        g.T.state.balls.forEach((b) => { b.attached = true; });
+        a.eq(g.T.state.remainingBricks, 0, "a boss level's remainingBricks stays pinned at 0");
+        g.runAlive(3);
+        const early = g.T.musicIntensity();
+
+        const boss = g.T.state.boss;
+        boss.parts.forEach((p) => { p.hp = 1; }); // near dead, still alive/solid
+        g.runAlive(3);
+        const late = g.T.musicIntensity();
+        a.gt(late, early, "damaging the boss should raise intensity even though remainingBricks never moves");
       },
     },
     {
@@ -2207,7 +2264,7 @@ module.exports = {
         // so every note from here belongs to the bed and the intensity never
         // moves under the measurement.
         g.T.state.balls.forEach((b) => { b.attached = true; });
-        g.T.state.combo = 20;
+        maxProgress(g);
 
         const stepDur = 60 / g.T.CONFIG.music.tempo / 4;
         const barDur = stepDur * g.T.MUSIC_STEPS;
@@ -2232,11 +2289,10 @@ module.exports = {
       },
     },
     {
-      name: "#70b — a kick carries the pulse whatever the combo, and the hat is bought with it",
+      name: "#70b — a kick carries the pulse whatever the progress, and the hat is bought with it",
       fn(a) {
         const g = boot().start();
         g.T.state.balls.forEach((b) => { b.attached = true; });
-        g.T.state.combo = 0;
         g.run(8);
 
         const kicks = g.notes.filter((n) => n.type === "sine" && n.freq < 220 && n.slide > 0);
@@ -2244,11 +2300,11 @@ module.exports = {
           "the kick is unconditional — it is what lets the melodic voices thin out");
         a.empty(g.notes.filter((n) => n.type === "noise"), "the hat has to be earned");
 
-        g.T.state.combo = 20;
+        maxProgress(g);
         const from = g.notes.length;
         g.run(8);
         const hats = g.notes.slice(from).filter((n) => n.type === "noise");
-        a.gt(hats.length, 8, "a streak should buy the hat");
+        a.gt(hats.length, 8, "a level close to clear should buy the hat");
         a.gt(hats[0].filterFreq, 2000, "a hat is noise band-limited high, not a rumble");
         a.gt(hats[0].vol, 0);
       },
@@ -2261,7 +2317,7 @@ module.exports = {
           g.T.startLevel(level);
           g.key("Space");
           g.T.state.balls.forEach((b) => { b.attached = true; });
-          g.T.state.combo = 20;
+          maxProgress(g);
           g.notes.length = 0;
           g.run(3);
           return g.notes;
@@ -2296,7 +2352,7 @@ module.exports = {
         // exactly this reason.
         const g = boot().start();
         g.T.state.balls.forEach((b) => { b.attached = true; });
-        g.T.state.combo = 20; // the hat included; the buffer is built on its first hit
+        maxProgress(g); // the hat included; the buffer is built on its first hit
         const real = Math.random;
         let rolls = 0;
         Math.random = () => { rolls++; return real(); };

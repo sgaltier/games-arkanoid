@@ -1364,17 +1364,19 @@ canvas {
     // to place a note on the beat, so a frame only decides *what* to queue and
     // WebAudio's own clock decides when it sounds.
     //
-    // `voiceCombo` is the combo each voice past the bass joins at, and
-    // `voiceDecay` how fast one leaves once the streak no longer earns it.
-    // Leaving instantly would flicker the whole arrangement on and off, since a
-    // combo dies on every paddle touch — several times a level, by design.
+    // #80: `voiceProgress` is how far through the level (or boss fight) each
+    // voice past the bass joins, as a fraction from 0 to 1, and `voiceDecay`
+    // how fast one leaves once progress eases back below its rung — a brick
+    // regenerating, or a boss part appearing, pulls the target down rather
+    // than a streak breaking. Leaving instantly would flicker the whole
+    // arrangement on and off, so it fades instead.
     //
     // Since #70 `tempo` is the *base*: each act scales it (see MUSIC_ACTS), so
     // this stays the one number that moves the whole score.
     music: {
       tempo: 132,
       lookahead: 0.12,      // seconds of notes queued ahead of actx.currentTime
-      voiceCombo: [3, 6, 10],
+      voiceProgress: [0.4, 0.7, 0.9],
       voiceDecay: 0.5,      // voices per second
       gain: 0.05            // peak gain of the loudest voice; the rest are fractions of it
     },
@@ -2579,6 +2581,10 @@ canvas {
     }
     state.bricks = bricks;
     state.remainingBricks = remaining;
+    // #80: the starting count, kept alongside the live one so music intensity
+    // can read progress as a fraction. Stays 0 on a boss level, same as
+    // remainingBricks above — nextIntensity() reads state.boss instead there.
+    state.levelBrickTotal = remaining;
     state.bricksDestroyed = 0;
     state.difficultyMult = 1;
     state.theme = themeFor(idx);
@@ -3729,21 +3735,34 @@ canvas {
     }
   }
 
-  // Voices arrive the instant the combo earns them and leave slowly — see
-  // CONFIG.music.voiceDecay.
+  // #80: driven by how close the level (or boss fight) is to clear rather
+  // than the combo, so the arrangement builds toward the last few bricks
+  // whether or not the player is on a streak. Voices arrive as soon as
+  // progress earns them and leave slowly when it eases back — see
+  // CONFIG.music.voiceDecay — rather than cutting out the instant a brick
+  // regenerates or a boss spawns a new part.
   function nextIntensity(current, dt) {
+    var progress = state.boss ? bossProgress(state.boss)
+      : state.levelBrickTotal ? 1 - state.remainingBricks / state.levelBrickTotal : 0;
     var target = 0;
-    for (var i = 0; i < CONFIG.music.voiceCombo.length; i++) {
-      if (state.combo >= CONFIG.music.voiceCombo[i]) target = i + 1;
+    for (var i = 0; i < CONFIG.music.voiceProgress.length; i++) {
+      if (progress >= CONFIG.music.voiceProgress[i]) target = i + 1;
     }
     if (target >= current) return target;
     return Math.max(target, current - CONFIG.music.voiceDecay * dt);
   }
 
+  // #80: read-only accessor for tests. `music` itself isn't a seam candidate
+  // — it's reassigned wholesale on every serve/level break (see below), so an
+  // object literal capturing it once at boot would go stale the first time
+  // that happens.
+  function musicIntensity() { return music ? music.intensity : 0; }
+
   // Driven from frame(), but the notes it queues are timed by the audio clock,
-  // not by frames. Reads state.phase and state.combo and writes neither: the
-  // bed is presentation, exactly like #58's impact layer, and the game sounds
-  // different with it off but never plays differently.
+  // not by frames. Reads state.phase, state.remainingBricks/levelBrickTotal
+  // and state.boss, and writes none of them: the bed is presentation, exactly
+  // like #58's impact layer, and the game sounds different with it off but
+  // never plays differently.
   //
   // #79: gated on the death beat too, not just the phase — the beat
   // deliberately stays in "playing" (see updateBossDeathBeat's comment), and
@@ -3954,12 +3973,28 @@ canvas {
       fireGrace: CONFIG.boss.fireGrace
     };
     BOSSES[defIdx].spawn(b);
+    // #80: the fight's starting hp, over the parts spawn() just built — a
+    // snapshot rather than a running total, so a boss whose fight adds parts
+    // later (onPartDown splitting one in two) dips music progress the same
+    // way a regenerating brick does, instead of quietly raising the bar.
+    var total = 0;
+    for (var i = 0; i < b.parts.length; i++) total += b.parts[i].hp;
+    b.hpTotal = total;
     return b;
   }
 
   function bossPartsAlive(b) {
     for (var i = 0; i < b.parts.length; i++) if (b.parts[i].alive) return true;
     return false;
+  }
+
+  // #80: how far into the fight the boss is, as the same 0-1 fraction
+  // buildLevel's brick count gives nextIntensity() for an ordinary level.
+  function bossProgress(b) {
+    if (!b || !b.hpTotal) return 0;
+    var remaining = 0;
+    for (var i = 0; i < b.parts.length; i++) remaining += Math.max(0, b.parts[i].hp);
+    return clamp(1 - remaining / b.hpTotal, 0, 1);
   }
 
   function updateBoss(dt) {

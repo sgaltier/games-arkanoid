@@ -46,9 +46,37 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #77 | ✅ Fixed — 2026-08-18 |
 | #79 | ✅ Fixed — 2026-08-18 |
 | #53 | ✅ Fixed — 2026-08-19 |
+| #80 | ✅ Fixed — 2026-08-19 |
 
-65 of 65 fixed — nothing open. See [todo.md](todo.md), and [feature-ideas.md](feature-ideas.md) for
+66 of 66 fixed — nothing open. See [todo.md](todo.md), and [feature-ideas.md](feature-ideas.md) for
 proposals not yet promoted to it.
+
+---
+
+## 2026-08-19 — Music intensity driven by level progress, not combo (#80)
+
+### Fixed
+
+**The music bed's arrangement now tracks how close the level is to clear, instead of a combo
+streak.** `nextIntensity()` used to read `state.combo` against fixed thresholds — a voice joined the
+instant a streak reached it and left slowly once the streak broke — which rewarded breaking bricks
+fast without a paddle touch in between, rather than actual progress. It now computes progress as
+`1 - remainingBricks / levelBrickTotal` (a new field set once per level alongside the existing live
+count) and walks the same kind of thresholds against that fraction instead, so the arrangement builds
+toward the last few bricks whether or not the player is on a streak. The decay that eases a voice back
+out is unchanged, so a regenerating brick thins the bed gradually rather than yanking a voice the
+instant it comes back.
+
+**Boss levels — which have no bricks to count — read the fight's own health instead.** The boss's
+starting hit points are snapshotted once when it spawns; `nextIntensity()` branches on `state.boss`
+and reads the fraction of that total still standing, the same guard `checkLevelClear()` already uses
+to treat a boss level as a special case. A fight that adds parts mid-way (a split enemy) dips progress
+the same way a regenerating brick does, eased back up rather than jumped.
+
+A new one-line accessor exposes the bed's live intensity to tests directly, since the internal `music`
+object is reassigned wholesale on every serve and level break. Four new regression cases replace the
+old combo-driven one, and four existing cases that used to force a full arrangement with a maxed-out
+combo were updated to do it via progress instead.
 
 ---
 

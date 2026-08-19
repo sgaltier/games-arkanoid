@@ -44,6 +44,10 @@ const SEAM = [
   // #44: the boss roster, so its ids can be held against both string tables
   // the same way, and its arenas/hit counts asserted directly.
   "BOSSES",
+  // #80: music intensity is otherwise only observable indirectly (as the
+  // notes queued), which can't tell "progress eased it down" apart from
+  // "nothing changed yet" without waiting out the whole decay.
+  "musicIntensity",
 ];
 
 const TAIL = "})();";
