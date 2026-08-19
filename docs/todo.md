@@ -9,9 +9,9 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 4 open items — #54–57, promoted from [feature-ideas.md](feature-ideas.md) §C. Every review
-finding, and every other directly-requested feature, raised so far has shipped, and so has #53 from
-this same batch (see [done.md](done.md)).
+**Status:** 5 open items — #54–57, promoted from [feature-ideas.md](feature-ideas.md) §C, plus #81.
+Every review finding, and every other directly-requested feature, raised so far has shipped, and so
+has #53 from the promoted batch (see [done.md](done.md)).
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
 test → fix → move the finding's whole entry from this file to [done.md](done.md), prepending a
@@ -32,7 +32,7 @@ Every review finding raised so far has shipped, and so has every directly-reques
 [done.md](done.md). What is open below are four power-up/ball-mechanics ideas promoted from
 [feature-ideas.md](feature-ideas.md), which keep their numbers; that file still holds the proposals
 not yet promoted. New review findings go here too, keeping the shared numbering: the next free
-number is **#81**.
+number is **#82**.
 
 ---
 
@@ -198,3 +198,42 @@ the frustration into a decision for anyone who picked up `laser` in the first pl
   angle whose vertical component drops below the existing minimum.
 - `#57a` — a laser bolt destroys a falling `narrow` drop and the drop never reaches the paddle.
 - `#57b` — a laser bolt passes through a falling `widen` drop untouched.
+
+## D. Requested directly by the user
+
+### 81. A short fanfare on level clear (S/M)
+
+An ordinary (non-boss) level clear has no sound of its own today — `checkLevelClear()`'s non-boss
+branch goes straight to `setPhase("levelclear")` (index.html:4689) with nothing played. Wants a
+~2-second fanfare: multi-instrument and epic in the way #74's `BOSS_FANFARE` already is, in the
+spirit of the classic *Final Fantasy* victory fanfare — a brassy, triumphant fixed figure, not a
+single beep.
+
+**Reuse #74's machinery rather than reinventing it.** `BOSS_FANFARE` (index.html:3545) is already
+built from the right primitives — `addMelody(at, step, dur, vol, withBass, withPad)` layering a
+sawtooth call with an octave-down bass note and a third-above triangle pad, plus `addKick`/`addHat`
+reusing the same kick/hat recipes `MUSIC_DRUMS` uses for the ordinary bed. A `LEVEL_CLEAR_FANFARE`
+built the same way — one shorter rising call plus a final chord, trimmed to fit ~2s instead of
+`BOSS_FANFARE`'s ~5.5s (two 1.05s bars, a flourish, then a 1.9s ringing chord) — would sound like it
+belongs to the same score, the way the boss fanfare does. `bossFanfareTone()`'s pattern (schedule
+every note's `at` against `ctxA.currentTime`, resolve `step` through `scaleSemi()` so it stays in
+the level's own scale/act) is the template to copy, not a new one to design.
+
+**Always the same figure, never combo-derived.** Unlike the combo ladder (`ladderSemi`), this
+fanfare doesn't vary with how the level was played — same fixed note sequence every time, exactly
+like `LOSS_STING` and `BOSS_FANFARE` already are fixed figures rather than data-driven ones. "Always
+the same" is the point: it's a recognizable stinger, not a generative one.
+
+**Must not fire on a boss level.** A boss kill already gets its own, longer celebration —
+`bossFanfareTone()` + `bossExplosionSound()`, fired from `updateBossDeathBeat()` — before
+`checkLevelClear()` ever reaches `setPhase("levelclear")` for that level. Playing this new fanfare
+too would stack two fanfares on top of each other. The guard is `isBossLevel(state.levelIndex)`
+(index.html:1044): only call the new fanfare from the non-boss branch of `checkLevelClear()`, the
+same `else` that currently falls straight through to `setPhase("levelclear")`.
+
+**Tests:**
+- `#81a` — clearing a non-boss level schedules the new fanfare's notes against the audio clock.
+- `#81b` — clearing a boss level's final part does not also schedule the level-clear fanfare (only
+  `bossFanfareTone()`'s notes appear).
+- `#81c` — the fanfare figure is identical across two different combo counts / runs — it does not
+  vary with score, combo, or difficulty.
