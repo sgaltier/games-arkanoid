@@ -206,6 +206,21 @@ body {
 .hud-cell.level .hud-value { color: var(--neon-amber); text-shadow: 0 0 8px rgba(255,182,39,.6); }
 .hud-cell.best  .hud-value { color: var(--neon-silver); text-shadow: 0 0 8px rgba(195,206,224,.5); }
 
+/* #54: a static "armed" badge, not a duration bar — a shield decays by use,
+   not by time, so it has nothing to shrink and doesn't belong among
+   .effect-bars. Absolutely positioned so its hidden/shown toggle never
+   changes .hud-cell.lives's height, which a shared grid row would otherwise
+   pass on to the other three cells. */
+.hud-cell.lives { position: relative; }
+.shield-badge {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  font-size: 12px;
+  line-height: 1;
+  filter: drop-shadow(0 0 4px rgba(59,167,255,.8));
+}
+
 /* ---------- effect timers ---------- */
 /* #31: how long an active power-up has left. Each slot is toggled with the
    `hidden` attribute and resized via the fill's inline width — see
@@ -680,6 +695,10 @@ canvas {
     <div class="hud-cell lives">
       <div class="hud-label" data-i18n="hud.lives">Vies</div>
       <div class="hud-value" id="hud-lives">●●●</div>
+      <!-- #54: shown while a shield is armed, hidden otherwise — see updateHud(). -->
+      <span class="shield-badge" id="shield-badge" hidden
+            data-i18n-attr="title:powerup.shield|aria-label:powerup.shield"
+            title="Bouclier" aria-label="Bouclier">&#128737;</span>
     </div>
   </div>
 
@@ -1264,6 +1283,7 @@ canvas {
     { type: "sticky", color: "#c3cee0", weight: 3, good: true, label: "St" },
     { type: "laser", color: "#ffe600", weight: 2, good: true, label: "L" },
     { type: "fireball", color: "#ff6a00", weight: 2, good: true, label: "Fb" },
+    { type: "shield", color: "#3ba7ff", weight: 2, good: true, label: "Sh" },
     { type: "narrow", color: "#ff3b3b", weight: 4, good: false, label: "N" },
     { type: "fast", color: "#ff7a3b", weight: 4, good: false, label: "F" }
   ];
@@ -2029,6 +2049,7 @@ canvas {
       "powerup.sticky": "Raquette collante",
       "powerup.laser": "Laser",
       "powerup.fireball": "Balle de feu",
+      "powerup.shield": "Bouclier",
       // #44: the boss roster's names, read only by drawBoss() via t() — not
       // wired to any data-i18n markup, since the fight is drawn on canvas.
       "boss.sentinel.name": "SENTINELLE",
@@ -2163,6 +2184,7 @@ canvas {
       "powerup.sticky": "Sticky paddle",
       "powerup.laser": "Laser",
       "powerup.fireball": "Fireball",
+      "powerup.shield": "Shield",
       "boss.sentinel.name": "SENTINEL",
       "boss.salvo.name": "SALVO",
       "boss.carapace.name": "CARAPACE",
@@ -2479,6 +2501,11 @@ canvas {
     stickyEffect: null, // {remaining} — a ball touching the paddle re-attaches
     laserEffect: null,  // {remaining} — the fire button shoots instead of a no-op
     fireballEffect: null, // {remaining} — ordinary/silver bricks die without bouncing the ball; see updateBalls
+    // #54: armed/not — true while a shield is ready to save the next ball
+    // that would otherwise be lost off the bottom. Decays by use, not by
+    // time, so unlike the effects above it never counts down in updateEffects()
+    // and has no CONFIG.effects entry; see updateBalls.
+    shieldEffect: null,
     remainingBricks: 0, // destructible bricks still alive; see buildLevel/brickHit
     bricksDestroyed: 0, // this level, toward the next difficulty milestone
     difficultyMult: 1,  // ramps up within a level; see CONFIG.difficulty
@@ -2601,6 +2628,7 @@ canvas {
     state.stickyEffect = null;
     state.laserEffect = null;
     state.fireballEffect = null;
+    state.shieldEffect = null;
     state.paddle.x = clamp(state.paddle.x, 0, GAME_W - paddleWidth());
     var speed = state.baseBallSpeed * levelDef(state.levelIndex).speed;
     state.balls = [{
@@ -3941,6 +3969,9 @@ canvas {
     } else if (p.type === "fireball") {
       state.fireballEffect = { remaining: CONFIG.effects.fireball.duration };
       beep(760, 0.14, "sawtooth");
+    } else if (p.type === "shield") {
+      state.shieldEffect = true;
+      beep(220, 0.12, "sine");
     } else if (p.type === "multi") {
       beep(660, 0.12, "square");
       var base = state.balls.filter(function (b) { return !b.attached; })[0];
@@ -4644,8 +4675,22 @@ canvas {
 
       // lost off bottom
       if (ball.y - ball.r > GAME_H) {
-        lostAtX = ball.x;
-        state.balls.splice(bi, 1);
+        if (state.shieldEffect) {
+          // #54: a one-shot save — consume the shield and bounce the ball
+          // back instead of splicing it out. Only the ball the bi loop
+          // reaches first this frame gets saved; any other ball crossing the
+          // floor in the same frame falls through to the ordinary loss below.
+          state.shieldEffect = null;
+          ball.y = GAME_H - ball.r;
+          ball.dy = -Math.abs(ball.dy);
+          state.combo = 0; // same reset a real paddle touch causes
+          burst(ball.x, GAME_H - 2, "#3ba7ff", 14);
+          beep(200, 0.15, "square");
+          updateHud();
+        } else {
+          lostAtX = ball.x;
+          state.balls.splice(bi, 1);
+        }
       }
     }
 
@@ -5017,13 +5062,14 @@ canvas {
   var hudBest = document.getElementById("hud-best");
   var hudLevel = document.getElementById("hud-level");
   var hudLives = document.getElementById("hud-lives");
+  var shieldBadge = document.getElementById("shield-badge"); // #54
   // updateHud() runs both on state-changing events (brickHit, applyPowerup,
   // loseLife, ...) and unconditionally once per frame. The frame call is what
   // catches state.best being live-compared against state.score, but re-writing
   // four DOM nodes 60 times a second when nothing displayed has changed is
   // pure waste — hudLast caches what's currently on screen so each field is
   // only touched when its value actually differs.
-  var hudLast = { score: null, best: null, level: null, lives: null };
+  var hudLast = { score: null, best: null, level: null, lives: null, shield: null };
   function updateHud() {
     var score = state.score;
     if (hudLast.score !== score) { hudScore.textContent = score; hudLast.score = score; }
@@ -5035,6 +5081,8 @@ canvas {
     for (var i = 0; i < state.lives; i++) dots += "●";
     for (var j = state.lives; j < state.maxLives; j++) dots += "○";
     if (hudLast.lives !== dots) { hudLives.textContent = dots; hudLast.lives = dots; }
+    var armed = !!state.shieldEffect;
+    if (hudLast.shield !== armed) { shieldBadge.hidden = !armed; hudLast.shield = armed; }
   }
   updateHud();
 

@@ -9,9 +9,9 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 4 open items — #54–57, promoted from [feature-ideas.md](feature-ideas.md) §C. Every review
-finding, and every other directly-requested feature, raised so far has shipped, and so has #53 from
-the promoted batch (see [done.md](done.md)).
+**Status:** 3 open items — #55–57, promoted from [feature-ideas.md](feature-ideas.md) §C. Every review
+finding, and every other directly-requested feature, raised so far has shipped, and so have #53 and
+#54 from the promoted batch (see [done.md](done.md)).
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
 test → fix → move the finding's whole entry from this file to [done.md](done.md), prepending a
@@ -19,7 +19,7 @@ test → fix → move the finding's whole entry from this file to [done.md](done
 the historical record → add an entry to [release-notes.md](release-notes.md).
 
 **Line references, once written, are only valid against the current `index.html`** — the same
-re-anchoring discipline applies here as in `done.md`. The four entries below deliberately carry
+re-anchoring discipline applies here as in `done.md`. The three entries below deliberately carry
 **no line anchors**: they describe features that do not exist yet, so every reference is to a
 function or field name, which does not go stale.
 
@@ -29,10 +29,11 @@ Every review finding raised so far has shipped, and so has every directly-reques
 (boss levels), #74 (the boss-kill celebration built on top of it), #75 (a follow-on to #37), #78
 (effect-bar names), #76 (hall-of-fame name validation), #77 (hall-of-fame profanity filtering), #79
 (the boss-kill death beat's music/explosion/sound gaps), #80 (level-progress-driven music intensity),
-#81 (the level-clear fanfare), and #53 (the fireball power-up) — see [done.md](done.md). What is open
-below are four power-up/ball-mechanics ideas promoted from [feature-ideas.md](feature-ideas.md), which
-keep their numbers; that file still holds the proposals not yet promoted. New review findings go here
-too, keeping the shared numbering: the next free number is **#82**.
+#81 (the level-clear fanfare), #53 (the fireball power-up), and #54 (the safety-net shield) — see
+[done.md](done.md). What is open below are three power-up/ball-mechanics ideas promoted from
+[feature-ideas.md](feature-ideas.md), which keep their numbers; that file still holds the proposals
+not yet promoted. New review findings go here too, keeping the shared numbering: the next free number
+is **#82**.
 
 ---
 
@@ -40,42 +41,10 @@ too, keeping the shared numbering: the next free number is **#82**.
 
 Promoted together because all four touch the same handful of functions —
 `updateBalls()`/`resolveBrickCollision()`, `applyPowerup()`, `CONFIG.effects`, `renderEffectBars()`
-— and are cheaper to reason about as a set than one at a time. #53 (fireball), promoted alongside
-them, has already shipped — see [done.md](done.md) for how it landed, including the `.effect-bars`
-capacity/i18n/weight bookkeeping it accounted for on its own; whichever of the four below ships next
-still needs to re-derive that bookkeeping against its own new slot.
-
-### 54. Safety net / shield (S)
-
-A one-shot barrier that turns the next ball reaching the bottom into a bounce instead of a life —
-the most forgiving pickup in the genre, and the only one aimed at keeping a losing run alive rather
-than at score.
-
-**Where it hooks in.** `updateBalls()`'s bottom-loss check is a single guard per ball:
-`if (ball.y - ball.r > GAME_H) { lostAtX = ball.x; state.balls.splice(bi, 1); }`. A shield check goes
-immediately before it — if `state.shieldEffect` is armed, consume it (`state.shieldEffect = null`),
-reflect the ball back up (`ball.dy = -Math.abs(ball.dy)`, `ball.y = GAME_H - ball.r`) and reset
-`state.combo` the way a real paddle touch does, instead of splicing the ball out. Nothing else in
-`updateBalls()` — the paddle-collision block above it, `loseLife()` below — needs to know the save
-happened.
-
-**Not a duration.** Every existing effect in `CONFIG.effects` decays by `remaining -= dt` in
-`updateEffects()`; a shield decays by *use*, not by time, so it doesn't belong in that loop or on
-the duration-based `.effect-bar` (`updateEffectBar()` assumes a `remaining`/`duration` ratio to
-drive a shrinking fill — there is nothing to shrink here). It wants its own small "armed" indicator
-— a static icon, not a bar — which is new UI, not a reuse of `renderEffectBars()`.
-
-**Clears with everything else on a lost life.** `resetPaddleAndBall()` already nulls
-`widthEffect`/`speedEffect`/`stickyEffect`/`laserEffect` on every fresh life; `shieldEffect` joins
-that list. An *unused* shield is deliberately not carried forward — the alternative (hoarding one
-indefinitely across many lives, waiting for the worst possible moment) is a strictly better play
-than using it promptly, which would make every other timed pickup look bad by comparison.
-
-**Multi-ball interaction, decided rather than left ambiguous:** one shield saves exactly one ball —
-whichever the `bi` loop (counting down from `state.balls.length - 1`) reaches first this frame —
-even if several balls cross the floor in the same frame. That's a rare edge case (near-simultaneous
-losses only really happen with `multi` active and balls launched close together), and catching only
-one of them is the correct forgiving-but-not-free reading of "one-shot."
+— and are cheaper to reason about as a set than one at a time. #53 (fireball) and #54 (the safety-net
+shield), promoted alongside them, have already shipped — see [done.md](done.md) for how each landed,
+including the `.effect-bars` capacity/i18n/weight bookkeeping #53 accounted for on its own; whichever
+of the three below ships next still needs to re-derive that bookkeeping against its own new slot.
 
 ### 55. Magnet paddle and hold-to-slow bullet time (S each)
 
@@ -188,9 +157,6 @@ the frustration into a decision for anyone who picked up `laser` in the first pl
 
 #### Tests
 
-- `#54a` — a ball that would have cost a life bounces instead while a shield is armed, and the
-  shield is gone afterward.
-- `#54b` — an unused shield does not survive `resetPaddleAndBall()`.
 - `#55a` — a magnet-curved ball's `dx`/`dy` stay unit length every frame (`dx*dx + dy*dy ≈ 1`).
 - `#56a` — a paddle moving right at the moment of contact steers the bounce further right than the
   same hit position would with a stationary paddle, within the clamp.

@@ -1880,7 +1880,14 @@ module.exports = {
       fn(a) {
         // Resolving happens at the top of brickHit(), so the same hit then
         // applies to the new type rather than being spent on the reveal.
-        const g = mysteryBoard(999);
+        // #54: seeded 998, not 999 like its siblings above — this test's
+        // outcome (whether the run happens to land on silver at all) rides on
+        // the same Math.random() stream rollPowerup() draws from for every
+        // brick drop, and adding a new POWERUPS entry reweights every
+        // boundary in that table. 999 stopped producing silver the moment
+        // "shield" joined POWERUPS; re-picking the seed, not the test, is the
+        // fix — the next new power-up type may well force choosing another.
+        const g = mysteryBoard(998);
         const silver = g.T.state.bricks.filter((b) => b.type === "S" || b.type === "Sc");
         a.gt(silver.length, 0, "this seed must produce silver or the case is untested");
         a.empty(
@@ -3459,6 +3466,41 @@ module.exports = {
         gb.frame();
         a.eq(bossBall.dy, 1, "a fireball should still bounce off a boss part");
         a.eq(part.hp, hpBefore - 1, "the boss part should take a normal single hit, not be plowed through");
+      },
+    },
+    {
+      name: "#54a — a ball that would have cost a life bounces instead while a shield is armed, and the shield is gone afterward",
+      fn(a) {
+        const g = boot().start();
+        const ball = g.T.state.balls[0];
+        ball.attached = false;
+        ball.x = 200;
+        ball.y = g.T.GAME_H + ball.r + 5; // already past the floor
+        ball.dx = 0;
+        ball.dy = 1;
+        ball.speed = 1;
+        g.T.state.shieldEffect = true;
+        g.T.state.combo = 5;
+        const livesBefore = g.T.state.lives;
+        g.frame();
+
+        a.eq(g.T.state.balls.length, 1, "the ball should survive instead of being spliced out");
+        a.eq(g.T.state.balls[0], ball, "it's the same ball, bounced rather than replaced");
+        a.eq(ball.dy, -1, "a saved ball bounces back upward");
+        a.ok(ball.y - ball.r <= g.T.GAME_H, "a saved ball is pulled back above the floor");
+        a.eq(g.T.state.shieldEffect, null, "the shield is consumed by the save");
+        a.eq(g.T.state.combo, 0, "a shield save resets the combo the way a paddle touch does");
+        a.eq(g.T.state.lives, livesBefore, "no life should be lost on a saved ball");
+        a.eq(g.T.state.phase, "playing", "a saved ball never triggers the lost-ball beat");
+      },
+    },
+    {
+      name: "#54b — an unused shield does not survive resetPaddleAndBall()",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.shieldEffect = true;
+        g.T.startLevel(g.T.state.levelIndex); // buildLevel + resetPaddleAndBall, same as a lost life's finishLifeLost()
+        a.eq(g.T.state.shieldEffect, null, "an unarmed-but-unused shield must not carry over into the next life");
       },
     },
   ],

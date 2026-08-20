@@ -48,9 +48,34 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #53 | ✅ Fixed — 2026-08-19 |
 | #80 | ✅ Fixed — 2026-08-19 |
 | #81 | ✅ Fixed — 2026-08-19 |
+| #54 | ✅ Fixed — 2026-08-20 |
 
-67 of 67 fixed — nothing open. See [todo.md](todo.md), and [feature-ideas.md](feature-ideas.md) for
+68 of 68 fixed — nothing open. See [todo.md](todo.md), and [feature-ideas.md](feature-ideas.md) for
 proposals not yet promoted to it.
+
+---
+
+## 2026-08-20 — Safety-net shield power-up (#54)
+
+### Fixed
+
+**A new good power-up, `shield`, turns the next ball lost off the bottom into a bounce instead of a
+life.** Armed by `state.shieldEffect`, a plain flag rather than a `{remaining}` duration — it decays by
+use, not by time, so it sits outside `updateEffects()`'s countdown loop entirely. The save itself is a
+single guard added to `updateBalls()`'s existing bottom-loss check: while armed, the ball that would
+have been spliced out is reflected back up instead and the combo resets the way a real paddle touch
+does, then the shield is consumed. Only the first ball to cross the floor in a given frame gets saved;
+any others that frame are lost as usual. `resetPaddleAndBall()` clears an unused shield on every fresh
+life, so it can't be hoarded across lives.
+
+**Its "armed" state gets a static badge, not a duration bar.** With nothing to shrink, it doesn't join
+`.effect-bars` — instead a small shield icon appears in the corner of the lives HUD cell, shown and
+hidden by `updateHud()`, absolutely positioned so the toggle never resizes the shared HUD row.
+
+**Incidental fallout:** adding a new entry to `POWERUPS` reweights the table `rollPowerup()` draws
+against, which shifted which power-up a given random draw resolves to deep into a run — enough to
+change the outcome of `#52d`'s seeded 40-second mystery-brick test. Its seed moved from 999 to 998 to
+keep exercising the case it's meant to cover.
 
 ---
 
