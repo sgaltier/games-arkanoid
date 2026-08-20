@@ -49,9 +49,36 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #80 | ✅ Fixed — 2026-08-19 |
 | #81 | ✅ Fixed — 2026-08-19 |
 | #54 | ✅ Fixed — 2026-08-20 |
+| #55 | ✅ Fixed — 2026-08-20 |
 
-68 of 68 fixed — nothing open. See [todo.md](todo.md), and [feature-ideas.md](feature-ideas.md) for
+69 of 69 fixed — nothing open. See [todo.md](todo.md), and [feature-ideas.md](feature-ideas.md) for
 proposals not yet promoted to it.
+
+---
+
+## 2026-08-20 — Magnet paddle and hold-to-slow bullet time (#55)
+
+### Fixed
+
+**Two new skill-reward mechanics, both aimed at the long do-nothing descent after a top-wall bounce.**
+`magnet` is a new good power-up: while `state.magnetEffect` is active, a descending ball's angle bends
+gently toward the paddle's centre each frame — implemented by rotating the existing `dx`/`dy` angle by
+a clamped step and converting back with `Math.cos`/`Math.sin`, which keeps `dx*dx + dy*dy == 1` by
+construction rather than by discipline. It gets its own `.effect-bar` slot, the sixth; two bars still
+fit each wrapped row at the narrowest supported width, so the row's reserved height didn't need to
+grow past #53's.
+
+**Hold-to-slow ("bullet time") is always available, not a pickup.** Holding `Shift` (or a new on-screen
+button, whose own fill doubles as the meter) drops `ballSpeedMult()` while a meter — 3 seconds of hold,
+recharging at half that rate once released — has charge left. It stacks with the existing `slow`/`fast`
+power-up rather than replacing it.
+
+**A flicker at the meter's floor, caught by its own test.** The first cut turned the slow-down off the
+instant the meter hit exactly zero even with the button still held, which let a fraction of a frame's
+recharge sneak in — then drained it straight back down next frame, oscillating between 0 and one
+frame's worth of recharge for as long as the button stayed pressed. Separating "is the button held"
+from "is the slow-down actually active" (the latter alone gating `ballSpeedMult()`) fixed it: draining
+only ever goes one direction while held, all the way to a stable zero.
 
 ---
 

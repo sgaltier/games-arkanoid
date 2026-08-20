@@ -3503,5 +3503,92 @@ module.exports = {
         a.eq(g.T.state.shieldEffect, null, "an unarmed-but-unused shield must not carry over into the next life");
       },
     },
+    {
+      name: "#55a — magnet bends a descending ball toward the paddle centre, staying a unit vector",
+      fn(a) {
+        const g = boot().start();
+        // Clear of any brick the tiny per-frame move might otherwise clip,
+        // like #53a's stack — the point of this frame is the angle, not a hit.
+        g.T.state.bricks = [];
+        g.T.state.remainingBricks = 100;
+        const ball = g.T.state.balls[0];
+        ball.attached = false;
+        ball.x = g.T.state.paddle.x + 200; // well to the paddle's left
+        ball.y = 100;
+        ball.dx = 0;
+        ball.dy = 1; // straight down
+        ball.speed = 1;
+        g.T.state.magnetEffect = { remaining: 5 };
+        g.frame();
+
+        a.near(ball.dx * ball.dx + ball.dy * ball.dy, 1, 1e-9,
+          "magnet must rotate the direction, not stretch it — dx*dx + dy*dy should stay 1");
+        a.lt(ball.dx, 0, "the paddle sits to the ball's left, so magnet should curve it left");
+      },
+    },
+    {
+      name: "#55b — magnet leaves a rising ball alone",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.bricks = [];
+        g.T.state.remainingBricks = 100;
+        const ball = g.T.state.balls[0];
+        ball.attached = false;
+        ball.x = g.T.state.paddle.x + 200;
+        ball.y = 100;
+        ball.dx = 0;
+        ball.dy = -1; // rising, away from the paddle
+        ball.speed = 1;
+        g.T.state.magnetEffect = { remaining: 5 };
+        g.frame();
+
+        a.eq(ball.dx, 0, "magnet should not touch a ball that isn't descending");
+        a.eq(ball.dy, -1, "magnet should not touch a ball that isn't descending");
+      },
+    },
+    {
+      name: "#55c — holding bullet time drains the meter and slows the ball, and never drains past zero",
+      fn(a) {
+        const g = boot().start();
+        // Clear of any brick, so a level clearing partway through the run
+        // below can't take the game out of "playing" (and updateBulletTime()
+        // with it) before the meter has actually run dry.
+        g.T.state.bricks = [];
+        g.T.state.remainingBricks = 100;
+        const max = g.T.CONFIG.bulletTime.max;
+        a.eq(g.T.state.slowMeter, max, "the meter starts full");
+        a.eq(g.T.ballSpeedMult(), 1, "sanity: nothing slows the ball before bullet time is held");
+
+        g.T.state.keys.ShiftLeft = true;
+        g.frame();
+        a.lt(g.T.state.slowMeter, max, "one held frame should drain the meter");
+        a.lt(g.T.ballSpeedMult(), 1, "the ball should be slowed while bullet time is active");
+
+        // #55: runAlive keeps the paddle glued under the ball, so a slowed-down
+        // ball surviving several real seconds isn't the thing under test here.
+        g.runAlive(max + 1);
+        a.eq(g.T.state.slowMeter, 0, "the meter should never go negative");
+      },
+    },
+    {
+      name: "#55d — releasing bullet time stops the slow-down and recharges the meter",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.bricks = [];
+        g.T.state.remainingBricks = 100;
+        const max = g.T.CONFIG.bulletTime.max;
+        g.T.state.keys.ShiftLeft = true;
+        g.runAlive(1);
+        const drained = g.T.state.slowMeter;
+        a.lt(drained, max, "sanity: holding should have drained some of the meter");
+
+        g.T.state.keys.ShiftLeft = false;
+        g.frame();
+        a.eq(g.T.ballSpeedMult(), 1, "releasing should stop slowing the ball immediately");
+        g.runAlive(1);
+        a.gt(g.T.state.slowMeter, drained, "releasing should let the meter recharge");
+        a.lte(g.T.state.slowMeter, max, "recharge should never overshoot the cap");
+      },
+    },
   ],
 };

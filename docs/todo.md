@@ -9,9 +9,9 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 3 open items — #55–57, promoted from [feature-ideas.md](feature-ideas.md) §C. Every review
-finding, and every other directly-requested feature, raised so far has shipped, and so have #53 and
-#54 from the promoted batch (see [done.md](done.md)).
+**Status:** 2 open items — #56–57, promoted from [feature-ideas.md](feature-ideas.md) §C. Every review
+finding, and every other directly-requested feature, raised so far has shipped, and so have #53, #54,
+and #55 from the promoted batch (see [done.md](done.md)).
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
 test → fix → move the finding's whole entry from this file to [done.md](done.md), prepending a
@@ -19,7 +19,7 @@ test → fix → move the finding's whole entry from this file to [done.md](done
 the historical record → add an entry to [release-notes.md](release-notes.md).
 
 **Line references, once written, are only valid against the current `index.html`** — the same
-re-anchoring discipline applies here as in `done.md`. The three entries below deliberately carry
+re-anchoring discipline applies here as in `done.md`. The two entries below deliberately carry
 **no line anchors**: they describe features that do not exist yet, so every reference is to a
 function or field name, which does not go stale.
 
@@ -29,53 +29,23 @@ Every review finding raised so far has shipped, and so has every directly-reques
 (boss levels), #74 (the boss-kill celebration built on top of it), #75 (a follow-on to #37), #78
 (effect-bar names), #76 (hall-of-fame name validation), #77 (hall-of-fame profanity filtering), #79
 (the boss-kill death beat's music/explosion/sound gaps), #80 (level-progress-driven music intensity),
-#81 (the level-clear fanfare), #53 (the fireball power-up), and #54 (the safety-net shield) — see
-[done.md](done.md). What is open below are three power-up/ball-mechanics ideas promoted from
-[feature-ideas.md](feature-ideas.md), which keep their numbers; that file still holds the proposals
-not yet promoted. New review findings go here too, keeping the shared numbering: the next free number
-is **#82**.
+#81 (the level-clear fanfare), #53 (the fireball power-up), #54 (the safety-net shield), and #55
+(magnet paddle / hold-to-slow bullet time) — see [done.md](done.md). What is open below are two
+power-up/ball-mechanics ideas promoted from [feature-ideas.md](feature-ideas.md), which keep their
+numbers; that file still holds the proposals not yet promoted. New review findings go here too,
+keeping the shared numbering: the next free number is **#82**.
 
 ---
 
 ## C. Power-ups and ball mechanics
 
-Promoted together because all four touch the same handful of functions —
-`updateBalls()`/`resolveBrickCollision()`, `applyPowerup()`, `CONFIG.effects`, `renderEffectBars()`
-— and are cheaper to reason about as a set than one at a time. #53 (fireball) and #54 (the safety-net
-shield), promoted alongside them, have already shipped — see [done.md](done.md) for how each landed,
-including the `.effect-bars` capacity/i18n/weight bookkeeping #53 accounted for on its own; whichever
-of the three below ships next still needs to re-derive that bookkeeping against its own new slot.
-
-### 55. Magnet paddle and hold-to-slow bullet time (S each)
-
-Two skill-reward effects, bundled here because they're both small and both aimed at the same gap —
-giving the player agency during the long, do-nothing descent after a top-wall bounce — not because
-they share implementation.
-
-**Magnet.** While `state.magnetEffect` is active, the descending ball's angle bends gently toward
-the paddle's centre each frame, rather than being purely a function of where it lands.
-
-The one thing this must get right: `ball.dx`/`ball.dy` are a **unit direction vector** — every
-existing write to them (`Math.cos(angle)`/`Math.sin(angle)` at spawn, at the paddle bounce, at every
-wall reflection) keeps `dx*dx + dy*dy == 1`, and `updateBalls()`'s per-frame step
-(`v = ball.speed * mult * state.difficultyMult * dt; ball.x += ball.dx * v`) relies on that being
-true — it's what makes `ball.speed` the actual px/s. A magnet can't just nudge `ball.dx` by some
-px/s²-shaped constant; it has to convert to an angle, rotate the angle a small step toward the
-paddle centre, and convert back — the same move the paddle-bounce code already makes. Skipping the
-renormalisation would silently speed the ball up every frame it curves, a bug that wouldn't show up
-until someone actually clocks the ball's speed against the level's nominal one.
-
-**Hold-to-slow.** A held input (a dedicated key, plus an on-screen button for touch, alongside the
-existing launch/pause controls) that drops `ballSpeedMult()` — today the one-line
-`state.speedEffect ? state.speedEffect.mult : 1` — while held, drawn from a meter that depletes on
-hold and recharges when released, rather than a pickup-granted duration. This is new state
-(`state.slowMeter`, refilled alongside `updateEffects()`) and a new always-visible meter UI, not
-another `.effect-bar` — it's player-triggered and available from the start of a run, not something
-collected.
-
-Both are additive to the existing `slow`/`fast` power-up (`state.speedEffect`): magnet changes
-angle, not speed; bullet time is its own multiplier stacked into `ballSpeedMult()`'s product, not a
-replacement for it.
+Promoted together, originally as four items sharing a handful of functions —
+`updateBalls()`/`resolveBrickCollision()`, `applyPowerup()`, `CONFIG.effects`, `renderEffectBars()`.
+#53 (fireball), #54 (the safety-net shield), and #55 (magnet paddle / hold-to-slow bullet time) have
+since shipped — see [done.md](done.md) for how each landed, including the `.effect-bars`
+capacity/i18n/weight bookkeeping each accounted for on its own. What's left below no longer shares
+much: #56 touches `updateBalls()`/`resolveBrickCollision()` (the paddle-physics half of the original
+set), and #57 touches `updateLasers()` instead — read each as its own item.
 
 ### 56. Paddle spin — English on the ball (M)
 
@@ -141,23 +111,8 @@ natural follow-up — a new `POWERUPS` row plus a branch in `applyPowerup()`, ge
 but doing both at once is what would push this above S, and the laser version alone already converts
 the frustration into a decision for anyone who picked up `laser` in the first place.
 
-#### Shared needs
-
-- **`.effect-bars` capacity.** Five bars show at once today — one slot each for `width`/`speed`
-  (`widen`/`narrow` share `widthEffect`, `slow`/`fast` share `speedEffect`), plus `sticky`, plus
-  `laser`, plus `fireball` (#53, shipped). `magnet` (#55) would be its own independent slot on top of
-  that, raising the simultaneous maximum to six. The container's `height: 60px` is commented as sized
-  for "3 wrapped rows... the worst case" of the current five — that comment, and the height itself,
-  need re-deriving against six before magnet ships, not after a player reports bars overlapping.
-- **i18n.** `powerup.magnet`, and (if the cleanse follow-up to #57 is taken) `powerup.cleanse` — one
-  dotted key per new type in both `STRINGS.fr` and `STRINGS.en`, or the `i18n` suite fails the build.
-- **`POWERUPS` table weight.** A new good `magnet` entry dilutes every existing weight's share of
-  `POWERUP_TOTAL_WEIGHT`; keep it low (2, matching `laser`/`fireball`'s existing weight) so the drop
-  table doesn't quietly become mostly-new-stuff.
-
 #### Tests
 
-- `#55a` — a magnet-curved ball's `dx`/`dy` stay unit length every frame (`dx*dx + dy*dy ≈ 1`).
 - `#56a` — a paddle moving right at the moment of contact steers the bounce further right than the
   same hit position would with a stationary paddle, within the clamp.
 - `#56b` — the clamp holds: no combination of hit position and paddle velocity produces a bounce

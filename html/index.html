@@ -231,7 +231,7 @@ body {
    that read as a misplaced sidebar on any normal-width window (#75). #75
    keeps the "canvas never moves" property a different way: the row sits
    below the canvas at every width (see .play-row) with a fixed, reserved
-   `height` sized for the worst-case wrap of all five bars, so a slot coming
+   `height` sized for the worst-case wrap of all six bars, so a slot coming
    or going repaints inside that row without ever resizing it. */
 .effect-bars {
   flex: 0 0 auto;
@@ -241,7 +241,9 @@ body {
   gap: 6px;
   width: 100%;
   /* 3 wrapped rows of .effect-bar (16px) + 2 gaps, the worst case at the
-     narrowest supported width (~320px), now that #53 added a fifth slot. */
+     narrowest supported width (~320px) — still 2 bars/row, so #55's magnet
+     (a sixth slot, after #53's fireball made it five) keeps the same 3 rows
+     rather than forcing a fourth. */
   height: 60px;
 }
 
@@ -661,6 +663,21 @@ canvas {
   border-color: var(--neon-cyan);
 }
 
+/* #55: the fill rises from the bottom to show state.slowMeter's charge —
+   an always-visible gauge doubling as the hold-to-slow button, rather than a
+   separate .effect-bar (see the markup comment on #btn-slow for why). */
+.slow-btn { position: relative; overflow: hidden; }
+.slow-btn-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 100%;
+  background: rgba(59, 167, 255, .3);
+  transition: height .1s linear;
+}
+.slow-btn-icon { position: relative; z-index: 1; }
+
 @media (max-width: 420px) {
   .tagline { display: none; }
   .hud-label { letter-spacing: .06em; }
@@ -859,6 +876,10 @@ canvas {
         <div class="effect-bar-fill" id="bar-fireball-fill"></div>
         <span class="effect-bar-label" id="bar-fireball-label"></span>
       </div>
+      <div class="effect-bar" id="bar-magnet" hidden>
+        <div class="effect-bar-fill" id="bar-magnet-fill"></div>
+        <span class="effect-bar-label" id="bar-magnet-label"></span>
+      </div>
     </div>
   </div>
 
@@ -867,6 +888,16 @@ canvas {
     <div class="deck-btns">
       <button class="icon-btn" id="btn-pause" type="button" title="Pause" aria-label="Mettre en pause" aria-pressed="false">&#10074;&#10074;</button>
       <button class="icon-btn" id="btn-mute" type="button" title="Son" aria-label="Couper le son" aria-pressed="false">&#128266;</button>
+      <!-- #55: hold-to-slow bullet time. Not a click toggle like the two
+           buttons above — held via pointer events, see setSlowHeld() — and
+           its fill doubles as the always-visible recharge meter, so there is
+           no separate .effect-bar for it (see state.slowMeter). -->
+      <button class="icon-btn slow-btn" id="btn-slow" type="button"
+              data-i18n-attr="title:btn.slow.title|aria-label:btn.slow.aria"
+              title="Ralenti (maintenir)" aria-label="Ralenti (maintenir)" aria-pressed="false">
+        <span class="slow-btn-fill" id="slow-btn-fill" aria-hidden="true"></span>
+        <span class="slow-btn-icon" aria-hidden="true">&#9203;</span>
+      </button>
     </div>
   </div>
 </div>
@@ -1284,6 +1315,7 @@ canvas {
     { type: "laser", color: "#ffe600", weight: 2, good: true, label: "L" },
     { type: "fireball", color: "#ff6a00", weight: 2, good: true, label: "Fb" },
     { type: "shield", color: "#3ba7ff", weight: 2, good: true, label: "Sh" },
+    { type: "magnet", color: "#b866ff", weight: 2, good: true, label: "Mg" },
     { type: "narrow", color: "#ff3b3b", weight: 4, good: false, label: "N" },
     { type: "fast", color: "#ff7a3b", weight: 4, good: false, label: "F" }
   ];
@@ -1350,7 +1382,11 @@ canvas {
       fast:   { mult: 1.4, duration: 8 },
       sticky: { duration: 10 }, // no mult — a boolean-ish effect, see applyPowerup
       laser:  { duration: 8 },
-      fireball: { duration: 8 } // no mult — see applyPowerup/updateBalls
+      fireball: { duration: 8 }, // no mult — see applyPowerup/updateBalls
+      // #55: no mult either — magnet bends the ball's angle each frame in
+      // updateBalls(), it never touches speed. turnRate is how fast that
+      // angle can swing, in radians/second.
+      magnet: { duration: 10, turnRate: 1.1 }
     },
     // Twin bolts fired from the paddle while laserEffect is active — see
     // fireLaser()/updateLasers(). cooldown stops holding Space from emptying
@@ -1360,6 +1396,17 @@ canvas {
       cooldown: 0.25, // seconds between shots
       width: 3,
       height: 12
+    },
+    // #55: hold-to-slow. Not a pickup — always available, from a meter that
+    // drains while held and recharges while not, both in "seconds of hold"
+    // units so `max` doubles as the cap in real seconds. `mult` stacks into
+    // ballSpeedMult()'s product alongside the slow/fast power-up, rather than
+    // replacing it.
+    bulletTime: {
+      max: 3,        // seconds of hold the meter can store
+      drain: 1,       // meter-seconds consumed per second held
+      recharge: 0.5,  // meter-seconds regained per second released
+      mult: 0.45      // ballSpeedMult() multiplier while active
     },
     // A stalemate on the last couple of bricks is the classic Breakout
     // failure mode; nudging the ball faster over the course of a level
@@ -1966,6 +2013,8 @@ canvas {
       "btn.mute.title": "Son",
       "btn.mute.mute": "Couper le son",
       "btn.mute.unmute": "Activer le son",
+      "btn.slow.title": "Ralenti",
+      "btn.slow.aria": "Maintenir pour ralentir la balle",
       "nameentry.eyebrow": "Nouveau record !",
       "nameentry.title": "Entrez votre nom",
       "nameentry.placeholder": "Votre nom",
@@ -2050,6 +2099,7 @@ canvas {
       "powerup.laser": "Laser",
       "powerup.fireball": "Balle de feu",
       "powerup.shield": "Bouclier",
+      "powerup.magnet": "Raquette aimantée",
       // #44: the boss roster's names, read only by drawBoss() via t() — not
       // wired to any data-i18n markup, since the fight is drawn on canvas.
       "boss.sentinel.name": "SENTINELLE",
@@ -2101,6 +2151,8 @@ canvas {
       "btn.mute.title": "Sound",
       "btn.mute.mute": "Mute sound",
       "btn.mute.unmute": "Unmute sound",
+      "btn.slow.title": "Slow-mo",
+      "btn.slow.aria": "Hold to slow the ball down",
       "nameentry.eyebrow": "New high score!",
       "nameentry.title": "Enter your name",
       "nameentry.placeholder": "Your name",
@@ -2185,6 +2237,7 @@ canvas {
       "powerup.laser": "Laser",
       "powerup.fireball": "Fireball",
       "powerup.shield": "Shield",
+      "powerup.magnet": "Magnet paddle",
       "boss.sentinel.name": "SENTINEL",
       "boss.salvo.name": "SALVO",
       "boss.carapace.name": "CARAPACE",
@@ -2506,6 +2559,17 @@ canvas {
     // time, so unlike the effects above it never counts down in updateEffects()
     // and has no CONFIG.effects entry; see updateBalls.
     shieldEffect: null,
+    magnetEffect: null, // #55: {remaining} — bends a descending ball toward the paddle; see updateBalls
+    // #55: hold-to-slow bullet time. Not granted by a drop — always
+    // available, so it lives outside widthEffect/speedEffect/etc and is
+    // never touched by resetPaddleAndBall(). slowMeter is seconds of hold
+    // left, drained/recharged by updateBulletTime(); slowPointerHeld is the
+    // on-screen button's own held flag, ORed with the keyboard in that same
+    // function since a touch has no keyCode to read from state.keys.
+    // bulletTimeActive is that frame's result, read by ballSpeedMult().
+    slowMeter: CONFIG.bulletTime.max,
+    slowPointerHeld: false,
+    bulletTimeActive: false,
     remainingBricks: 0, // destructible bricks still alive; see buildLevel/brickHit
     bricksDestroyed: 0, // this level, toward the next difficulty milestone
     difficultyMult: 1,  // ramps up within a level; see CONFIG.difficulty
@@ -2568,7 +2632,11 @@ canvas {
     return state.widthEffect ? state.paddle.baseW * state.widthEffect.mult : state.paddle.baseW;
   }
   function ballSpeedMult() {
-    return state.speedEffect ? state.speedEffect.mult : 1;
+    var mult = state.speedEffect ? state.speedEffect.mult : 1;
+    // #55: bullet time stacks on top of the slow/fast power-up rather than
+    // replacing it — both are just factors in the same product.
+    if (state.bulletTimeActive) mult *= CONFIG.bulletTime.mult;
+    return mult;
   }
   // Cumulative, multiplicative, and capped — see CONFIG.difficulty. Called
   // from both difficulty triggers (top-wall bounce, brick milestones).
@@ -2629,6 +2697,7 @@ canvas {
     state.laserEffect = null;
     state.fireballEffect = null;
     state.shieldEffect = null;
+    state.magnetEffect = null;
     state.paddle.x = clamp(state.paddle.x, 0, GAME_W - paddleWidth());
     var speed = state.baseBallSpeed * levelDef(state.levelIndex).speed;
     state.balls = [{
@@ -2668,6 +2737,7 @@ canvas {
     state.score = 0;
     state.lives = 3;
     state.jumped = false; // #69: a fresh run is eligible again
+    state.slowMeter = CONFIG.bulletTime.max; // #55: a paddle skill, not carried over from the last run
     // #65: every counter the roster reads is per run. The unlocked set is not
     // touched — that is the one thing that outlives a run.
     state.achStats = freshAchStats();
@@ -2874,6 +2944,7 @@ canvas {
   // wall on return. Drop every held key instead.
   window.addEventListener("blur", function () {
     state.keys = {};
+    setSlowHeld(false); // #55: a held mouse button gets no mouseup either, on the same alt-tab
     autoPause();
   });
 
@@ -3323,6 +3394,42 @@ canvas {
     saveMuted(state.muted);
     renderMuteButton();
   });
+
+  // #55: held, not clicked — mousedown/touchstart arm state.slowPointerHeld,
+  // the corresponding "up"/cancel/leave disarms it. updateBulletTime() reads
+  // the flag each frame alongside the keyboard; there is no click handler.
+  var slowBtn = document.getElementById("btn-slow");
+  var slowBtnFill = document.getElementById("slow-btn-fill");
+  function setSlowHeld(v) {
+    state.slowPointerHeld = v;
+    slowBtn.setAttribute("aria-pressed", v ? "true" : "false");
+  }
+  slowBtn.addEventListener("mousedown", function (e) {
+    if (e.button !== 0) return; // ignore right/middle click, e.g. a context menu
+    setSlowHeld(true);
+  });
+  slowBtn.addEventListener("mouseup", function (e) {
+    setSlowHeld(false);
+    slowBtn.blur(); // stays on screen; must not swallow the Space the player expects to launch with
+  });
+  slowBtn.addEventListener("mouseleave", function () { setSlowHeld(false); });
+  slowBtn.addEventListener("touchstart", function (e) {
+    e.preventDefault();
+    setSlowHeld(true);
+  }, { passive: false });
+  slowBtn.addEventListener("touchend", function (e) {
+    e.preventDefault();
+    setSlowHeld(false);
+  }, { passive: false });
+  slowBtn.addEventListener("touchcancel", function () { setSlowHeld(false); });
+
+  // The always-visible half of the meter — drawn every frame regardless of
+  // phase, the same as renderEffectBars(), so the button's fill is never
+  // stale even though updateBulletTime() itself only runs while playing.
+  function renderSlowMeter() {
+    slowBtnFill.style.height = (state.slowMeter / CONFIG.bulletTime.max * 100) + "%";
+  }
+  renderSlowMeter();
 
   // Like the deck buttons, these stay on screen and so must not keep focus after
   // a pointer click — otherwise they would swallow Space during play.
@@ -3918,6 +4025,33 @@ canvas {
       state.fireballEffect.remaining -= dt;
       if (state.fireballEffect.remaining <= 0) state.fireballEffect = null;
     }
+    if (state.magnetEffect) {
+      state.magnetEffect.remaining -= dt;
+      if (state.magnetEffect.remaining <= 0) state.magnetEffect = null;
+    }
+  }
+
+  // #55: hold-to-slow. Reads the keyboard directly (like updatePaddle() reads
+  // ArrowLeft/ArrowRight) ORed with the on-screen button's own held flag,
+  // since a touch never sets a key code. Meter drains while held and active,
+  // recharges otherwise — both in the same "seconds of hold" unit as `max`,
+  // so a full meter is always exactly CONFIG.bulletTime.max seconds of hold.
+  function updateBulletTime(dt) {
+    // `held` (the raw input) and `active` (whether it actually does anything)
+    // are kept separate on purpose: gating the drain/recharge branch on
+    // `slowMeter > 0` too would flip `held` off the instant the meter hit
+    // empty, sneak in a fraction of a frame's recharge, then flip back on
+    // and drain it again next frame — a permanent flicker at the floor for
+    // as long as the button stays down. Draining (never recharging) while
+    // held, all the way to exactly 0, is what keeps the floor still.
+    var held = !!(state.keys.ShiftLeft || state.keys.ShiftRight || state.slowPointerHeld);
+    var active = held && state.slowMeter > 0;
+    if (held) {
+      state.slowMeter = Math.max(0, state.slowMeter - CONFIG.bulletTime.drain * dt);
+    } else if (state.slowMeter < CONFIG.bulletTime.max) {
+      state.slowMeter = Math.min(CONFIG.bulletTime.max, state.slowMeter + CONFIG.bulletTime.recharge * dt);
+    }
+    state.bulletTimeActive = active;
   }
 
   // #51: bring regenerating bricks back. Called from the same `playing`-only
@@ -3972,6 +4106,9 @@ canvas {
     } else if (p.type === "shield") {
       state.shieldEffect = true;
       beep(220, 0.12, "sine");
+    } else if (p.type === "magnet") {
+      state.magnetEffect = { remaining: CONFIG.effects.magnet.duration };
+      beep(500, 0.1, "triangle");
     } else if (p.type === "multi") {
       beep(660, 0.12, "square");
       var base = state.balls.filter(function (b) { return !b.attached; })[0];
@@ -4571,6 +4708,23 @@ canvas {
       var ball = state.balls[bi];
       if (ball.attached) continue;
 
+      // #55: magnet bends a descending ball's angle toward the paddle centre
+      // each frame — never its speed, so this only ever rotates the existing
+      // unit vector (dx*dx + dy*dy stays 1) rather than nudging dx/dy
+      // directly, the same move the paddle-bounce code below already makes.
+      // Only while falling: the point is agency during the long, do-nothing
+      // descent after a top-wall bounce, not homing in on every bounce.
+      if (state.magnetEffect && ball.dy > 0) {
+        var pcx = state.paddle.x + pw / 2;
+        var curAngle = Math.atan2(ball.dy, ball.dx);
+        var targetAngle = Math.atan2(state.paddle.y - ball.y, pcx - ball.x);
+        var delta = Math.atan2(Math.sin(targetAngle - curAngle), Math.cos(targetAngle - curAngle));
+        var maxStep = CONFIG.effects.magnet.turnRate * dt;
+        var newAngle = curAngle + clamp(delta, -maxStep, maxStep);
+        ball.dx = Math.cos(newAngle);
+        ball.dy = Math.sin(newAngle);
+      }
+
       var prevY = ball.y;
       var v = ball.speed * mult * state.difficultyMult * dt;
       ball.x += ball.dx * v;
@@ -5107,6 +5261,9 @@ canvas {
   var barFireball = document.getElementById("bar-fireball");
   var barFireballFill = document.getElementById("bar-fireball-fill");
   var barFireballLabel = document.getElementById("bar-fireball-label");
+  var barMagnet = document.getElementById("bar-magnet");
+  var barMagnetFill = document.getElementById("bar-magnet-fill");
+  var barMagnetLabel = document.getElementById("bar-magnet-label");
 
   // `effect` is the {remaining} object (or null); `duration`/`color`/`name`
   // describe whichever specific powerup is currently behind it. #78: `name`
@@ -5143,6 +5300,8 @@ canvas {
       CONFIG.effects.laser.duration, "#ffe600", t("powerup.laser"));
     updateEffectBar(barFireball, barFireballFill, barFireballLabel, state.fireballEffect,
       CONFIG.effects.fireball.duration, "#ff6a00", t("powerup.fireball"));
+    updateEffectBar(barMagnet, barMagnetFill, barMagnetLabel, state.magnetEffect,
+      CONFIG.effects.magnet.duration, "#b866ff", t("powerup.magnet"));
   }
   renderEffectBars();
 
@@ -5563,6 +5722,7 @@ canvas {
         updateFloatingTexts(dt);
       } else if (state.phase === "playing") {
         updateEffects(dt);
+        updateBulletTime(dt); // #55: before updateBalls(), which reads state.bulletTimeActive via ballSpeedMult()
         updateBricks(dt);
         updateBoss(dt); // #44: moved before updateBalls, so the ball collides with where it ends up this frame
         updateBalls(dt);
@@ -5583,6 +5743,7 @@ canvas {
       }
     }
     renderEffectBars();
+    renderSlowMeter();
     renderAchToast();
 
     draw();
