@@ -47,9 +47,29 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #79 | ✅ Fixed — 2026-08-18 |
 | #53 | ✅ Fixed — 2026-08-19 |
 | #80 | ✅ Fixed — 2026-08-19 |
+| #81 | ✅ Fixed — 2026-08-19 |
 
-66 of 66 fixed — nothing open. See [todo.md](todo.md), and [feature-ideas.md](feature-ideas.md) for
+67 of 67 fixed — nothing open. See [todo.md](todo.md), and [feature-ideas.md](feature-ideas.md) for
 proposals not yet promoted to it.
+
+---
+
+## 2026-08-19 — A short fanfare on level clear (#81)
+
+### Fixed
+
+**An ordinary (non-boss) level clear now has a sound of its own.** `checkLevelClear()`'s non-boss
+branch used to go straight to `setPhase("levelclear")` with nothing played. It now fires a ~2-second
+multi-instrument fanfare first, built by reusing #74's `BOSS_FANFARE` machinery — the same layered
+sawtooth call, octave-down bass, third-above pad, and kick/hat percussion, scheduled against the audio
+clock and resolved through the level's own scale. Trimmed down from `BOSS_FANFARE`'s two-bar call plus
+flourish to one rising call and a final chord, so it reads as belonging to the same score without
+running anywhere near as long. Like the boss fanfare and the ball-loss sting, it's always the same
+fixed figure — a recognizable stinger, not one that varies with combo, score, or difficulty.
+
+**Guarded against stacking with a boss kill's own celebration.** A boss level already gets a longer
+fanfare plus its own explosion sound from the death beat before `checkLevelClear()` ever reaches the
+non-boss branch for that level, so the new call is conditioned on `!isBossLevel(state.levelIndex)`.
 
 ---
 

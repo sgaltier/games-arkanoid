@@ -2135,6 +2135,50 @@ module.exports = {
       },
     },
     {
+      name: "#81a — clearing a non-boss level schedules the level-clear fanfare",
+      fn(a) {
+        const g = boot().start();
+        a.eq(g.T.state.boss, null, "sanity: level 1 has no boss to route through instead");
+        g.T.state.remainingBricks = 0;
+        const before = g.notes.length;
+        g.frame();
+        a.eq(g.T.state.phase, "levelclear", "the level should have cleared");
+        const fanfare = g.notes.slice(before);
+        a.gt(fanfare.length, 10, "the fanfare should have scheduled a real burst of notes");
+        // The stub doesn't record a note's duration, only its onset (see
+        // dom-stub's createOscillator/createBufferSource), so the spread of
+        // onsets is what's checkable here — the figure's final chord then
+        // rings for close to a second more on top of this.
+        const t0 = Math.min(...fanfare.map((n) => n.at));
+        const lastAt = Math.max(...fanfare.map((n) => n.at));
+        a.gt(lastAt - t0, 0.3, "the notes should be spread out over time, not all fired at once");
+        a.lt(lastAt - t0, 1.5, "and stay within the fanfare's short, ~2s figure");
+        a.ok(fanfare.some((n) => n.type === "noise"), "the fanfare should include its kick/hat percussion");
+      },
+    },
+    {
+      name: "#81c — the level-clear fanfare is a fixed figure, independent of combo or difficulty",
+      fn(a) {
+        function fanfareShape(combo, difficultyMult) {
+          const g = boot().start();
+          g.T.state.combo = combo;
+          g.T.state.difficultyMult = difficultyMult;
+          g.T.state.remainingBricks = 0;
+          const before = g.notes.length;
+          g.frame();
+          const t0 = g.notes[before].at;
+          return g.notes.slice(before).map((n) => ({
+            at: +(n.at - t0).toFixed(4), dur: n.dur, type: n.type,
+            freq: n.freq, vol: n.vol, detune: n.detune,
+          }));
+        }
+        const low = fanfareShape(0, 1);
+        const high = fanfareShape(40, 2.5);
+        a.eq(JSON.stringify(low), JSON.stringify(high),
+          "the fanfare must not vary with combo, score or difficulty");
+      },
+    },
+    {
       name: "#59c — mute silences the music as well as the sound effects",
       fn(a) {
         const g = boot({ storage: { "neonbreak-muted": "1" } }).start();

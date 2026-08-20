@@ -371,6 +371,24 @@ module.exports = {
       },
     },
     {
+      name: "#81b — a boss kill's own fanfare does not stack with the ordinary level-clear one",
+      fn(a) {
+        const g = enterBoss(1);
+        landFinalHit(g);
+        g.run(1.5); // past the explosion, into the fanfare stage
+        a.eq(g.T.state.boss.deathBeat.stage, "fanfare");
+        g.run(4); // comfortably into the fanfare, but short of it running out
+        a.ok(g.T.state.boss.deathBeat, "still mid-fanfare");
+        const before = g.notes.length;
+        // The frame the beat actually ends on is the one that reaches
+        // checkLevelClear() — see updateBossDeathBeat().
+        for (let i = 0; i < 50 && g.T.state.boss.deathBeat; i++) g.frame();
+        a.eq(g.T.state.phase, "levelclear", "the level should have cleared");
+        a.eq(g.notes.length, before,
+          "the transition to levelclear must not queue a second fanfare on top of the boss's own");
+      },
+    },
+    {
       name: "#79 — the level's music bed stops during the death beat instead of playing through it",
       fn(a) {
         const g = enterBoss(1);

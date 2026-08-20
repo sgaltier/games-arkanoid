@@ -9,7 +9,7 @@ from `todo.md` to here, so numbering is shared across both files and never reuse
 Each entry keeps its original write-up (category, effort estimate, the bug as found) with a
 `> **Fixed <date>.**` note prepended describing what shipped — a historical record, not a live TODO.
 
-**Status:** 64 fixed — everything raised so far, review findings and promoted features alike. See
+**Status:** 65 fixed — everything raised so far, review findings and promoted features alike. See
 [todo.md](todo.md).
 
 **Line references below are re-anchored after each round of fixes** — they are only valid against the
@@ -238,7 +238,7 @@ state.
 >   thing ~16 ms later via `draw()` [5256-5275](../html/index.html#L5256-L5275), and the HUD's own
 >   one-time init call [4881](../html/index.html#L4881) already covers the pre-play text.
 > - `updateBalls` [4377](../html/index.html#L4377) now declares only the `dt` parameter it uses; the
->   call site [5335](../html/index.html#L5335) no longer passes the unused `now`.
+>   call site [5395](../html/index.html#L5395) no longer passes the unused `now`.
 
 - `state.paddle.w` was assigned in `updatePaddle` but never read — every draw/collision path called
   `paddleWidth()` instead.
@@ -405,7 +405,7 @@ paddle touch.
 > **Fixed 2026-08-13.** Both suggested additions are in, slotting into the existing timed-effect
 > architecture: `POWERUPS` [1264-1265](../html/index.html#L1264-L1265), `CONFIG.effects.sticky`/
 > `CONFIG.effects.laser` [1331-1332](../html/index.html#L1331-L1332), and two new branches in
-> `applyPowerup` [3816-3821](../html/index.html#L3816-L3821).
+> `applyPowerup` [3872-3877](../html/index.html#L3872-L3877).
 >
 > **Sticky** re-attaches a ball on a genuine top-face paddle hit while `stickyEffect` is active
 > [4422-4431](../html/index.html#L4422-L4431), capped to one attached ball at a time so multi-ball
@@ -612,7 +612,7 @@ it, yanking focus back to `document.body` with no user action.
 > **Fixed 2026-08-13.** `PHASE_OVERLAY` now carries a `start: "overlay-start"` entry
 > [3024](../html/index.html#L3024) — `OVERLAY_PRIMARY_BTN` already had the matching
 > `"overlay-start": "btn-start"` since #26 [3024](../html/index.html#L3024) — so boot
-> [5491](../html/index.html#L5491) now calls `setPhase("start")` instead of `showOverlay(...)`
+> [5551](../html/index.html#L5551) now calls `setPhase("start")` instead of `showOverlay(...)`
 > directly. `state.phase` already starts as `"start"`, so the call is a no-op on `state.phase`
 > itself; what it buys is routing the very first overlay through the same single entry point
 > (`setPhase()` → `PHASE_OVERLAY` → `showOverlay()`) every other transition uses, which is what
@@ -2004,7 +2004,7 @@ for a jumped run (#69/#72), which never gets the detour at all.
 > from it — reusing the same `onPaddle` effect names (`narrow`, `narrow5`, `life`) `applyBossHazard()`
 > ([4105](../html/index.html#L4105)) applies through the existing `widthEffect`/`lives` state every
 > other hazard already goes through. `spawnMinion()`/`updateMinions()`
-> ([4160-4195](../html/index.html#L4160-L4195)) is a small enemy the ball can destroy in flight,
+> ([4216-4251](../html/index.html#L4216-L4251)) is a small enemy the ball can destroy in flight,
 > kept as its own array rather than flagged bricks (the original sketch in `feature-ideas.md`) —
 > `brickHit()`'s combo/score/drop/achievement bookkeeping does not apply to a minion, and duplicating
 > it inline would have been the second scoring system #65 explicitly rules out.
@@ -2312,6 +2312,34 @@ and finally the composite of all nine.
 > against the unfixed code before the fix landed. Four existing `#70` cases that used to buy the full
 > arrangement with a maxed-out combo were updated to pin `remainingBricks` near zero instead, since
 > combo no longer has any effect on the bed.
+
+### 81. ✅ FIXED — A short fanfare on level clear (S/M)
+
+> **Fixed 2026-08-19.** `LEVEL_CLEAR_FANFARE` ([3618-3657](../html/index.html#L3618-L3657)) reuses
+> #74's `BOSS_FANFARE` machinery directly — the same `addMelody(at, step, dur, vol, withBass, withPad)`
+> layering a sawtooth call with an octave-down bass note and a third-above triangle pad, plus
+> `addKick`/`addHat` reusing the ordinary bed's kick/hat recipes — trimmed to one rising call instead
+> of two and no flourish, ending in a short ringing chord: ~2s in total instead of `BOSS_FANFARE`'s
+> ~5.5s. `levelClearFanfareTone()` schedules it against `ctxA.currentTime` and resolves every step
+> through `scaleSemi()`, the same pattern `bossFanfareTone()` already established, so it stays in the
+> level's own scale/act rather than a fixed pitch. Like `LOSS_STING` and `BOSS_FANFARE`, it's always
+> the same figure — nothing about it reads `state.combo`, score, or difficulty.
+>
+> `checkLevelClear()`'s non-boss branch ([4742](../html/index.html#L4742)) calls it right before
+> `setPhase("levelclear")`, guarded by `!isBossLevel(state.levelIndex)` — a boss kill already gets its
+> own, longer celebration (`bossFanfareTone()` + `bossExplosionSound()`, fired from
+> `updateBossDeathBeat()`) before `checkLevelClear()` ever reaches that branch for a boss level, so
+> without the guard the two fanfares would stack.
+>
+> `#81a`/`#81c` (`regressions.js`) cover a non-boss clear scheduling the fanfare's notes and the figure
+> staying fixed across different combo/difficulty values; `#81b` (`boss.js`, alongside the existing #74
+> cases) covers a boss level's own fanfare not also triggering this one on the frame the death beat
+> hands off to `checkLevelClear()`. All three were confirmed failing against the unfixed code first.
+
+An ordinary (non-boss) level clear had no sound of its own — `checkLevelClear()`'s non-boss branch
+went straight to `setPhase("levelclear")` with nothing played. Wanted a ~2-second fanfare:
+multi-instrument and epic in the way #74's `BOSS_FANFARE` already is, in the spirit of the classic
+*Final Fantasy* victory fanfare — a brassy, triumphant fixed figure, not a single beep.
 
 ---
 
