@@ -55,10 +55,41 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #84 | ✅ Fixed — 2026-08-21 |
 | #85 | ✅ Fixed — 2026-08-21 |
 | #86 | ✅ Fixed — 2026-08-21 |
+| #87 | ✅ Fixed — 2026-08-21 |
 
-74 of 81 fixed — #87–#93 are open, the rest of the ten findings a full-codebase review raised on
+75 of 81 fixed — #88–#93 are open, the rest of the ten findings a full-codebase review raised on
 2026-08-21. See [todo.md](todo.md) for those and for the feature ideas promoted alongside them, and
 [feature-ideas.md](feature-ideas.md) for proposals not yet promoted to it.
+
+---
+
+## 2026-08-21 — Minions detonated on the paddle line, not on the paddle (#87)
+
+### Fixed
+
+**A minion now only detonates `narrow` when it actually overlaps the paddle, not merely its height.**
+`updateMinions()`'s hit test checked `m.y + m.r >= state.paddle.y` and nothing else, so a minion
+reaching the paddle's height applied `narrow` regardless of where it was across the field —
+`updateBossShots()` already tested both axes for the other hazard shape, so this was the odd one out.
+Hive's pairs, Phantom's explosives, and Omega's third phase all landed their `narrow` unconditionally;
+the ball was the only counterplay, even though minions are drawn as objects that drift on their own
+`vx` specifically so a player can dodge them.
+
+The open question the finding raised — whether a clean dodge should still cost something — is settled
+as no: a minion that clears the paddle line without overlapping it just despawns, silently, with no
+effect and no sound.
+
+### Tests
+
+One new case in `boss.js`, confirmed failing first (`narrow` applied from 200px away). It parks a
+falling minion off to the side of the paddle, freezes the ball (`attached = true`) so a lost life
+can't clear the minions out from under the assertion for the wrong reason, runs frames until the
+minion despawns on its own, and asserts no score and no `widthEffect`. The existing positive-case test
+was updated to place its minion over the paddle explicitly, since it previously relied on the bug to
+pass.
+
+**Doc anchors across `done.md` and `todo.md` were re-anchored** by the +7 lines this added to
+`index.html`, per the re-anchoring discipline both files describe.
 
 ---
 

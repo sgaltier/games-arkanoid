@@ -236,16 +236,37 @@ module.exports = {
       },
     },
     {
-      name: "a minion reaching the paddle line detonates instead of scoring",
+      name: "a minion reaching the paddle line over the paddle detonates instead of scoring",
       fn(a) {
         const g = enterBoss(6);
         const p = g.T.state.paddle;
-        g.T.state.minions = [{ x: p.x - 200, y: p.y - 1, vx: 0, vy: 0, r: 9, kind: "drift" }];
+        g.T.state.minions = [{ x: p.x + g.T.paddleWidth() / 2, y: p.y - 1, vx: 0, vy: 0, r: 9, kind: "drift" }];
         const before = g.T.state.score;
         g.frame();
         a.empty(g.T.state.minions, "a minion at the paddle line should be gone");
         a.eq(g.T.state.score, before, "reaching the line should not score like a kill");
         a.ok(g.T.state.widthEffect, "reaching the line should apply its hazard");
+      },
+    },
+    {
+      // #87: the old hit test only checked the minion's y, so it detonated
+      // anywhere across the field. This is the fix's own negative case; the
+      // positive case above still covers a genuine hit over the paddle.
+      // The ball is frozen on the paddle so it can't lose a life mid-test and
+      // clear the minions out from under the assertion for the wrong reason.
+      name: "#87 — a minion crossing the paddle line away from the paddle is a dodge, not a hit",
+      fn(a) {
+        const g = enterBoss(6);
+        const p = g.T.state.paddle;
+        g.T.state.balls[0].attached = true;
+        g.T.state.minions = [{
+          x: p.x - 200, y: p.y - 30, vx: 0, vy: g.T.CONFIG.boss.minionSpeed, r: 9, kind: "drift",
+        }];
+        const before = g.T.state.score;
+        for (let i = 0; i < 100 && g.T.state.minions.length; i++) g.frame();
+        a.empty(g.T.state.minions, "a minion that fell clear past the paddle should despawn");
+        a.eq(g.T.state.score, before, "a dodge should not score");
+        a.not(g.T.state.widthEffect, "a dodge must not apply the hazard");
       },
     },
     {

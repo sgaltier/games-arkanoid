@@ -4792,10 +4792,17 @@ canvas {
         if (dx * dx + dy * dy < (ball.r + m.r) * (ball.r + m.r)) { killed = true; break; }
       }
       if (killed) { minionKilled(m); state.minions.splice(i, 1); continue; }
-      if (m.y + m.r >= state.paddle.y) {
+      var pw3 = paddleWidth();
+      var overPaddle = m.y + m.r >= state.paddle.y && m.y - m.r <= state.paddle.y + state.paddle.h &&
+                       m.x + m.r >= state.paddle.x && m.x - m.r <= state.paddle.x + pw3;
+      if (overPaddle) {
         applyBossHazard("narrow");
         burst(m.x, m.y, "#b06cff", m.kind === "explosive" ? 20 : 10);
         if (m.kind === "explosive") shakeScreen(CONFIG.impact.explosionShake);
+        state.minions.splice(i, 1);
+      } else if (m.y - m.r > state.paddle.y + state.paddle.h) {
+        // Cleared the paddle line without overlapping it: a clean dodge, so
+        // it just despawns rather than detonating on the way past.
         state.minions.splice(i, 1);
       }
     }

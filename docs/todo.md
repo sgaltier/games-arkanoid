@@ -9,11 +9,11 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 15 open items — #47 (promoted from [feature-ideas.md](feature-ideas.md) §A), #50
+**Status:** 14 open items — #47 (promoted from [feature-ideas.md](feature-ideas.md) §A), #50
 (promoted from §B), #56–57 (promoted from §C), #62–64 (promoted from §D), #83 (raised directly, not
-promoted from `feature-ideas.md`), and **#87–#93, the correctness and security findings of the
+promoted from `feature-ideas.md`), and **#88–#93, the correctness and security findings of the
 2026-08-21 review pass** (§E and §F). #46 from the §A batch, #53, #54, and #55 from the §C batch,
-#82 (raised directly), and #84–#86 (the first three of the review batch) have shipped (see
+#82 (raised directly), and #84–#87 (the first four of the review batch) have shipped (see
 [done.md](done.md)).
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
@@ -39,9 +39,9 @@ challenge seed), #50 (moving bricks), #62 (colourblind-safe brick markers), #63 
 selection), #64 (resume an interrupted run), and two power-up/ball-mechanics ideas, all promoted from
 [feature-ideas.md](feature-ideas.md) and keeping their numbers; that file still holds the proposals
 not yet promoted. #83 (per-level star ratings, split out of #46 — the two were originally one item)
-was raised directly rather than promoted from there. The defects are **#87–#93**, what is left of the
+was raised directly rather than promoted from there. The defects are **#88–#93**, what is left of the
 ten (#84–#93) raised by a full-codebase review on 2026-08-21, grouped into §E (correctness, all in
-`index.html`) and §F (security and backend, mostly `functions/api/scores.js`); #84–#86 of that
+`index.html`) and §F (security and backend, mostly `functions/api/scores.js`); #84–#87 of that
 batch have already shipped (see [done.md](done.md) §I). New review findings go here too, keeping the
 shared numbering: the next free number is **#94**.
 
@@ -602,39 +602,18 @@ Raised directly by a read of the whole codebase rather than promoted from
 today. All six were in [index.html](../html/index.html) and five of the six in the #44 boss layer,
 which is the newest and least-exercised part of the file — the test suite reaches `BOSSES`' data
 (arenas, ids, hit counts) but not its per-frame motion or its draw path. Ordered by severity; the
-first three of them, #84, #85, and #86, have shipped and their entries now live in
+first four of them, #84, #85, #86, and #87, have shipped and their entries now live in
 [done.md](done.md) §I.
 
 Unlike the entries above, these **do** carry line anchors, since they point at real code: re-anchor
 them the same way [done.md](done.md)'s entries are re-anchored whenever `index.html` shifts.
-
-### 87. Minions detonate on the paddle *line*, not on the paddle (S/M)
-
-`updateMinions()` ([4795-4800](../html/index.html#L4795-L4800)) tests `m.y + m.r >= state.paddle.y`
-and nothing else, so a minion reaching the paddle's height anywhere across the field applies
-`narrow` — confirmed with the paddle parked at `x = 400` and a minion crossing at `x = 5`. The
-paddle narrows regardless.
-
-`updateBossShots()` ([4750-4758](../html/index.html#L4750-L4758)) gets this right for the other
-hazard shape, testing both axes. The asymmetry is what makes this read as an oversight rather than a
-design choice: `spawnMinion()`'s own comment
-([4763-4766](../html/index.html#L4763-L4766)) calls a minion "a small enemy the ball can destroy in
-flight" whose reaching the paddle line "detonates it (narrow) rather than costing a life outright" —
-which describes the code, but the whole point of drawing minions as dodgeable objects that drift on
-their own `vx` ([4780-4786](../html/index.html#L4780-L4786)) is that dodging is a thing a player can
-do. Today it isn't: Hive's pairs, Phantom's explosives and Omega's third phase all land their
-`narrow` unconditionally, and the ball is the only counterplay.
-
-**Adding the x test is the fix; whether the penalty should survive a clean dodge is the question it
-forces.** If a missed minion should still cost something, that belongs in an explicit "fell past the
-paddle" branch (splice it, no effect, maybe a sound), not in a hit test that pretends to be one.
 
 ### 88. Leviathan's telegraph is invisible (S)
 
 `spawnBossShot`'s `telegraph` ([4699](../html/index.html#L4699)) holds a hazard still before it
 starts moving, and `updateBossShots` honours it for every kind
 ([4735](../html/index.html#L4735)). But `drawBossShots()` only *renders* the warning state inside
-its `kind === "beam"` branch ([5809-5813](../html/index.html#L5809-L5813)) — the `else` branch draws
+its `kind === "beam"` branch ([5816-5820](../html/index.html#L5816-L5820)) — the `else` branch draws
 a plain red circle whatever `s.telegraph` holds.
 
 Aegis's beam is a beam, so it is fine. Leviathan's shot
@@ -650,9 +629,9 @@ across both hazard shapes.
 
 ### 89. The profanity filter renames ordinary people (M)
 
-`isProfaneName()` ([5356-5362](../html/index.html#L5356-L5362)) matches every entry of
-`PROFANITY_LIST` ([5326-5335](../html/index.html#L5326-L5335)) as a **plain substring** of the
-normalised name, and `normalizeForProfanity()` ([5348-5355](../html/index.html#L5348-L5355)) first
+`isProfaneName()` ([5363-5369](../html/index.html#L5363-L5369)) matches every entry of
+`PROFANITY_LIST` ([5333-5342](../html/index.html#L5333-L5342)) as a **plain substring** of the
+normalised name, and `normalizeForProfanity()` ([5355-5362](../html/index.html#L5355-L5362)) first
 strips everything that isn't `a`-`z` — including the spaces and punctuation that would otherwise mark
 a word boundary. #77 chose that deliberately, to catch `asshole` from `ass` and `s e x` from `sex`.
 The cost was never written down: three-and-four-letter roots in a boundary-free substring match are
@@ -689,8 +668,6 @@ message.
 
 #### Tests
 
-- `#87a` — a minion crossing the paddle line far from the paddle applies no effect; one crossing
-  over the paddle applies `narrow`.
 - `#88a` — a shot still inside its `telegraph` window draws in the warning treatment, not the live
   one, for `kind: "drop"` as well as `kind: "beam"`.
 - `#89a` — `Computer`, `Cassandra`, `Hitchcock`, `Dickens`, `Essex` and `Analyst` all survive
