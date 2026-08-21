@@ -2162,7 +2162,7 @@ and finally the composite of all nine.
 > to degrade to "the leaderboard is empty" but not to "the leaderboard rejects everyone" if a moderation
 > API were ever down. `PROFANITY_LIST`/`normalizeForProfanity()`/`isProfaneName()`
 > ([5161-5207](../html/index.html#L5161-L5207)) are new in `index.html`, and `PROFANITY_LIST`/
-> `normalizeForProfanity()`/`filterProfanity()` ([124-183](../functions/api/scores.js#L124-L183)) mirror
+> `normalizeForProfanity()`/`filterProfanity()` ([133-192](../functions/api/scores.js#L133-L192)) mirror
 > them in `functions/api/scores.js` — the same "restated in both places" arrangement `NAME_MAX` already
 > has per #76, since the global board's `POST /api/scores` is a public endpoint a client-side-only check
 > can't reach. Normalizing folds leetspeak look-alikes to their letter (`a55` → `ass`) and then drops
@@ -2179,7 +2179,7 @@ and finally the composite of all nine.
 > the #76 length check passes, so the player sees no error and the substituted name is what reaches both
 > `insertHallOfFameEntry()` and `submitGlobalScore()` — one check covers the name that lands on both
 > boards. The server does the same at the equivalent point in `onRequestPost()`
-> ([240-242](../functions/api/scores.js#L240-L242)), between `cleanName()` and the insert, so a name
+> ([251-253](../functions/api/scores.js#L251-L253)), between `cleanName()` and the insert, so a name
 > posted directly to the endpoint is filtered exactly like one typed into the game.
 >
 > Six new `#77a`–`#77f` cases in `regressions.js` cover a straightforwardly profane name, the two
@@ -2954,7 +2954,7 @@ across both hazard shapes.
 > so `PROFANITY_LIST` ([5334-5343](../html/index.html#L5334-L5343)) now lists `asses`/`asshole` next to
 > `ass` explicitly rather than relying on the root to catch them by accident. The mirror in
 > [functions/api/scores.js](../functions/api/scores.js) — `normalizeForProfanity()`/`filterProfanity()`
-> ([124-183](../functions/api/scores.js#L124-L183)) — got the identical change, and `#89c` now asserts
+> ([133-192](../functions/api/scores.js#L133-L192)) — got the identical change, and `#89c` now asserts
 > the two lists stay word-for-word equal instead of that being trusted by inspection.
 >
 > The substitution stays silent, exactly as #77 shipped it. The write-up below called that "probably"
@@ -2995,6 +2995,50 @@ root, while a root sitting inside an unrelated word no longer fires.
   suffixed root (`asshole`).
 - `#89c` — `PROFANITY_LIST` in `index.html` and in `functions/api/scores.js` are identical, asserted
   structurally rather than by example.
+
+### 90. ✅ FIXED — The scoring-rate ceiling stops binding after ~2h47m (M)
+
+> **Fixed 2026-08-21.** [functions/api/scores.js](../functions/api/scores.js) adds
+> `RATE_CHECK_MAX_AGE_MS` ([39-47](../functions/api/scores.js#L39-L47)), the age at which
+> `ABSOLUTE_MAX_SCORE / MAX_POINTS_PER_SEC` cross (10,000s = 2h47m with the current constants), and
+> the rate check ([247-249](../functions/api/scores.js#L247-L249)) now clamps the age it feeds into
+> the formula to that cap: `Math.min(age, RATE_CHECK_MAX_AGE_MS)`. `TOKEN_MAX_AGE_MS` — and with it
+> the 24h redemption window #64 will make reachable — is untouched, per the write-up's own
+> preference for capping the age over shortening the window.
+>
+> A new `#90` case in `regressions.js` reads the three constants and the new cap out of
+> `scores.js`'s source text (it cannot `require()` the file directly — it's an ES module, and the
+> repo has no build step to transpile it), confirms the rate check now references
+> `RATE_CHECK_MAX_AGE_MS`, and asserts the oldest redeemable token's threshold lands exactly on
+> `ABSOLUTE_MAX_SCORE` rather than sailing past it. Confirmed failing first (`RATE_CHECK_MAX_AGE_MS`
+> doesn't exist on the unfixed file).
+
+`onRequestPost` rejects a submission when `score > (age / 1000) * MAX_POINTS_PER_SEC`, and
+independently when `score > ABSOLUTE_MAX_SCORE`. With the current constants those two cross at
+`10_000_000 / 1000 = 10_000` seconds — 2 h 47 m. `TOKEN_MAX_AGE_MS` is 24 h. So for any token
+between ~2.8 h and 24 h old, the rate check permits more than the absolute cap already does and is
+therefore dead code: the envelope collapses to the flat 10 M ceiling.
+
+The comment on `TOKEN_MAX_AGE_MS` says stockpiling tokens to age them is pointless because the
+`UNIQUE` constraint on `nonce` prevents replay. That is true of *replay* and not of *aging*: one
+`GET` costs nothing, tokens are handed out unrate-limited, and holding one for three hours converts
+the per-second ceiling into no ceiling at all. A real 100-level run scores roughly 1.5 M, so the gap
+between what play produces and what the endpoint accepts is about 6×.
+
+**Two ways to close it, and they are not equivalent.** Capping the age used in the rate check
+(`Math.min(age, SOME_CAP)`) keeps the 24 h redemption window #64 will make reachable — that window
+exists so a run interrupted for a lunch break can still be submitted, which is a real requirement —
+while making the rate ceiling bind for the whole of it. Shortening `TOKEN_MAX_AGE_MS` instead would
+close this too but would take #64's resume-after-a-day case with it. The first is the one to pick;
+either way the two constants' relationship deserves a comment, because "these two checks cross at
+2 h 47 m" is not visible from reading either line.
+
+#### Tests
+
+- `#90` — extracts `MAX_POINTS_PER_SEC`, `ABSOLUTE_MAX_SCORE`, `TOKEN_MAX_AGE_MS` and
+  `RATE_CHECK_MAX_AGE_MS` from `scores.js`'s source, confirms the rate check references the new cap,
+  and asserts the cap doesn't exceed the token's redemption window and that the oldest redeemable
+  token's rate-check threshold equals `ABSOLUTE_MAX_SCORE` exactly.
 
 ---
 

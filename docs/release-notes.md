@@ -58,10 +58,42 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #87 | ✅ Fixed — 2026-08-21 |
 | #88 | ✅ Fixed — 2026-08-21 |
 | #89 | ✅ Fixed — 2026-08-21 |
+| #90 | ✅ Fixed — 2026-08-21 |
 
-77 of 81 fixed — #90–#93 are open, the rest of the ten findings a full-codebase review raised on
+78 of 81 fixed — #91–#93 are open, the rest of the ten findings a full-codebase review raised on
 2026-08-21. See [todo.md](todo.md) for those and for the feature ideas promoted alongside them, and
 [feature-ideas.md](feature-ideas.md) for proposals not yet promoted to it.
+
+---
+
+## 2026-08-21 — The scoring-rate ceiling stopped binding after ~2h47m (#90)
+
+### Fixed
+
+**A stale hall-of-fame token could no longer skip the scoring-rate check just by being old.**
+`onRequestPost` rejected a submission when its score implied more than `MAX_POINTS_PER_SEC`, using
+the token's age to derive the allowed ceiling — and separately rejected anything over the flat
+`ABSOLUTE_MAX_SCORE`. With the shipped constants those two crossed at exactly 10,000 seconds (2h47m):
+past that age the rate formula's own threshold already exceeded the absolute cap, so the rate check
+stopped rejecting anything for the remaining ~21 hours of `TOKEN_MAX_AGE_MS`'s 24-hour window — dead
+code disguised as a live envelope.
+
+`RATE_CHECK_MAX_AGE_MS` now caps the age the rate formula uses (not the token's actual age, and not
+`TOKEN_MAX_AGE_MS` itself) at that same crossing point, so the rate check stays meaningful for a
+token's whole redemption window instead of quietly giving up partway through it. `TOKEN_MAX_AGE_MS`
+is untouched — shortening it instead would have closed the same gap but taken #64's
+resume-after-a-break case down with it.
+
+### Tests
+
+One new case in `regressions.js`, confirmed failing first (`RATE_CHECK_MAX_AGE_MS` didn't exist on
+the unfixed file). It reads `MAX_POINTS_PER_SEC`, `ABSOLUTE_MAX_SCORE`, `TOKEN_MAX_AGE_MS`, and the
+new cap out of `scores.js`'s source text — the file is an ES module the test can't `require()`
+directly — confirms the rate check now references the cap, and asserts the oldest redeemable token's
+threshold lands exactly on `ABSOLUTE_MAX_SCORE` instead of past it.
+
+**Doc anchors across `done.md` and `todo.md` were re-anchored** by the net +12 lines this added to
+`functions/api/scores.js`, per the re-anchoring discipline both files describe.
 
 ---
 

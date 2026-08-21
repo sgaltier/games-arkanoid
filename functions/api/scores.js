@@ -36,6 +36,15 @@ const MIN_RUN_MS = 15 * 1000;
 // forgery. 1000 keeps about 2x headroom over real play.
 const MAX_POINTS_PER_SEC = 1000;
 const ABSOLUTE_MAX_SCORE = 10000000;
+// The rate check and the absolute cap cross at ABSOLUTE_MAX_SCORE /
+// MAX_POINTS_PER_SEC seconds — 10,000s (2h47m) with the constants above. Past
+// that age the rate formula's own threshold exceeds ABSOLUTE_MAX_SCORE, so it
+// stops rejecting anything the absolute check wouldn't already catch: for the
+// rest of TOKEN_MAX_AGE_MS's 24h window it is dead code (#90). Capping the age
+// *used in the rate check only* at the crossing point keeps the formula
+// binding for a token's whole redemption window without shortening
+// TOKEN_MAX_AGE_MS, which #64's resume-after-a-break case still needs.
+const RATE_CHECK_MAX_AGE_MS = (ABSOLUTE_MAX_SCORE / MAX_POINTS_PER_SEC) * 1000;
 
 // Rate limit per client IP.
 const RATE_WINDOW_MS = 10 * 60 * 1000;
@@ -235,7 +244,9 @@ export async function onRequestPost({ request, env }) {
   if (!Number.isInteger(score) || score <= 0 || score > ABSOLUTE_MAX_SCORE) {
     return json({ error: "bad_score" }, 400);
   }
-  if (score > (age / 1000) * MAX_POINTS_PER_SEC) return json({ error: "implausible" }, 403);
+  if (score > (Math.min(age, RATE_CHECK_MAX_AGE_MS) / 1000) * MAX_POINTS_PER_SEC) {
+    return json({ error: "implausible" }, 403);
+  }
 
   let name = cleanName(body.name);
   if (!name) return json({ error: "bad_name" }, 400);

@@ -3961,5 +3961,51 @@ module.exports = {
         a.eq(JSON.stringify(workerList), JSON.stringify(gameList), "the two lists must match word-for-word, in order");
       },
     },
+    {
+      name: "#90 — the scoring-rate ceiling stays binding for a token's whole redemption window",
+      fn(a) {
+        const src = fs.readFileSync(
+          path.join(__dirname, "..", "..", "functions", "api", "scores.js"), "utf8"
+        );
+        const constExpr = (name) => {
+          const m = src.match(new RegExp(`const ${name}\\s*=\\s*([^;]+);`));
+          if (!m) throw new Error(`could not find ${name} in scores.js`);
+          return m[1];
+        };
+        const evalConst = (name, ...deps) => {
+          const params = deps.map((d) => d[0]);
+          const args = deps.map((d) => d[1]);
+          return Function(...params, `"use strict"; return (${constExpr(name)});`)(...args);
+        };
+        const maxPointsPerSec = evalConst("MAX_POINTS_PER_SEC");
+        const absoluteMaxScore = evalConst("ABSOLUTE_MAX_SCORE");
+        const tokenMaxAgeMs = evalConst("TOKEN_MAX_AGE_MS");
+        const rateCheckMaxAgeMs = evalConst(
+          "RATE_CHECK_MAX_AGE_MS",
+          ["MAX_POINTS_PER_SEC", maxPointsPerSec],
+          ["ABSOLUTE_MAX_SCORE", absoluteMaxScore]
+        );
+
+        a.ok(
+          /Math\.min\(age,\s*RATE_CHECK_MAX_AGE_MS\)/.test(src),
+          "the rate check must cap the age it uses, or #90 regresses"
+        );
+        a.lte(
+          rateCheckMaxAgeMs, tokenMaxAgeMs,
+          "the rate-check cap must not exceed the token's own redemption window"
+        );
+        // Before the fix, age was used uncapped: at TOKEN_MAX_AGE_MS (24h) the
+        // rate formula's threshold was 86.4M, far past ABSOLUTE_MAX_SCORE, so
+        // the rate check could never fire for an old token. Capped, the oldest
+        // redeemable token produces a threshold that lands exactly on the
+        // absolute ceiling instead of sailing past it.
+        const oldestTokenThreshold =
+          (Math.min(tokenMaxAgeMs, rateCheckMaxAgeMs) / 1000) * maxPointsPerSec;
+        a.eq(
+          oldestTokenThreshold, absoluteMaxScore,
+          "a token at the edge of its redemption window must not let the rate check exceed the absolute cap"
+        );
+      },
+    },
   ],
 };
