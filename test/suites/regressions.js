@@ -4031,5 +4031,50 @@ module.exports = {
         );
       },
     },
+    {
+      name: "#92 — POST /api/scores rejects requests without a JSON content-type",
+      fn(a) {
+        const src = fs.readFileSync(
+          path.join(__dirname, "..", "..", "functions", "api", "scores.js"), "utf8"
+        );
+        a.ok(
+          /content-type/i.test(src) && /application\/json/.test(src),
+          "onRequestPost must check the request's content-type before parsing the body, or #92 regresses"
+        );
+      },
+    },
+    {
+      name: "#92 — the rate-limit count and its insert are one atomic statement",
+      fn(a) {
+        const src = fs.readFileSync(
+          path.join(__dirname, "..", "..", "functions", "api", "scores.js"), "utf8"
+        );
+        // Before the fix, a SELECT COUNT(*) and a separate INSERT let two
+        // POSTs from the same IP arriving together both read the same count
+        // and both pass. A single INSERT ... SELECT ... WHERE makes the count
+        // and the insert one D1 statement, so the second of two concurrent
+        // requests sees the first's row already counted.
+        a.ok(
+          /INSERT INTO submissions[\s\S]*?SELECT[\s\S]*?WHERE[\s\S]*?COUNT\(\*\)[\s\S]*?FROM submissions/.test(src),
+          "the submissions insert must itself be gated on the live count, not preceded by a separate SELECT, or #92 regresses"
+        );
+        a.ok(
+          !/SELECT COUNT\(\*\) AS n FROM submissions/.test(src),
+          "the old two-step SELECT-then-INSERT rate check must be gone"
+        );
+      },
+    },
+    {
+      name: "#92 — the test workflow declares a minimal permissions block",
+      fn(a) {
+        const src = fs.readFileSync(
+          path.join(__dirname, "..", "..", ".github", "workflows", "test.yml"), "utf8"
+        );
+        a.ok(
+          /^permissions:\s*\n\s*contents:\s*read\s*$/m.test(src),
+          "test.yml must declare permissions: contents: read at the workflow level, or #92 regresses"
+        );
+      },
+    },
   ],
 };

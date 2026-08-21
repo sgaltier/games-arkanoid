@@ -9,12 +9,12 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 10 open items — #47 (promoted from [feature-ideas.md](feature-ideas.md) §A), #50
+**Status:** 9 open items — #47 (promoted from [feature-ideas.md](feature-ideas.md) §A), #50
 (promoted from §B), #56–57 (promoted from §C), #62–64 (promoted from §D), #83 (raised directly, not
-promoted from `feature-ideas.md`), and **#92–#93, the remaining security findings of the 2026-08-21
+promoted from `feature-ideas.md`), and **#93, the last remaining security finding of the 2026-08-21
 review pass** (§F). #46 from the §A batch, #53, #54, and #55 from the §C batch, #82 (raised
-directly), #84–#89 (the review batch's correctness findings, all of them), and #90–#91 (the first two
-of the review batch's security findings) have shipped (see [done.md](done.md)).
+directly), #84–#89 (the review batch's correctness findings, all of them), and #90–#92 (the first
+three of the review batch's security findings) have shipped (see [done.md](done.md)).
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
 test → fix → move the finding's whole entry from this file to [done.md](done.md), prepending a
@@ -39,11 +39,11 @@ challenge seed), #50 (moving bricks), #62 (colourblind-safe brick markers), #63 
 selection), #64 (resume an interrupted run), and two power-up/ball-mechanics ideas, all promoted from
 [feature-ideas.md](feature-ideas.md) and keeping their numbers; that file still holds the proposals
 not yet promoted. #83 (per-level star ratings, split out of #46 — the two were originally one item)
-was raised directly rather than promoted from there. The defects are **#92–#93**, what is left of the
+was raised directly rather than promoted from there. The defect is **#93**, the last of the
 ten (#84–#93) raised by a full-codebase review on 2026-08-21 — the correctness half (§E, all in
-`index.html`) is fully shipped; what's left is §F (security and backend, mostly
-`functions/api/scores.js`). #84–#89, #90, and #91 of that batch have already shipped (see
-[done.md](done.md) §I).
+`index.html`) is fully shipped; what's left of §F (security and backend, mostly
+`functions/api/scores.js`) is just this one. #84–#89, #90, #91, and #92 of that batch have already
+shipped (see [done.md](done.md) §I).
 New review findings go here too, keeping the shared numbering: the next free number is **#94**.
 
 ---
@@ -603,36 +603,8 @@ Same 2026-08-21 review pass as #84–#89 (the correctness half, all shipped — 
 game. None of these is a break of the endpoint's stated threat model — #67's own
 write-up is explicit that a patched client can forge a score inside the plausibility envelope, and
 that raising the cost above `curl` is the whole goal. What is below is either an envelope that turns
-out not to bind, or an operational hazard on a database that #67 forbids resetting.
-
-### 92. Endpoint and CI hardening (S)
-
-Three small ones, none of them exploitable on their own, grouped because each is a two-line change:
-
-- **`POST /api/scores` checks nothing about where the request came from.** There is no
-  `content-type` check and no `Origin` check, so a cross-origin page can drive a visitor's browser
-  into submitting a score under that visitor's IP. The attacker cannot read the response (no CORS
-  headers — correctly, and that should stay), and they can mint their own tokens anyway, so the only
-  thing this buys is burning someone else's rate-limit budget and putting a name of the attacker's
-  choosing on the board attributed to that IP. Requiring `content-type: application/json` blocks the
-  form-POST shape that makes this reachable without CORS at all.
-- **The rate-limit check and its insert are not atomic.** Two POSTs from one IP arriving together
-  both read the same `COUNT(*)` and both pass. D1 has no transaction across the two statements here;
-  the practical fix is to accept the slack (it is bounded by concurrency, not by attacker effort) and
-  say so in the comment, or to move the count and the insert into one statement.
-- **[.github/workflows/test.yml](../.github/workflows/test.yml) declares no `permissions:` block**,
-  so `GITHUB_TOKEN` gets the repository default. The job only runs `node test/run.js`; adding
-  `permissions: contents: read` at the workflow level costs one line and is the standard hardening
-  for a workflow with a `pull_request` trigger.
-
-#### Tests
-
-`functions/api/scores.js` still has no automated coverage against a real Worker runtime, a D1
-binding, or the network — that gap is unchanged, and #77's entry in [done.md](done.md) already notes
-it as policy (CLAUDE.md: "check `/api/scores` directly rather than trusting the UI"). #90 and #91
-turned out to be reachable anyway, as source-text checks over module-level constants and statement
-order respectively — see their entries in [done.md](done.md) for the regression tests that shipped
-with them. #92 and #93 don't offer the same shortcut.
+out not to bind, or an operational hazard on a database that #67 forbids resetting. #92 (endpoint and
+CI hardening) has shipped — see [done.md](done.md) §I.
 
 ### 93. Omega's phase-2 blink never actually teleports (S)
 

@@ -60,10 +60,41 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #89 | ✅ Fixed — 2026-08-21 |
 | #90 | ✅ Fixed — 2026-08-21 |
 | #91 | ✅ Fixed — 2026-08-21 |
+| #92 | ✅ Fixed — 2026-08-21 |
 
-79 of 81 fixed — #92–#93 are open, the rest of the ten findings a full-codebase review raised on
-2026-08-21. See [todo.md](todo.md) for those and for the feature ideas promoted alongside them, and
+80 of 81 fixed — #93 is open, the last of the ten findings a full-codebase review raised on
+2026-08-21. See [todo.md](todo.md) for that and for the feature ideas promoted alongside them, and
 [feature-ideas.md](feature-ideas.md) for proposals not yet promoted to it.
+
+---
+
+## 2026-08-21 — Endpoint and CI hardening (#92)
+
+### Fixed
+
+**Three small, unrelated gaps, closed together.**
+
+`POST /api/scores` now rejects any request whose `content-type` doesn't start with
+`application/json` before it even parses the body — blocking the plain-form-POST shape that let a
+cross-origin page drive a visitor's browser into submitting a score under that visitor's IP, with no
+CORS preflight involved and no way for the attacker to read the response either way.
+
+The rate-limit check and its insert were a `SELECT COUNT(*)` followed by a separate `INSERT`, so two
+POSTs from the same IP arriving together could both read the same count and both pass. They're now
+one D1 statement — `INSERT INTO submissions ... SELECT ?, ? WHERE (SELECT COUNT(*) ...) < ?` — gated
+on whether the insert actually happened rather than on a count read moments earlier.
+
+`.github/workflows/test.yml` declared no `permissions:` block, so `GITHUB_TOKEN` got the repository's
+default (often broader) permissions for a workflow that only runs `node test/run.js`. It now declares
+`permissions: contents: read` at the workflow level.
+
+### Tests
+
+Three new cases in `regressions.js`, confirmed failing first against the unfixed files. Following
+`#90`/`#91`'s source-text pattern (`scores.js`'s ES-module shape still has no runtime harness — see
+that entry's note): one confirms the content-type check, one confirms the combined
+`INSERT ... SELECT ... WHERE ... COUNT(*)` statement replaced the old two-step read, one confirms
+`test.yml` declares the permissions block.
 
 ---
 

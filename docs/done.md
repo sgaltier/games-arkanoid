@@ -9,7 +9,7 @@ from `todo.md` to here, so numbering is shared across both files and never reuse
 Each entry keeps its original write-up (category, effort estimate, the bug as found) with a
 `> **Fixed <date>.**` note prepended describing what shipped — a historical record, not a live TODO.
 
-**Status:** 69 fixed — everything raised so far, review findings and promoted features alike. See
+**Status:** 70 fixed — everything raised so far, review findings and promoted features alike. See
 [todo.md](todo.md).
 
 **Line references below are re-anchored after each round of fixes** — they are only valid against the
@@ -3073,6 +3073,66 @@ scheme is defeated, so it should be the thing that cannot be skipped.
 - `#91` — confirms `onRequestPost` prunes expired `submissions` rows on every request (regex over the
   source for the `DELETE FROM submissions WHERE created_at < ?` statement) and that the `submissions`
   insert's source position precedes the `scores` insert's.
+
+### 92. ✅ FIXED — Endpoint and CI hardening (S)
+
+> **Fixed 2026-08-21.** All three, in [functions/api/scores.js](../functions/api/scores.js) and
+> [.github/workflows/test.yml](../.github/workflows/test.yml):
+>
+> - `onRequestPost` now rejects any request whose `content-type` doesn't start with
+>   `application/json` before it even attempts `request.json()`
+>   ([228-237](../functions/api/scores.js#L228-L237)) — blocking the plain-form-POST shape that let a
+>   cross-origin page drive a visitor's browser into submitting under that visitor's IP with no CORS
+>   preflight involved.
+> - The rate-limit count and its insert are now one D1 statement instead of a
+>   `SELECT COUNT(*)` followed by a separate `INSERT`
+>   ([279-296](../functions/api/scores.js#L279-L296)): `INSERT INTO submissions ... SELECT ?, ? WHERE
+>   (SELECT COUNT(*) FROM submissions WHERE ip_hash = ? AND created_at > ?) < ?`, gated on
+>   `rateInsert.meta.changes` rather than a separately-read count. Two POSTs from the same IP arriving
+>   together can no longer both read the same count and both pass — the row only lands if the live
+>   count is still under the limit at insert time.
+> - `test.yml` now declares `permissions: contents: read` at the workflow level
+>   ([9-10](../.github/workflows/test.yml#L9-L10)), the standard hardening for a workflow with a
+>   `pull_request` trigger that otherwise gets the repository's default `GITHUB_TOKEN` permissions.
+>
+> Three new `#92` cases in `regressions.js` follow `#90`/`#91`'s source-text pattern (still no runtime
+> harness for `scores.js`, per that entry's own note): one confirms the content-type check exists,
+> one confirms the combined `INSERT ... SELECT ... WHERE ... COUNT(*)` statement exists and the old
+> two-step `SELECT COUNT(*) AS n` is gone, one confirms `test.yml` declares the permissions block.
+> Confirmed failing first against the unfixed files.
+
+Three small ones, none of them exploitable on their own, grouped because each is a two-line change:
+
+- **`POST /api/scores` checks nothing about where the request came from.** There is no
+  `content-type` check and no `Origin` check, so a cross-origin page can drive a visitor's browser
+  into submitting a score under that visitor's IP. The attacker cannot read the response (no CORS
+  headers — correctly, and that should stay), and they can mint their own tokens anyway, so the only
+  thing this buys is burning someone else's rate-limit budget and putting a name of the attacker's
+  choosing on the board attributed to that IP. Requiring `content-type: application/json` blocks the
+  form-POST shape that makes this reachable without CORS at all.
+- **The rate-limit check and its insert are not atomic.** Two POSTs from one IP arriving together
+  both read the same `COUNT(*)` and both pass. D1 has no transaction across the two statements here;
+  the practical fix is to accept the slack (it is bounded by concurrency, not by attacker effort) and
+  say so in the comment, or to move the count and the insert into one statement.
+- **[.github/workflows/test.yml](../.github/workflows/test.yml) declares no `permissions:` block**,
+  so `GITHUB_TOKEN` gets the repository default. The job only runs `node test/run.js`; adding
+  `permissions: contents: read` at the workflow level costs one line and is the standard hardening
+  for a workflow with a `pull_request` trigger.
+
+#### Tests
+
+`functions/api/scores.js` still has no automated coverage against a real Worker runtime, a D1
+binding, or the network — that gap is unchanged, and #77's entry in [done.md](done.md) already notes
+it as policy (CLAUDE.md: "check `/api/scores` directly rather than trusting the UI"). #90 and #91
+turned out to be reachable anyway, as source-text checks over module-level constants and statement
+order respectively. #92 reuses the same shortcut for its three checks:
+
+- `#92` (content-type) — confirms the source contains a content-type check requiring
+  `application/json`.
+- `#92` (atomic rate limit) — confirms the combined `INSERT ... SELECT ... WHERE ... COUNT(*)`
+  statement exists and the old two-step `SELECT COUNT(*) AS n` is gone.
+- `#92` (CI permissions) — confirms `test.yml` declares `permissions: contents: read` at the
+  workflow level.
 
 ---
 

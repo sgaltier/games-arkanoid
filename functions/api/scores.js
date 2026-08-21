@@ -225,6 +225,17 @@ export async function onRequestPost({ request, env }) {
   const secret = requireSecret(env);
   if (!secret) return json({ error: "not_configured" }, 503);
 
+  // #92: without this, a cross-origin page can drive a visitor's browser into
+  // POSTing here via a plain form submission (no CORS preflight needed for
+  // those content types), burning that visitor's rate-limit budget under a
+  // name of the attacker's choosing. There are no CORS response headers for
+  // the attacker to read either way, but requiring JSON blocks the form-POST
+  // shape outright.
+  const contentType = (request.headers.get("content-type") || "").toLowerCase();
+  if (!contentType.startsWith("application/json")) {
+    return json({ error: "bad_request" }, 400);
+  }
+
   let body;
   try {
     body = await request.json();
@@ -265,20 +276,24 @@ export async function onRequestPost({ request, env }) {
       .bind(now - RATE_WINDOW_MS)
       .run();
 
-    const recent = await env.DB
-      .prepare("SELECT COUNT(*) AS n FROM submissions WHERE ip_hash = ? AND created_at > ?")
-      .bind(ipHash, now - RATE_WINDOW_MS)
-      .first();
-    if (recent && recent.n >= RATE_MAX_SUBMISSIONS) return json({ error: "rate_limited" }, 429);
-
     // #91: counted before the score is stored, so anything that fails between
     // the two inserts — including the UNIQUE-constraint replay rejection below
     // — still costs the submitting IP a rate-limit slot instead of skipping
     // the limiter entirely.
-    await env.DB
-      .prepare("INSERT INTO submissions (ip_hash, created_at) VALUES (?, ?)")
-      .bind(ipHash, now)
+    // #92: the count and the insert are one statement rather than a
+    // SELECT-then-INSERT, so two POSTs from the same IP arriving together can
+    // no longer both read the same count and both pass — the row only
+    // inserts if the subquery's count is still under the limit at insert time.
+    const rateInsert = await env.DB
+      .prepare(
+        "INSERT INTO submissions (ip_hash, created_at) " +
+        "SELECT ?, ? WHERE (SELECT COUNT(*) FROM submissions WHERE ip_hash = ? AND created_at > ?) < ?"
+      )
+      .bind(ipHash, now, ipHash, now - RATE_WINDOW_MS, RATE_MAX_SUBMISSIONS)
       .run();
+    if (!rateInsert.meta || rateInsert.meta.changes === 0) {
+      return json({ error: "rate_limited" }, 429);
+    }
     // The UNIQUE constraint on nonce is the replay defence: a token that has
     // already bought a score fails here instead of inserting a duplicate.
     await env.DB
