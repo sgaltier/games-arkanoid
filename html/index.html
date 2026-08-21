@@ -796,6 +796,9 @@ canvas {
           <p class="overlay-eyebrow" data-i18n="pause.eyebrow">Pause</p>
           <h2 class="overlay-title" data-i18n="pause.title">Jeu en pause</h2>
           <button class="btn" id="btn-resume" type="button" data-i18n="pause.btn">Reprendre</button>
+          <!-- #64: only shown when this pause screen was reached by restoring a
+               saved run at boot — the one place abandoning progress is offered. -->
+          <button class="btn btn-ghost" id="btn-pause-newgame" type="button" data-i18n="pause.newgame" hidden>Nouvelle partie</button>
         </div>
 
         <div class="overlay" id="overlay-levelclear" role="status" aria-live="polite" aria-hidden="true">
@@ -2175,6 +2178,7 @@ canvas {
       "pause.eyebrow": "Pause",
       "pause.title": "Jeu en pause",
       "pause.btn": "Reprendre",
+      "pause.newgame": "Nouvelle partie",
       "levelclear.eyebrow": "Bravo",
       "levelclear.title": "Niveau {n} clair !",
       "levelclear.btn": "Niveau suivant",
@@ -2318,6 +2322,7 @@ canvas {
       "pause.eyebrow": "Paused",
       "pause.title": "Game paused",
       "pause.btn": "Resume",
+      "pause.newgame": "New game",
       "levelclear.eyebrow": "Nice one",
       "levelclear.title": "Level {n} cleared!",
       "levelclear.btn": "Next level",
@@ -2573,6 +2578,7 @@ canvas {
   var HOF_KEY = "blokrush-hall-of-fame";
   var ACH_KEY = "blokrush-achievements";
   var LEVELS_KEY = "blokrush-levels";
+  var RESUME_KEY = "blokrush-resume"; // #64: a snapshot of an interrupted run
 
   // Touching localStorage can throw outright — Safari private browsing, blocked
   // site data, some sandboxed file:// contexts. Since these are read while
@@ -2585,6 +2591,10 @@ canvas {
   function storageSet(key, value) {
     try { localStorage.setItem(key, String(value)); }
     catch (e) { /* storage unavailable — the value lives in memory only */ }
+  }
+  function storageRemove(key) {
+    try { localStorage.removeItem(key); }
+    catch (e) { /* storage unavailable — nothing to remove */ }
   }
 
   function loadBest() { return Number(storageGet(BEST_KEY)) || 0; }
@@ -2693,6 +2703,82 @@ canvas {
     }
     state.levelProgress.push({ level: idx });
     saveLevelProgress(state.levelProgress);
+  }
+
+  // ---------------------------------------------------------------------
+  // Resume (#64)
+  //   A snapshot of an interrupted run, taken the instant it's paused (see
+  //   setPhase()'s save-on-pause guard) and consumed once at boot. Only the
+  //   plain-data slice of state that can neither be reconstructed
+  //   (theme/stars come back identical from themeFor/buildStars) nor safely
+  //   discarded (drops/lasers/particles are transient hazards or purely
+  //   cosmetic, the same trade resetPaddleAndBall() already makes on every
+  //   ordinary serve) needs to be saved.
+  // ---------------------------------------------------------------------
+  var RESUME_FIELDS = [
+    "levelIndex", "score", "lives", "jumped", "combo", "difficultyMult",
+    "bricksDestroyed", "remainingBricks", "levelBrickTotal", "baseBallSpeed",
+    "slowMeter", "widthEffect", "speedEffect", "stickyEffect", "laserEffect",
+    "fireballEffect", "shieldEffect", "magnetEffect", "balls", "bricks",
+    "achStats", "boss", "sessionToken"
+  ];
+
+  // JSON has no Infinity — an indestructible ("#") brick's hp is exactly that
+  // (see buildLevel), and would otherwise round-trip as null and start
+  // decrementing like an ordinary brick the moment it's hit. Encode/decode it
+  // as a sentinel string across the storage boundary instead.
+  function resumeReplacer(key, value) { return value === Infinity ? "__Infinity__" : value; }
+  function resumeReviver(key, value) { return value === "__Infinity__" ? Infinity : value; }
+
+  function saveResume() {
+    var snap = { paddle: { x: state.paddle.x, baseW: state.paddle.baseW } };
+    for (var i = 0; i < RESUME_FIELDS.length; i++) snap[RESUME_FIELDS[i]] = state[RESUME_FIELDS[i]];
+    storageSet(RESUME_KEY, JSON.stringify(snap, resumeReplacer));
+  }
+
+  // Same defensive shape-check as loadHallOfFame/loadAchievements/
+  // loadLevelProgress above: valid JSON that isn't the expected shape
+  // degrades to "nothing to resume" rather than throwing, so a corrupt
+  // snapshot falls back to an ordinary boot instead of breaking one.
+  function loadResume() {
+    var raw = storageGet(RESUME_KEY);
+    if (!raw) return null;
+    try {
+      var snap = JSON.parse(raw, resumeReviver);
+      if (!snap || typeof snap !== "object") return null;
+      if (!Number.isInteger(snap.levelIndex) || !Array.isArray(snap.bricks) ||
+          !Array.isArray(snap.balls) || !snap.paddle) {
+        return null;
+      }
+      return snap;
+    } catch (e) {
+      return null;
+    }
+  }
+  function clearResume() { storageRemove(RESUME_KEY); }
+
+  // Reassigns the saved slice back onto state; called once, at boot, in place
+  // of buildLevel()/resetPaddleAndBall() — those would rebuild the level and
+  // serve a fresh ball, discarding exactly the progress this exists to keep.
+  function restoreFromResume(snap) {
+    for (var i = 0; i < RESUME_FIELDS.length; i++) {
+      var k = RESUME_FIELDS[i];
+      if (k in snap) state[k] = snap[k];
+    }
+    state.paddle.x = snap.paddle.x;
+    state.paddle.baseW = snap.paddle.baseW;
+    state.theme = themeFor(state.levelIndex);
+    state.stars = buildStars(state.levelIndex);
+    // JSON round-tripping state.boss loses the one place a boss aliases a
+    // part rather than owning its own copy (Carapace/Omega's shielded core:
+    // spawnBoss's b.core === b.parts[i]) — reattach it, or the core stops
+    // tracking its own sineDrift once it's a detached clone instead of the
+    // same object the parts loop draws and hit-tests.
+    if (state.boss && state.boss.core) {
+      for (var j = 0; j < state.boss.parts.length; j++) {
+        if (state.boss.parts[j].kind === "core") { state.boss.core = state.boss.parts[j]; break; }
+      }
+    }
   }
 
   // ---------------------------------------------------------------------
@@ -2836,6 +2922,12 @@ canvas {
     // becoming [] on failure — an empty array is a legitimately empty world board.
     globalScores: null,
     sessionToken: null, // opaque, server-signed; see submitGlobalScore
+    // #64: set only by the boot restore path, when a saved snapshot exists —
+    // gates the pause overlay's "new game" button, the one way to decline a
+    // restored run rather than continue it. Cleared by resume() the moment
+    // that run is actually continued, so it never leaks onto an ordinary
+    // mid-run pause later in the same session.
+    resumedFromSave: false,
     // Which phase the halloffame "continue" button leads back to — "victory"/
     // "gameover" when endGame() inserted the nameentry/halloffame detour after
     // a qualifying run, or "start" when the board was opened on demand from
@@ -2982,6 +3074,8 @@ canvas {
   }
 
   function newGame() {
+    clearResume(); // #64: a fresh run has nothing to resume back to
+    state.resumedFromSave = false;
     state.score = 0;
     state.lives = 3;
     state.jumped = false; // #69: a fresh run is eligible again
@@ -3205,6 +3299,13 @@ canvas {
   document.addEventListener("visibilitychange", function () {
     if (document.hidden) autoPause();
   });
+  // #64: a second line of defense for the snapshot above — some in-app
+  // browser shells never fire visibilitychange before teardown, so pagehide
+  // saves whatever's live directly rather than relying on autoPause() having
+  // already run.
+  window.addEventListener("pagehide", function () {
+    if (RUN_PHASES[state.phase]) saveResume();
+  });
 
   canvas.addEventListener("mousemove", function (e) {
     var p = pointerToLogical(e.clientX, e.clientY);
@@ -3299,7 +3400,10 @@ canvas {
     if (state.phase === "playing") setPhase("paused");
     else if (state.phase === "paused") resume();
   }
-  function resume() { setPhase("playing"); }
+  function resume() {
+    state.resumedFromSave = false; // #64: only the screen right after a boot restore offers "new game"
+    setPhase("playing");
+  }
 
   // ---------------------------------------------------------------------
   // Developer level jump (#69)
@@ -3464,6 +3568,14 @@ canvas {
     }
   }
   function setPhase(p) {
+    // #64: snapshot a live run the instant it's paused — from any RUN_PHASES
+    // phase, which is every path that actually has a run behind it (manual
+    // pause, autoPause() on visibilitychange/blur, openLevelJump()'s "paused"
+    // jumpReturn). Checked against the *outgoing* phase, before it's
+    // overwritten below — which is also what keeps the boot-restore path (see
+    // module init, near the bottom of the file) from re-saving over the
+    // snapshot it just loaded: "start" isn't a RUN_PHASE.
+    if (p === "paused" && RUN_PHASES[state.phase]) saveResume();
     state.phase = p;
     renderDynamicText();
     renderPauseButton();
@@ -3517,6 +3629,9 @@ canvas {
     document.getElementById("leveljump-sub").textContent = t("leveljump.sub", { total: total });
     document.getElementById("leveljump-error").textContent =
       state.jumpError ? t("leveljump.error", { total: total }) : "";
+    // #64: only the pause screen a boot restore landed on offers "new game" —
+    // an ordinary mid-run pause never has this option.
+    document.getElementById("btn-pause-newgame").hidden = !state.resumedFromSave;
   }
 
   // The mute label has to track both the language and the on/off state, so it
@@ -3635,6 +3750,12 @@ canvas {
     })(levelRowN - 1);
   }
   document.getElementById("btn-resume").addEventListener("click", resume);
+  // #64: the only way to decline a restored run rather than continue it.
+  document.getElementById("btn-pause-newgame").addEventListener("click", function () {
+    clearResume();
+    state.resumedFromSave = false;
+    newGame();
+  });
   // The deck buttons stay on screen, so a mouse click would leave one focused and
   // it would then swallow the Space the player expects to launch with. Drop focus
   // after pointer clicks only — `detail === 0` means keyboard, which must keep it.
@@ -5263,6 +5384,7 @@ canvas {
   }
 
   function endGame(won) {
+    clearResume(); // #64: the run is over either way
     maybeSaveBest();
     updateHud();
     // #65: the end-of-run achievements. Latched rather than read from the phase
@@ -6088,18 +6210,31 @@ canvas {
   }
 
   applyLanguage(state.lang);
-  // The start overlay is already showing in the static markup, but routing
-  // through setPhase() here (rather than leaving it purely to markup, or
-  // calling showOverlay() directly — see #34) is what focuses "Lancer la
-  // partie" so Space/Enter works from the very first screen too, not just
-  // after a phase transition, while keeping setPhase() the single entry
-  // point for every phase→overlay transition, boot included.
-  setPhase("start");
-  // Populates the world board (and renders the local one meanwhile) so the
-  // start screen's "view scores" button has something real behind it before a
-  // run has been played. Never awaited — the game is fully playable if it
-  // never resolves.
-  fetchGlobalBoard();
+  // #64: a saved snapshot means a run was mid-flight when the tab went away —
+  // land straight back on the pause screen it would have shown instead of
+  // "start", reusing overlay-pause/btn-resume verbatim. Deliberately skips the
+  // boot-time fetchGlobalBoard() below: that call also refreshes
+  // state.sessionToken (see fetchGlobalBoard), which would re-date the run
+  // from now instead of leaving the restored, server-signed token as it was.
+  var resumed = loadResume();
+  if (resumed) {
+    restoreFromResume(resumed);
+    state.resumedFromSave = true;
+    setPhase("paused");
+  } else {
+    // The start overlay is already showing in the static markup, but routing
+    // through setPhase() here (rather than leaving it purely to markup, or
+    // calling showOverlay() directly — see #34) is what focuses "Lancer la
+    // partie" so Space/Enter works from the very first screen too, not just
+    // after a phase transition, while keeping setPhase() the single entry
+    // point for every phase→overlay transition, boot included.
+    setPhase("start");
+    // Populates the world board (and renders the local one meanwhile) so the
+    // start screen's "view scores" button has something real behind it before a
+    // run has been played. Never awaited — the game is fully playable if it
+    // never resolves.
+    fetchGlobalBoard();
+  }
   requestAnimationFrame(frame);
 })();
 </script>

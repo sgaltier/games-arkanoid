@@ -4112,5 +4112,110 @@ module.exports = {
         }
       },
     },
+    {
+      name: "#64a — pausing an interrupted run and rebooting restores bricks, effects, and the live ball",
+      fn(a) {
+        const g = boot().start();
+        g.T.startLevel(3); // level 4 — has silver ("S", hp 2) and indestructible ("#", hp Infinity) bricks
+        g.key("Space"); // ready -> playing
+        a.eq(g.T.state.phase, "playing");
+
+        const silver = g.T.state.bricks.find((b) => b.type === "S");
+        a.ok(silver, "level 4 should have a silver brick to damage");
+        silver.hp = 1; // damaged, not destroyed
+        const indestructible = g.T.state.bricks.find((b) => b.type === "#");
+        a.ok(indestructible, "level 4 should have an indestructible brick");
+        a.eq(indestructible.hp, Infinity);
+        g.T.applyPowerup({ type: "widen" });
+        const ball = g.T.state.balls[0];
+        ball.attached = false;
+        ball.x = 123; ball.y = 456; ball.dx = 0.6; ball.dy = -0.8;
+
+        g.key("KeyP");
+        a.eq(g.T.state.phase, "paused");
+        a.ok(g.store["blokrush-resume"], "pausing a live run should write a resume snapshot");
+
+        const g2 = boot({ storage: g.store });
+        a.eq(g2.T.state.phase, "paused", "a saved run should land back on the pause screen, not start");
+        a.eq(g2.T.state.levelIndex, 3);
+        const restored = g2.T.state.bricks.find((b) => b.type === "S" && b.hp === 1 && b.alive);
+        a.ok(restored, "the damaged brick's hp must survive the round-trip rather than resetting to full");
+        // JSON has no Infinity — this must not have round-tripped to null (or
+        // worse, started decrementing like an ordinary brick the next time it's hit).
+        const restoredIndestructible = g2.T.state.bricks.find((b) => b.type === "#");
+        a.eq(restoredIndestructible.hp, Infinity, "an indestructible brick's hp must survive as Infinity, not null");
+        a.ok(g2.T.state.widthEffect, "the active effect must survive the round-trip");
+        const b2 = g2.T.state.balls[0];
+        a.eq(b2.x, 123); a.eq(b2.y, 456); a.eq(b2.dx, 0.6); a.eq(b2.dy, -0.8);
+      },
+    },
+    {
+      name: "#64b — the restored run's sessionToken is the literal saved token, not one refetched at boot",
+      async fn(a) {
+        const g = boot({ api: () => ({ scores: [], token: "tok-resume-1" }) }).start();
+        await g.settle();
+        a.eq(g.T.state.sessionToken, "tok-resume-1");
+        g.key("KeyP");
+        a.eq(g.T.state.phase, "paused");
+
+        // A different token would come back from a fresh fetch — proving the
+        // restored one survives also proves boot never made that call.
+        const g2 = boot({ storage: g.store, api: () => ({ scores: [], token: "tok-should-not-be-used" }) });
+        await g2.settle();
+        a.eq(g2.T.state.sessionToken, "tok-resume-1", "the literal saved token must survive the round-trip");
+        a.eq(g2.apiCalls.length, 0, "boot must not call fetchGlobalBoard() while restoring a snapshot");
+      },
+    },
+    {
+      name: "#64c — malformed resume storage degrades to an ordinary boot instead of throwing",
+      fn(a) {
+        a.doesNotThrow(() => boot({ storage: { "blokrush-resume": "not json" } }),
+          "unparsable JSON under the resume key must not take down the whole IIFE");
+        a.eq(boot({ storage: { "blokrush-resume": "not json" } }).T.state.phase, "start");
+        a.eq(
+          boot({ storage: { "blokrush-resume": JSON.stringify({ not: "the right shape" }) } }).T.state.phase,
+          "start",
+          "valid JSON that isn't the expected shape should also fall back to an ordinary boot"
+        );
+        a.eq(boot({}).T.state.phase, "start", "no resume key at all is the ordinary case");
+      },
+    },
+    {
+      name: "#64d — a resumed run stays hall-of-fame eligible: jumped survives the round-trip as false",
+      fn(a) {
+        const g = boot().start();
+        g.key("KeyP");
+        a.eq(g.T.state.phase, "paused");
+
+        const g2 = boot({ storage: g.store });
+        a.eq(g2.T.state.phase, "paused");
+        a.eq(g2.T.state.jumped, false);
+        g2.el("btn-resume").click(1);
+        a.eq(g2.T.state.phase, "playing");
+        g2.T.state.score = 500; // qualifies against the empty local board
+        g2.T.state.lives = 1;
+        g2.loseBall();
+        a.eq(g2.T.state.phase, "nameentry", "a resumed run must still be offered the hall of fame");
+      },
+    },
+    {
+      name: "#64e — newGame() and endGame() both clear any saved resume snapshot",
+      fn(a) {
+        const g = boot().start();
+        g.key("KeyP");
+        a.ok(g.store["blokrush-resume"], "pausing a live run should have saved a snapshot");
+        g.T.newGame();
+        a.not("blokrush-resume" in g.store, "newGame() should clear any saved snapshot");
+
+        const g2 = boot().start();
+        g2.key("KeyP");
+        a.ok(g2.store["blokrush-resume"]);
+        g2.el("btn-resume").click(1);
+        g2.T.state.score = 10;
+        g2.T.state.lives = 1;
+        g2.loseBall(); // ends the run, qualifying or not — endGame() clears the snapshot either way
+        a.not("blokrush-resume" in g2.store, "endGame() should clear any saved snapshot");
+      },
+    },
   ],
 };

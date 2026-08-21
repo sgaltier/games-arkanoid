@@ -9,11 +9,11 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 8 open items — #47 (promoted from [feature-ideas.md](feature-ideas.md) §A), #50
-(promoted from §B), #56–57 (promoted from §C), #62–64 (promoted from §D), and #83 (raised directly,
+**Status:** 7 open items — #47 (promoted from [feature-ideas.md](feature-ideas.md) §A), #50
+(promoted from §B), #56–57 (promoted from §C), #62–63 (promoted from §D), and #83 (raised directly,
 not promoted from `feature-ideas.md`). #46 from the §A batch, #53, #54, and #55 from the §C batch,
-#82 (raised directly), and #84–#93 (the full 2026-08-21 review pass, correctness and security/backend
-alike) have shipped (see [done.md](done.md)).
+#82 (raised directly), #84–#93 (the full 2026-08-21 review pass, correctness and security/backend
+alike), and #64 (promoted from §D) have shipped (see [done.md](done.md)).
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
 test → fix → move the finding's whole entry from this file to [done.md](done.md), prepending a
@@ -32,14 +32,15 @@ celebration built on top of it), #75 (a follow-on to #37), #78 (effect-bar names
 name validation), #77 (hall-of-fame profanity filtering), #79 (the boss-kill death beat's
 music/explosion/sound gaps), #80 (level-progress-driven music intensity), #81 (the level-clear
 fanfare), #46 (level select), #53 (the fireball power-up), #54 (the safety-net shield), #55 (magnet
-paddle / hold-to-slow bullet time), and #82 (the `neonbreak-*` → `blokrush-*` rename) — see
-[done.md](done.md). Everything left open below is a feature: #47 (daily challenge seed), #50 (moving
-bricks), #62 (colourblind-safe brick markers), #63 (difficulty selection), #64 (resume an interrupted
-run), and two power-up/ball-mechanics ideas, all promoted from [feature-ideas.md](feature-ideas.md)
-and keeping their numbers; that file still holds the proposals not yet promoted. #83 (per-level star
-ratings, split out of #46 — the two were originally one item) was raised directly rather than
-promoted from there. The ten findings raised by a full-codebase review on 2026-08-21 (#84–#93,
-correctness and security/backend alike) are all shipped — see [done.md](done.md) §I.
+paddle / hold-to-slow bullet time), #82 (the `neonbreak-*` → `blokrush-*` rename), and #64 (resume an
+interrupted run) — see [done.md](done.md). Everything left open below is a feature: #47 (daily
+challenge seed), #50 (moving bricks), #62 (colourblind-safe brick markers), #63 (difficulty
+selection), and two power-up/ball-mechanics ideas, all promoted from
+[feature-ideas.md](feature-ideas.md) and keeping their numbers; that file still holds the proposals
+not yet promoted. #83 (per-level star ratings, split out of #46 — the two were originally one item)
+was raised directly rather than promoted from there. The ten findings raised by a full-codebase review
+on 2026-08-21 (#84–#93, correctness and security/backend alike) are all shipped — see
+[done.md](done.md) §I.
 New review findings go here too, keeping the shared numbering: the next free number is **#94**.
 
 ---
@@ -484,108 +485,3 @@ values.
   raise `state.best`, exactly as a jumped run does not; the same score on normal does both.
 - `#63d` — `CONFIG.difficulty` (the within-level ramp) and the new difficulty-preset table are
   distinct objects — a regression guard against the naming collision this entry calls out.
-
-### 64. Resume an interrupted run (S/M)
-
-Since #41 a full campaign is 100 levels — one to two hours in a single sitting — so today, closing
-the tab or letting the OS kill a backgrounded one doesn't cost a few minutes, it costs the whole run:
-nothing survives past `state`, which lives only in memory. `autoPause()` already freezes the
-simulation on `visibilitychange`/`blur` (`frame()` only advances on `playing`/`ready`), but freezing
-in memory and surviving a reload are different problems — this entry is the second one.
-
-**What actually needs serializing is a snapshot, not the whole `state` object.** Most of `state` is
-either reconstructible or disposable: `state.stars`/`state.theme` come back identical from
-`buildStars(idx)`/`themeFor(idx)` since both are pure functions of the level index (the same
-determinism #47's write-up leans on), and `state.particles`/`state.floatingTexts`/`state.lightning`
-are purely cosmetic — losing whatever was mid-flight when the tab was hidden is invisible, since
-`autoPause()` already stops rendering them at that instant anyway. `state.drops`/`state.lasers`/
-`state.bossShots`/`state.minions` are gameplay-live but transient hazards; discarding them on resume
-is the same trade `resetPaddleAndBall()` already makes on every ordinary serve, just extended to "the
-tab came back", so a resumed run starts each life's hazards clean rather than needing to save and
-rehydrate in-flight geometry for objects that were, at most, one paused frame old.
-
-**What's left is a small, plain-data slice, because every field involved already is plain data.**
-`levelIndex`, `score`, `lives`, `jumped`, `combo`, `difficultyMult`, `bricksDestroyed`,
-`remainingBricks`, `levelBrickTotal`, `baseBallSpeed`, `slowMeter`, the seven effect fields
-(`widthEffect`/`speedEffect`/`stickyEffect`/`laserEffect`/`fireballEffect`/`shieldEffect`/
-`magnetEffect`, each already either `null` or a `{mult, remaining}`/`{remaining}` literal), `paddle`
-(`x`, `baseW`), `balls`, `bricks`, `achStats`, and — see below — `sessionToken`. `state.boss` looks
-like it would be the hard case, but `spawnBoss()` builds it as a plain object too (`defIdx`, `t`,
-`hitsTaken`, `parts`, `dead`, `transition`, `fireGrace`, `hpTotal`); `updateBoss()` looks up
-`BOSSES[b.defIdx]` fresh every frame rather than closing over a function reference, so a boss fight
-serializes and restores exactly like an ordinary level's bricks do, with no special case beyond
-carrying `defIdx` through. `bricks` has to be the *live* array, not a call to `buildLevel(idx)` — a
-generated level is deterministic in its starting layout, but not in what survives a level partway
-through, so regenerating from `idx` would silently resurrect every brick already destroyed.
-
-**Save on every transition into `paused`, not on a separate timer.** `setPhase(p)` is already the one
-place every phase change flows through (per the note at `PHASE_OVERLAY`); a `p === "paused" &&
-RUN_PHASES[state.phase]`-style guard there is the natural single call site for `saveResume()`, and it
-already fires on every path that matters — manual pause, `autoPause()` on `visibilitychange`/`blur`,
-and `openLevelJump()`'s "paused" `jumpReturn`. A `pagehide` listener calling the same function as a
-second line of defense costs one more `addEventListener` and covers the rare case (some in-app
-browser shells) where `visibilitychange` doesn't fire before teardown.
-
-**The session token has to be carried through unchanged, not refreshed.** `fetchGlobalBoard()` is
-what dates a run — it hands back a fresh, server-signed `state.sessionToken` timestamped "now", which
-is exactly right at `newGame()`/boot but exactly wrong here: refreshing the token on resume would
-re-date the run from the moment it was resumed rather than when it actually started, undermining the
-`age`-based checks in `functions/api/scores.js` that a resumed run should still be measured against.
-The saved snapshot has to include the literal token string and restore it verbatim, and boot's
-`setPhase("start")` → `fetchGlobalBoard()` sequence (module init, near the bottom of the file) must
-not clobber a restored token with its own boot-time fetch when a resume is in play.
-
-**`TOKEN_MAX_AGE_MS` (24h, `functions/api/scores.js`) is a real ceiling this feature makes reachable
-for the first time, not a new one to add.** Before #64, nobody could pause for 24 hours — the tab
-closing lost the run outright, and a tab merely left open in the background doesn't advance the
-token's age any differently than one in active use. After #64 it's an actual outcome: a player who
-pauses, closes the laptop, and resumes two days later has a snapshot that restores fine client-side,
-but the eventual score submission gets `bad_session_age`'d by the server exactly as a same-length
-single sitting already would. Nothing needs to change about that check — it's the correct backstop —
-but it deserves a decision here rather than being discovered as a bug report: **a token-expired
-submission should fail the same way a network-unreachable one already does**, silently, via whatever
-`submitGlobalScore()`'s existing rejection path is, not a special error surfaced to the player, since
-from their side nothing looks different than any other API hiccup.
-
-**A resumed run is hall-of-fame eligible — the open design question the original write-up flagged.**
-#69's `state.jumped` exists to exclude a run that skipped levels it didn't earn; pausing and resuming
-skips nothing. The fix here does not add a new exclusion flag alongside `jumped` the way #63 has to
-for difficulty — it simply never touches `jumped`, and a saved-and-restored run reaches
-`endGame()`/`qualifiesForHallOfFame()` through the exact same, unmodified gate every uninterrupted run
-already does.
-
-**Boot needs a resume affordance, and the cheapest one is the existing pause overlay, not a new
-one.** Landing a restored run straight into `setPhase("paused")` instead of `"start"` reuses
-`overlay-pause` and its `btn-resume` verbatim — the player sees the same screen they would have left
-behind, and `resume()` already does the right thing. The one gap: `overlay-pause` today has no way to
-decline and start fresh (there's never been a reason for one — abandoning progress mid-run from an
-ordinary pause is a destructive action this overlay has deliberately never offered). A second,
-secondary button on that overlay — visible only when the pause was reached via a restored save, not
-during an ordinary mid-run pause — covers it: a new `state.resumedFromSave` flag set only by the boot
-restore path gates its visibility, and its handler is just `clearResume()` (drop the saved snapshot)
-followed by `newGame()`.
-
-**Persistence follows the established shape.** A new `RESUME_KEY = "blokrush-resume"` (namespaced
-like every other key `persistence.js` asserts), `loadResume()`/`saveResume()`/`clearResume()`
-following `loadAchievements()`'s defensive pattern — guard against valid-JSON-but-wrong-shape data and
-return `null` rather than throwing, since a corrupt snapshot should fall back to an ordinary boot, not
-break one. `saveResume()` is called from `setPhase()` and the `pagehide` listener; `clearResume()` is
-called from `newGame()` (a fresh run has nothing to resume back to) and from `endGame()` (the run is
-over either way).
-
-#### Tests
-
-- `#64a` — pausing a run with damaged bricks, an active effect, and a mid-flight ball, then
-  simulating a fresh boot against the saved storage, restores `state.bricks` (including a brick
-  already at reduced hp), the active effect, and the ball's exact position/velocity — not a fresh
-  `startLevel()`.
-- `#64b` — the restored run's `sessionToken` is the literal string saved at pause time, not a new one
-  fetched at boot.
-- `#64c` — `loadResume()` recovers to `null` from malformed storage (missing key, non-JSON, JSON that
-  isn't the expected shape) instead of throwing, and boot falls through to the ordinary `"start"`
-  phase in that case.
-- `#64d` — a run restored from a save reaches `nameentry`/hall-of-fame submission the same as an
-  uninterrupted run of the same score would (`state.jumped` stays `false` through a save/restore
-  round-trip).
-- `#64e` — `newGame()` and `endGame()` both clear any saved snapshot (`loadResume()` afterward returns
-  `null`).

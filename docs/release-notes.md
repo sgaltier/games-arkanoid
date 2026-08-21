@@ -62,12 +62,43 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #91 | ✅ Fixed — 2026-08-21 |
 | #92 | ✅ Fixed — 2026-08-21 |
 | #93 | ✅ Fixed — 2026-08-21 |
+| #64 | ✅ Fixed — 2026-08-21 |
 
-81 of 81 fixed — the full-codebase review raised on 2026-08-21 is done, ten for ten. See
-[todo.md](todo.md) for the feature ideas still open, and [feature-ideas.md](feature-ideas.md) for
-proposals not yet promoted to it.
+82 of 82 fixed — the full-codebase review raised on 2026-08-21 is done, ten for ten, and #64 (resume
+an interrupted run) has shipped alongside it. See [todo.md](todo.md) for the feature ideas still
+open, and [feature-ideas.md](feature-ideas.md) for proposals not yet promoted to it.
 
 ---
+
+## 2026-08-21 — Resume an interrupted run (#64)
+
+### Fixed
+
+A full campaign is 100 levels — one to two hours in a single sitting — and until now nothing survived
+past `state`, which lives only in memory: closing the tab or letting the OS kill a backgrounded one
+cost the whole run. Pausing now snapshots the plain-data slice of a run that can't be reconstructed
+from the level index or safely discarded (levels/bricks/balls/effects/`achStats`/the boss fight/the
+session token) to a new `blokrush-resume` key, and boot restores it straight into the pause screen
+instead of the start screen when one exists.
+
+The snapshot is taken by a guard inside `setPhase()` itself (transitioning into `"paused"` from any
+phase a run is actually live in), so manual pause, `autoPause()` on `visibilitychange`/`blur`, and the
+developer level-jump's "paused" return path all cover it for free, with a `pagehide` listener as a
+second line of defense for the browser shells that don't reliably fire `visibilitychange` before
+teardown. The session token is restored verbatim rather than refreshed, so a resumed run is still
+dated from when it actually started for `functions/api/scores.js`'s age check. A resumed run stays
+hall-of-fame eligible — it never touches `jumped`, unlike a level-jumped run. The pause overlay grew a
+second, `hidden`-by-default button, shown only on the screen a restore landed on, for the one case
+where continuing isn't wanted: drop the snapshot and start fresh.
+
+### Tests
+
+Five new cases in `regressions.js` (`#64a`-`#64e`), confirmed failing first against the unfixed code:
+the full round-trip (a damaged brick, an active effect, the live ball's exact position/velocity)
+survives a save-then-reboot; the literal session token survives without boot refetching the board;
+malformed `blokrush-resume` storage degrades to an ordinary boot; `jumped` stays `false` through a
+restore so hall-of-fame eligibility is unaffected; and `newGame()`/`endGame()` both clear the saved
+snapshot.
 
 ## 2026-08-21 — Omega's phase-2 blink never actually teleported (#93)
 
