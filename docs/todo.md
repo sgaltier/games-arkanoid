@@ -9,10 +9,11 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 8 open items — #46 and #47 (promoted from [feature-ideas.md](feature-ideas.md) §A), #50
-(promoted from §B), #56–57 (promoted from §C), and #62–64 (promoted from §D). Every review finding,
-and every other directly-requested feature, raised so far has shipped, and so have #53, #54, and #55
-from the §C batch (see [done.md](done.md)).
+**Status:** 10 open items — #46 and #47 (promoted from [feature-ideas.md](feature-ideas.md) §A), #50
+(promoted from §B), #56–57 (promoted from §C), #62–64 (promoted from §D), and #82–83 (raised directly,
+not promoted from `feature-ideas.md`). Every review finding, and every other directly-requested
+feature, raised so far has shipped, and so have #53, #54, and #55 from the §C batch (see
+[done.md](done.md)).
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
 test → fix → move the finding's whole entry from this file to [done.md](done.md), prepending a
@@ -32,11 +33,13 @@ Every review finding raised so far has shipped, and so has every directly-reques
 (the boss-kill death beat's music/explosion/sound gaps), #80 (level-progress-driven music intensity),
 #81 (the level-clear fanfare), #53 (the fireball power-up), #54 (the safety-net shield), and #55
 (magnet paddle / hold-to-slow bullet time) — see [done.md](done.md). What is open below is #46 (level
-select / star ratings), #47 (daily challenge seed), #50 (moving bricks), #62 (colourblind-safe brick
-markers), #63 (difficulty selection), #64 (resume an interrupted run), and two power-up/ball-mechanics
-ideas, all promoted from [feature-ideas.md](feature-ideas.md) and keeping their numbers; that file
-still holds the proposals not yet promoted. New review findings go here too, keeping the shared
-numbering: the next free number is **#82**.
+select), #47 (daily challenge seed), #50 (moving bricks), #62 (colourblind-safe brick markers), #63
+(difficulty selection), #64 (resume an interrupted run), and two power-up/ball-mechanics ideas, all
+promoted from [feature-ideas.md](feature-ideas.md) and keeping their numbers; that file still holds
+the proposals not yet promoted. #82 (the `neonbreak-*` → `blokrush-*` rename) and #83 (per-level star
+ratings, split out of #46 — the two were originally one item) were raised directly rather than
+promoted from there. New review findings go here too, keeping the shared numbering: the next free
+number is **#84**.
 
 ---
 
@@ -45,30 +48,88 @@ numbering: the next free number is **#82**.
 Promoted from [feature-ideas.md](feature-ideas.md) §A. #45 (procedural levels past the authored 10)
 and #48 (a level editor and shareable layouts) were discarded outright rather than promoted alongside
 these — #45 duplicated finding #41, already shipped as the 100-level campaign; #48 was dropped from
-the menu. #46 and #47 keep their numbers.
+the menu. #46 and #47 keep their numbers. #46 originally covered both level select and per-level star
+ratings as one item; the two are now split — star ratings moved out to **#83**, immediately below,
+since they're usable independently of one another (star ratings need a per-level score to rate, but
+level select doesn't need a rating to be worth shipping on its own).
 
-### 46. Level select and per-level star ratings (S/M)
+### 46. Level select (S/M)
 
 Today a run always starts at `startLevel(0)` via `newGame()`; the only way to reach a later level
 directly is `submitLevelJump()` behind the `S`+`E`+`B` developer chord (`openLevelJump()`), which is
 unrestricted (any level 1–100) and always sets `state.jumped = true`, permanently excluding that run
 from the hall of fame (#69). This entry is the player-facing, *earned* version of the same mechanism:
-a level unlocks once cleared, and revisiting it doesn't pretend to be a full run.
+a level unlocks once cleared, and revisiting it doesn't pretend to be a full run. Rating those cleared
+levels with stars is a separate, follow-on item — see **#83** — layered on top of the persistence and
+UI this entry builds; nothing here depends on #83 shipping.
 
 **Persistence: a new key, same defensive shape as the others.** Add `LEVELS_KEY =
-"neonbreak-levels"` (keeping the `^neonbreak-` namespace `persistence.js` asserts) storing per-level
-progress — at minimum the highest level index ever cleared, and a 1–3 star rating per cleared level.
-`loadLevelProgress()`/`saveLevelProgress()` should follow `loadAchievements()`'s pattern exactly:
-guard against valid-JSON-but-wrong-shape data (an object instead of an array, non-numeric entries)
-and drop anything that doesn't parse rather than throwing — `storageGet`/`storageSet` already swallow
-the *access* throwing (Safari private-browsing), but a corrupt *value* is a separate failure mode
-neither of those functions catches.
+"blokrush-levels"` (keeping the `^blokrush-` namespace `persistence.js` asserts, per #82) storing
+per-level progress — at minimum the highest level index ever cleared. `loadLevelProgress()`/
+`saveLevelProgress()` should follow `loadAchievements()`'s pattern exactly: guard against
+valid-JSON-but-wrong-shape data (an object instead of an array, non-numeric entries) and drop anything
+that doesn't parse rather than throwing — `storageGet`/`storageSet` already swallow the *access*
+throwing (Safari private-browsing), but a corrupt *value* is a separate failure mode neither of those
+functions catches. #83 extends this same record with a per-level star field rather than introducing a
+second key, so the shape here is worth choosing with that in mind (e.g. an array of per-level objects,
+not a bare array of cleared indices, even though only the index is populated yet).
 
 **Where the unlock actually happens.** `checkLevelClear()` is the single place a level's clear is
 already settled — it increments `state.achStats.levelsCleared` and runs `checkAchievements()` before
 branching on whether the run is over. Recording the unlock belongs right there, using
 `state.levelIndex` (the level just finished, not the one about to start), before the
 `endGame(true)` / `setPhase("levelclear")` branch, so the campaign's last level unlocks too.
+
+**The level-select screen is a new overlay, not a repurposed one.** The closest existing precedent
+is `overlay-achievements` (#65): a pure list view reached from the start screen and from both
+end-of-run screens, populated in JS (`ol.ach-list`), with `state.returnPhase` telling `Continuer`
+where to go back to. A new `overlay-levelselect` should follow the same shape — a scrollable list of
+the 100 levels, each row showing whether it's unlocked or a lock glyph past the highest cleared index
+— wired into `PHASE_OVERLAY`/`showOverlay()` like every other phase, and reached via a new ghost
+button next to `btn-view-hof`/`btn-view-ach` on `overlay-start` (and their `-win`/`-over` twins, for
+consistency with how those two are already offered on all three screens). #83 adds a star rating to
+each unlocked row later; this entry's rows only need the lock/unlock state.
+
+**Starting from a selected level has to reuse #69's hall-of-fame boundary, not invent a new one.**
+`RUN_PHASES` and `state.jumped` already exist to answer exactly this question for the developer jump:
+a run that didn't start at level 1 doesn't get to submit to the board (#67's "one global board still
+means something" only holds if a score reflects the levels it claims to). Selecting a level should
+call the same `startLevel(n - 1)` / `state.jumped = true` path `submitLevelJump()` uses, rather than
+adding a second, parallel notion of "this run doesn't count" — the only difference is that level
+select's `n` is bounded by the player's own unlock progress, not free-typed. This does mean the
+feature is for practice, not for grinding the world board from a late level, which is the intended
+boundary here, not an oversight to fix later.
+
+**Interaction with `newGame()`.** `newGame()` should keep always calling `startLevel(0)` — the start
+screen's primary button stays a clean, hall-of-fame-eligible run. Level select is reached only
+through the new secondary button, mirroring how `btn-view-hof`/`btn-view-ach` are secondary too.
+
+#### Tests
+
+- `#46a` — clearing a level for the first time persists it (highest-cleared index advances, the
+  storage key is namespaced `blokrush-`), and re-clearing an already-unlocked level is a no-op on that
+  record.
+- `#46b` — `loadLevelProgress()` recovers to an empty/default state from malformed storage (missing
+  key, non-JSON, JSON that isn't an array) instead of throwing.
+- `#46c` — starting a run from level select sets `state.jumped` the same way `submitLevelJump()`
+  does, and such a run is excluded from hall-of-fame submission exactly as a developer-jumped run is.
+
+### 83. Per-level star ratings (S)
+
+Raised directly, split out of what was originally one item (#46) covering both level select and star
+ratings. This entry is the rating half: once a level is unlocked (#46), grade how well it was
+cleared, 1–3 stars, and show that rating wherever the level is listed. It builds on #46's persistence
+and level-select overlay rather than duplicating either — #46 is a prerequisite in practice (there's
+nowhere to display a star rating without a level-select list), though nothing here requires #46 to
+land in the same change if the two are picked up separately; a rating with no list to show it in is
+still worth persisting, just not visibly useful yet.
+
+**Extends #46's stored record, not a second key.** #46's `LEVELS_KEY` persists at least the highest
+cleared index; this entry adds a 1–3 star field to that same per-level record via
+`loadLevelProgress()`/`saveLevelProgress()`, rather than introducing a parallel store that the two
+features would have to keep in sync. Re-clearing an already-rated level should only ever raise its
+stored rating, never lower it — a worse replay of a level already mastered shouldn't erase that
+level's best showing.
 
 **Star thresholds have to scale with the level, not be fixed.** `CONFIG.progression.scoreCap`/
 `scoreTau` already grow the per-brick score multiplier through `levelMultiplier()` as the campaign
@@ -79,40 +140,19 @@ so this needs a small addition: capture `state.levelStartScore = state.score` in
 `state.score - state.levelStartScore` against thresholds expressed as a multiple of that level's
 `levelMultiplier()`, not an absolute number.
 
-**The level-select screen is a new overlay, not a repurposed one.** The closest existing precedent
-is `overlay-achievements` (#65): a pure list view reached from the start screen and from both
-end-of-run screens, populated in JS (`ol.ach-list`), with `state.returnPhase` telling `Continuer`
-where to go back to. A new `overlay-levelselect` should follow the same shape — a scrollable list of
-the 100 levels, each row showing its star rating (or a lock glyph past the highest cleared index) —
-wired into `PHASE_OVERLAY`/`showOverlay()` like every other phase, and reached via a new ghost button
-next to `btn-view-hof`/`btn-view-ach` on `overlay-start` (and their `-win`/`-over` twins, for
-consistency with how those two are already offered on all three screens).
-
-**Starting from a selected level has to reuse #69's hall-of-fame boundary, not invent a new one.**
-`RUN_PHASES` and `state.jumped` already exist to answer exactly this question for the developer jump:
-a run that didn't start at level 1 doesn't get to submit to the board (#67's "one global board still
-means something" only holds if a score reflects the levels it claims to). Selecting a level should
-call the same `startLevel(n - 1)` / `state.jumped = true` path `submitLevelJump()` uses, rather than
-adding a second, parallel notion of "this run doesn't count" — the only difference is that level
-select's `n` is bounded by the player's own unlock progress, not free-typed. This does mean the
-feature is for practice and star-chasing, not for grinding the world board from a late level, which
-is the intended boundary here, not an oversight to fix later.
-
-**Interaction with `newGame()`.** `newGame()` should keep always calling `startLevel(0)` — the start
-screen's primary button stays a clean, hall-of-fame-eligible run. Level select is reached only
-through the new secondary button, mirroring how `btn-view-hof`/`btn-view-ach` are secondary too.
+**Display is a small addition to #46's list, not a new screen.** `overlay-levelselect`'s rows already
+show lock/unlock state (#46); an unlocked row additionally renders its stored star count (a glyph
+repeated per star, matching how `?`/`X`/`R` already render non-colour brick markers elsewhere in the
+canvas rather than inventing a new icon convention). No new overlay, no new entry point.
 
 #### Tests
 
-- `#46a` — clearing a level for the first time persists it (highest-cleared index advances, the
-  storage key is namespaced `neonbreak-`), and re-clearing an already-unlocked level never lowers a
-  star rating already earned.
-- `#46b` — `loadLevelProgress()` recovers to an empty/default state from malformed storage (missing
-  key, non-JSON, JSON that isn't an array) instead of throwing.
-- `#46c` — starting a run from level select sets `state.jumped` the same way `submitLevelJump()`
-  does, and such a run is excluded from hall-of-fame submission exactly as a developer-jumped run is.
-- `#46d` — star thresholds scale with `levelMultiplier()`: the same absolute per-level score earns
+- `#83a` — re-clearing an already-unlocked level never lowers a star rating already earned, and a
+  better replay raises it.
+- `#83b` — star thresholds scale with `levelMultiplier()`: the same absolute per-level score earns
   fewer stars on a late level than on an early one.
+- `#83c` — a level cleared for the first time is rated using only the score earned *during that
+  level* (`state.score - state.levelStartScore`), not cumulative run score.
 
 ### 47. Daily challenge seed (M)
 
@@ -608,3 +648,49 @@ over either way).
   round-trip).
 - `#64e` — `newGame()` and `endGame()` both clear any saved snapshot (`loadResume()` afterward returns
   `null`).
+
+---
+
+## E. Code quality / structure
+
+Raised directly, not promoted from [feature-ideas.md](feature-ideas.md).
+
+### 82. Rename `neonbreak-*` to `blokrush-*` (S)
+
+[CLAUDE.md](../CLAUDE.md)'s persistence section currently says to leave the four/five `localStorage`
+keys (`BEST_KEY`, `LANG_KEY`, `MUTED_KEY`, `HOF_KEY`, `ACH_KEY` — `html/index.html` around L2377-2381)
+named `neonbreak-*`, because renaming them would orphan an existing player's save. That reasoning no
+longer holds: the game has not been released to production, so there is no installed base to strand.
+Renaming the namespace to `blokrush-*` is now purely a cleanup, not a compatibility break worth
+avoiding — do it.
+
+**This isn't just the five key literals.** `persistence.js` (the test suite) asserts the namespace
+structurally, not just by example — a `^neonbreak-` regex, presumably in `test/suites/persistence.js`
+near where it walks every persisted key — so the assertion itself has to flip to `^blokrush-` in the
+same change, or the suite would fail the moment the keys move. Every test file that boots against a
+seeded `storage: { "neonbreak-...": ... }` fixture needs the same string updated — `persistence.js`,
+`i18n.js`, `rules.js`, `state.js`, `boss.js`, and `regressions.js` all currently seed or assert against
+literal `neonbreak-*` keys (`git grep -in neonbreak` is the way to find every call site, since new
+ones get added as tests are written — safer than trusting this list to stay exhaustive).
+
+**[CLAUDE.md](../CLAUDE.md) itself needs its wording changed, not just the code.** The Persistence
+section's "The keys are still named `neonbreak-*` from before the rename to Blokrush. **Leave
+them.**" paragraph is the thing that would otherwise contradict this fix on the next read — it has to
+be rewritten to describe the *new* namespace and the fact that the rename already happened, or the
+project's own guidance would tell a future session to leave what this finding just changed.
+[docs/testing.md](testing.md)'s example snippet (`storage: { "neonbreak-best-score": "500" }`) needs
+the same update so a copy-pasted example still works.
+
+**`docs/done.md` is history, not live documentation — leave its existing entries alone.** Past
+`✅ FIXED` write-ups (e.g. the hall-of-fame and achievements entries) describe what shipped *at the
+time*, under the name that was then current; rewriting them to say `blokrush-*` would misdescribe what
+actually happened in that commit. This finding's own entry, once it moves to `done.md`, is what
+records the rename — earlier entries don't need touching.
+
+#### Tests
+
+- `#82a` — every persisted key written by a fresh boot (`localStorage`/the test harness's fake store)
+  matches `/^blokrush-/`, and none matches `/^neonbreak-/`.
+- `#82b` — `persistence.js`'s namespace assertion itself checks `^blokrush-`, not `^neonbreak-`
+  (guards against the regex being left behind if the keys are renamed by hand later without also
+  touching the test).
