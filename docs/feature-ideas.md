@@ -18,7 +18,8 @@ capability (things merely *absent*).
 [todo.md](todo.md) and [done.md](done.md), so an idea promoted from here keeps its number when it
 moves. Do not reuse these numbers for new review findings. Every number in the range (#44–#66) has
 now either been promoted into [todo.md](todo.md) or discarded outright: #45 duplicated finding #41,
-already shipped; #48 (a level editor and shareable layouts), #61 (gamepad support), and #66 (ghost
+already shipped; #48 (a level editor and shareable layouts), #61 (gamepad support), #62
+(colourblind-safe brick markers, discarded after promotion rather than before it), and #66 (ghost
 replay of the best run) were dropped from the menu.
 
 **What already exists** (so nothing below duplicates it): a 100-level campaign — 10 hand-authored
@@ -34,12 +35,13 @@ parallax star field (#60); mute, pause, and `prefers-reduced-motion` support.
 ## Where everything went
 
 Nothing remains in this file — every reserved number has either been promoted to
-[todo.md](todo.md) or discarded outright. Eight items left for `todo.md`: **#44 (boss levels)**,
+[todo.md](todo.md) or discarded outright. Seven items left for `todo.md`: **#44 (boss levels)**,
 expanded into a ten-boss roster; **#46 (level select and per-level star ratings)**, the one most
 likely to matter for retention, since #41 made a full run 100 levels long; **#47 (daily challenge
-seed)**; **#50 (moving bricks)**; **#62 (colourblind-safe brick markers)**; **#63 (difficulty
-selection)**; **#64 (resume an interrupted run)**; and **#53–57 (power-ups and ball mechanics)** —
-fireball, shield, magnet/bullet-time, paddle spin, and negative-power-up counterplay, expanded
-together since they share the same handful of functions. Four were dropped instead: **#45**
-(duplicated #41, already shipped), **#48** (a level editor and shareable layouts), **#61** (gamepad
-support), and **#66** (ghost replay of the best run).
+seed)**; **#50 (moving bricks)**; **#63 (difficulty selection)**; **#64 (resume an interrupted
+run)**; and **#53–57 (power-ups and ball mechanics)** — fireball, shield, magnet/bullet-time, paddle
+spin, and negative-power-up counterplay, expanded together since they share the same handful of
+functions. Five were dropped instead: **#45** (duplicated #41, already shipped), **#48** (a level
+editor and shareable layouts), **#61** (gamepad support), **#62** (colourblind-safe brick markers,
+promoted into `todo.md` and then discarded there rather than shipped), and **#66** (ghost replay of
+the best run).

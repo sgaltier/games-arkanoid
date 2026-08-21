@@ -9,11 +9,12 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 7 open items — #47 (promoted from [feature-ideas.md](feature-ideas.md) §A), #50
-(promoted from §B), #56–57 (promoted from §C), #62–63 (promoted from §D), and #83 (raised directly,
+**Status:** 6 open items — #47 (promoted from [feature-ideas.md](feature-ideas.md) §A), #50
+(promoted from §B), #56–57 (promoted from §C), #63 (promoted from §D), and #83 (raised directly,
 not promoted from `feature-ideas.md`). #46 from the §A batch, #53, #54, and #55 from the §C batch,
 #82 (raised directly), #84–#93 (the full 2026-08-21 review pass, correctness and security/backend
-alike), and #64 (promoted from §D) have shipped (see [done.md](done.md)).
+alike), and #64 (promoted from §D) have shipped (see [done.md](done.md)). #62 (promoted from §D) was
+discarded outright rather than fixed — see the note in §D below.
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
 test → fix → move the finding's whole entry from this file to [done.md](done.md), prepending a
@@ -34,13 +35,13 @@ music/explosion/sound gaps), #80 (level-progress-driven music intensity), #81 (t
 fanfare), #46 (level select), #53 (the fireball power-up), #54 (the safety-net shield), #55 (magnet
 paddle / hold-to-slow bullet time), #82 (the `neonbreak-*` → `blokrush-*` rename), and #64 (resume an
 interrupted run) — see [done.md](done.md). Everything left open below is a feature: #47 (daily
-challenge seed), #50 (moving bricks), #62 (colourblind-safe brick markers), #63 (difficulty
-selection), and two power-up/ball-mechanics ideas, all promoted from
-[feature-ideas.md](feature-ideas.md) and keeping their numbers; that file still holds the proposals
-not yet promoted. #83 (per-level star ratings, split out of #46 — the two were originally one item)
-was raised directly rather than promoted from there. The ten findings raised by a full-codebase review
-on 2026-08-21 (#84–#93, correctness and security/backend alike) are all shipped — see
-[done.md](done.md) §I.
+challenge seed), #50 (moving bricks), #63 (difficulty selection), and two power-up/ball-mechanics
+ideas, all promoted from [feature-ideas.md](feature-ideas.md) and keeping their numbers; that file
+still holds the proposals not yet promoted. #83 (per-level star ratings, split out of #46 — the two
+were originally one item) was raised directly rather than promoted from there. The ten findings
+raised by a full-codebase review on 2026-08-21 (#84–#93, correctness and security/backend alike) are
+all shipped — see [done.md](done.md) §I. #62 (colourblind-safe brick markers) was discarded rather
+than shipped — see §D.
 New review findings go here too, keeping the shared numbering: the next free number is **#94**.
 
 ---
@@ -357,61 +358,9 @@ the frustration into a decision for anyone who picked up `laser` in the first pl
 
 Promoted from [feature-ideas.md](feature-ideas.md) §D. #61 (gamepad support) was discarded outright
 rather than promoted alongside it — dropped from the menu on its own terms, not because it duplicated
-anything already shipped. #62, #63, and #64 keep their numbers.
-
-### 62. Colourblind-safe palette option (S)
-
-Brick identity is currently carried almost entirely by hue — cyan, magenta, amber, lime — which is
-the failure mode for deuteranopia and protanopia the original write-up named.
-
-**Most of this has already shipped, one type at a time, without anyone tracking it as #62 until
-now.** `drawBricks()` already draws a non-colour marker for four of the seven live types: `X` gets a
-white core dot, `R` a ring, a cracked `S` (`Sc`) a pair of scratch lines, and `?` its own glyph — and
-three of those four comments say so explicitly (`X`'s: "colour alone would leave the one brick that
-behaves differently unreadable to a colourblind player, the same gap #62 covers for the rest of the
-set"; `Sc`'s and `R`'s point back the same way). `#` also reads independently of hue, via its darker
-fill, smaller `shadowBlur`, and a black stroke none of the others get. **What's actually left is the
-five types `drawBricks()` has no branch for at all: `1`/`2`/`3`/`4` (the four saturated hues the
-write-up called out by name) and pristine `S` before its first hit** — `drawBricks()`'s if/else-if
-chain falls through them with nothing drawn beyond the fill rect.
-
-**Finishing the pattern already there is cheaper than the "alternate palette" half of the original
-proposal, and makes it redundant.** The write-up offered two options — a whole second palette, or a
-per-type marker — as alternatives; now that a marker exists for `X`/`R`/`Sc`/`?` and reads fine
-without a settings toggle, building a second, switchable colour scheme for the remaining five types
-would be inconsistent (two accessibility mechanisms doing the same job) for no real gain. The decision
-this entry should make explicitly, rather than leave open: markers only, and always-on — matching how
-`X`/`R`/`Sc`/`?` already behave, not gated behind a new preference the way `MUTED_KEY`/`LANG_KEY` gate
-sound and language. A toggle would also mean a fourth persisted setting, new `STRINGS` keys in both
-languages, and a UI control to place it behind — none of which the four shipped markers needed.
-
-**The fix for `1`–`4` is close to free, because the type character is already the label.** `?`'s
-branch is the exact template: `ctx.font = DROP_FONT; ctx.textAlign = "center"; ctx.textBaseline =
-"middle"; ctx.fillText(...)`, the same font `drawDrops()` already uses to stamp a power-up capsule's
-`label` — `W`, `S`, `M`, and so on — over its fill, for the identical reason. Bricks don't even need a
-new label table the way drops did (`POWERUPS[i].label` exists because `type: "widen"` isn't a single
-glyph); `b.type` already *is* one for `1`–`4`. A trailing `else` after the `?` branch — catching
-anything not already handled, i.e. `1`/`2`/`3`/`4` today — that fills `b.type` in the same style
-closes the gap for all four in one small addition. It also means #50's pending `M` (moving bricks)
-type would land in that same `else` and get a marker automatically, with nothing further to do for it
-when that ships.
-
-**Pristine `S` is the one case worth a decision rather than falling into that `else` unmodified.**
-Drawing the literal character `"S"` on an undamaged silver brick would work exactly like the digits do,
-but silver is already distinguishable from the four hues by luminance and saturation alone (a pale
-grey next to four saturated colours), which is a smaller gap than the four hues being indistinguishable
-*from each other*. Giving it a marker anyway — reusing the same `else` branch rather than a bespoke
-one — costs nothing extra and keeps every non-wall, non-mystery type consistently marked; there's no
-real reason to special-case it out.
-
-#### Tests
-
-- `#62a` — `drawBricks()` draws a distinguishable mark (not just a fill colour) for every alive brick
-  type, `1`–`4` and pristine `S` included — asserted by checking each type's draw path calls
-  `fillText`/`stroke`/`arc` beyond the base `fillRect`, the same shape the existing `X`/`R`/`Sc`/`?`
-  assertions already use.
-- `#62b` — the marker drawn for `b.type === "1"` is `"1"` and not shared with any other type's marker
-  (guards against a copy-paste that stamps the same glyph on two types).
+anything already shipped. #62 was promoted alongside #63/#64 but has since been discarded outright too
+— dropped from the menu on its own terms, same as #61, not because it turned out to duplicate anything
+shipped. #63 and #64 keep their numbers.
 
 ### 63. Difficulty selection (S)
 
