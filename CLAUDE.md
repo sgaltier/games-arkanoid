@@ -141,9 +141,10 @@ Four `localStorage` keys (`BEST_KEY`, `LANG_KEY`, `MUTED_KEY`, `HOF_KEY` — the
 private-browsing throws on any access). `HOF_KEY` additionally guards against valid-JSON-but-wrong-shape
 data in `loadHallOfFame()`, since it's parsed rather than just read as a raw string/number.
 
-The keys are still named `neonbreak-*` from before the rename to Blokrush. **Leave them.** Renaming
-them would orphan every existing player's best score and board; `persistence.js` asserts the
-`^neonbreak-` namespace precisely so this does not get "tidied up" later.
+The keys are namespaced `blokrush-*` (#82 — renamed from `neonbreak-*`, the game's pre-launch name;
+the rename happened before any production release, so there was no installed base to strand).
+`persistence.js` asserts the `^blokrush-` namespace structurally, not just by example — keep it that
+way if the namespace ever changes again.
 
 Since #67 the hall of fame has a second, authoritative source: the global board from
 `/api/scores`. `activeBoard()` is the single place that decides which one the game means — the world

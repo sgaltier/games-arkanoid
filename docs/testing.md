@@ -94,7 +94,7 @@ block, and injects a handle just before the closing `})();` exposing the names l
 `boot(opts)` gives you a fresh game with a fake DOM:
 
 ```js
-const g = boot({ langs: ["en-GB"], storage: { "neonbreak-best-score": "500" } });
+const g = boot({ langs: ["en-GB"], storage: { "blokrush-best-score": "500" } });
 g.start();          // click Start, press Space — a ball is now in play
 g.runAlive(2.0);    // 2s of frames with the paddle tracking the ball
 g.T.state.score;    // reach into the closure

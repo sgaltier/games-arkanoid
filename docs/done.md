@@ -9,7 +9,7 @@ from `todo.md` to here, so numbering is shared across both files and never reuse
 Each entry keeps its original write-up (category, effort estimate, the bug as found) with a
 `> **Fixed <date>.**` note prepended describing what shipped — a historical record, not a live TODO.
 
-**Status:** 67 fixed — everything raised so far, review findings and promoted features alike. See
+**Status:** 68 fixed — everything raised so far, review findings and promoted features alike. See
 [todo.md](todo.md).
 
 **Line references below are re-anchored after each round of fixes** — they are only valid against the
@@ -2632,6 +2632,65 @@ through the new secondary button, mirroring how `btn-view-hof`/`btn-view-ach` ar
   key, non-JSON, JSON that isn't an array) instead of throwing.
 - `#46c` — starting a run from level select sets `state.jumped` the same way `submitLevelJump()`
   does, and such a run is excluded from hall-of-fame submission exactly as a developer-jumped run is.
+
+### 82. ✅ FIXED — Rename `neonbreak-*` to `blokrush-*` (S)
+
+> **Fixed 2026-08-21.** The six `localStorage` keys (`BEST_KEY`, `LANG_KEY`, `MUTED_KEY`, `HOF_KEY`,
+> `ACH_KEY`, `LEVELS_KEY` — [2539-2544](../html/index.html#L2539-L2544)) now read `blokrush-*`.
+> `persistence.js`'s `^neonbreak-` namespace assertion became `^blokrush-`, and every test file that
+> seeded or asserted a literal `neonbreak-*` key (`persistence.js`, `i18n.js`, `rules.js`, `state.js`,
+> `boss.js`, `regressions.js`) was updated to match — `git grep -in neonbreak` comes back clean now
+> outside this entry and the historical write-ups elsewhere in this file that describe what shipped
+> under the old name, which is deliberately left alone (see the write-up below).
+> [CLAUDE.md](../CLAUDE.md)'s Persistence section and [docs/testing.md](testing.md)'s example snippet
+> were reworded to describe the namespace as it stands now, rather than telling a future session to
+> leave `neonbreak-*` alone.
+>
+> **Test coverage landed as one combined test rather than the two originally sketched.** `#82a` (in
+> `regressions.js`) drives a single session through every code path that writes to storage — a
+> language switch, a mute toggle, an achievement unlock, a level clear, and a hall-of-fame-qualifying
+> game over — and asserts every key the session wrote matches `/^blokrush-/` and none matches
+> `/^neonbreak-/`. The originally-sketched `#82b` (a standalone guard on `persistence.js`'s own regex)
+> turned out to be redundant with that: `persistence.js` already has a "storage keys are namespaced to
+> the game" test that runs that exact regex against real keys written during play, so if the assertion
+> were ever left on `^neonbreak-` while the keys moved to a new prefix, that behavioural test — not a
+> meta-test reading the test file's own source — is what would catch it.
+
+[CLAUDE.md](../CLAUDE.md)'s persistence section currently says to leave the four/five `localStorage`
+keys (`BEST_KEY`, `LANG_KEY`, `MUTED_KEY`, `HOF_KEY`, `ACH_KEY` — `html/index.html` around L2377-2381)
+named `neonbreak-*`, because renaming them would orphan an existing player's save. That reasoning no
+longer holds: the game has not been released to production, so there is no installed base to strand.
+Renaming the namespace to `blokrush-*` is now purely a cleanup, not a compatibility break worth
+avoiding — do it.
+
+**This isn't just the five key literals.** `persistence.js` (the test suite) asserts the namespace
+structurally, not just by example — a `^neonbreak-` regex, presumably in `test/suites/persistence.js`
+near where it walks every persisted key — so the assertion itself has to flip to `^blokrush-` in the
+same change, or the suite would fail the moment the keys move. Every test file that boots against a
+seeded `storage: { "neonbreak-...": ... }` fixture needs the same string updated — `persistence.js`,
+`i18n.js`, `rules.js`, `state.js`, `boss.js`, and `regressions.js` all currently seed or assert against
+literal `neonbreak-*` keys (`git grep -in neonbreak` is the way to find every call site, since new
+ones get added as tests are written — safer than trusting this list to stay exhaustive).
+
+**[CLAUDE.md](../CLAUDE.md) itself needs its wording changed, not just the code.** The Persistence
+section's "The keys are still named `neonbreak-*` from before the rename to Blokrush. **Leave
+them.**" paragraph is the thing that would otherwise contradict this fix on the next read — it has to
+be rewritten to describe the *new* namespace and the fact that the rename already happened, or the
+project's own guidance would tell a future session to leave what this finding just changed.
+[docs/testing.md](testing.md)'s example snippet (`storage: { "neonbreak-best-score": "500" }`) needs
+the same update so a copy-pasted example still works.
+
+**`docs/done.md` is history, not live documentation — leave its existing entries alone.** Past
+`✅ FIXED` write-ups (e.g. the hall-of-fame and achievements entries) describe what shipped *at the
+time*, under the name that was then current; rewriting them to say `blokrush-*` would misdescribe what
+actually happened in that commit. This finding's own entry, once it moves to `done.md`, is what
+records the rename — earlier entries don't need touching.
+
+#### Tests
+
+- `#82a` — a single session drives every code path that persists to storage (language, mute, an
+  achievement, a level clear, a hall-of-fame-qualifying game over) and asserts every key the session
+  wrote matches `/^blokrush-/`, and none matches `/^neonbreak-/`.
 
 ---
 

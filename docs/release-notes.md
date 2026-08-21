@@ -51,9 +51,28 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #54 | ✅ Fixed — 2026-08-20 |
 | #55 | ✅ Fixed — 2026-08-20 |
 | #46 | ✅ Fixed — 2026-08-21 |
+| #82 | ✅ Fixed — 2026-08-21 |
 
-70 of 70 fixed — nothing open. See [todo.md](todo.md), and [feature-ideas.md](feature-ideas.md) for
+71 of 71 fixed — nothing open. See [todo.md](todo.md), and [feature-ideas.md](feature-ideas.md) for
 proposals not yet promoted to it.
+
+---
+
+## 2026-08-21 — Rename `neonbreak-*` to `blokrush-*` (#82)
+
+### Fixed
+
+**The `localStorage` namespace is now `blokrush-*`.** The reasoning that previously kept the old
+`neonbreak-*` keys in place — renaming would orphan an existing player's save — no longer held: the
+game has never shipped to production, so there was no installed base to strand. All six keys
+(`BEST_KEY`, `LANG_KEY`, `MUTED_KEY`, `HOF_KEY`, `ACH_KEY`, `LEVELS_KEY`) moved in one change, along
+with `persistence.js`'s structural `^neonbreak-` namespace assertion (now `^blokrush-`) and every test
+fixture across the suite that seeded or asserted a literal `neonbreak-*` key. [CLAUDE.md](../CLAUDE.md)
+and [docs/testing.md](testing.md) were reworded to match — the "leave them named `neonbreak-*`"
+guidance no longer applies.
+
+**Note for #46's entry above:** it shipped earlier the same day and, per its own write-up, used
+`neonbreak-levels` because #82 hadn't landed yet. That key moved along with the rest here.
 
 ---
 

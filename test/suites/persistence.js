@@ -67,15 +67,15 @@ module.exports = {
     {
       name: "a stored best score is loaded",
       fn(a) {
-        const g = boot({ storage: { "neonbreak-best-score": "4321" } });
+        const g = boot({ storage: { "blokrush-best-score": "4321" } });
         a.eq(g.T.state.best, 4321);
       },
     },
     {
       name: "a non-numeric stored best score degrades to zero",
       fn(a) {
-        a.eq(boot({ storage: { "neonbreak-best-score": "not-a-number" } }).T.state.best, 0);
-        a.eq(boot({ storage: { "neonbreak-best-score": "" } }).T.state.best, 0);
+        a.eq(boot({ storage: { "blokrush-best-score": "not-a-number" } }).T.state.best, 0);
+        a.eq(boot({ storage: { "blokrush-best-score": "" } }).T.state.best, 0);
       },
     },
     {
@@ -85,7 +85,7 @@ module.exports = {
         first.T.state.score = 2500;
         first.T.state.lives = 1;
         first.loseBall();
-        a.eq(first.store["neonbreak-best-score"], "2500");
+        a.eq(first.store["blokrush-best-score"], "2500");
 
         const second = boot({ storage: first.store });
         a.eq(second.T.state.best, 2500, "a later session should see the stored best");
@@ -100,7 +100,7 @@ module.exports = {
         first.loseBall();
         first.el("nameentry-input").value = "Rex";
         first.el("btn-nameentry-submit").click(1);
-        a.eq(first.store["neonbreak-hall-of-fame"], JSON.stringify(first.T.state.hallOfFame),
+        a.eq(first.store["blokrush-hall-of-fame"], JSON.stringify(first.T.state.hallOfFame),
           "the board should be persisted the moment a name is submitted");
 
         const second = boot({ storage: first.store });
@@ -112,11 +112,11 @@ module.exports = {
     {
       name: "corrupted hall-of-fame storage degrades to an empty board rather than throwing (#42)",
       fn(a) {
-        a.doesNotThrow(() => boot({ storage: { "neonbreak-hall-of-fame": "not json" } }),
+        a.doesNotThrow(() => boot({ storage: { "blokrush-hall-of-fame": "not json" } }),
           "unparsable JSON under the hall-of-fame key must not take down the whole IIFE");
-        a.eq(boot({ storage: { "neonbreak-hall-of-fame": "not json" } }).T.state.hallOfFame.length, 0);
+        a.eq(boot({ storage: { "blokrush-hall-of-fame": "not json" } }).T.state.hallOfFame.length, 0);
         a.eq(
-          boot({ storage: { "neonbreak-hall-of-fame": JSON.stringify({ not: "an array" }) } })
+          boot({ storage: { "blokrush-hall-of-fame": JSON.stringify({ not: "an array" }) } })
             .T.state.hallOfFame.length,
           0,
           "valid JSON that isn't an array should also degrade to empty"
@@ -139,7 +139,7 @@ module.exports = {
         g.langButton("en").click(1);
         g.T.state.score = 5;
         for (const key of Object.keys(g.store)) {
-          a.match(key, /^neonbreak-/, `storage key "${key}" is not namespaced`);
+          a.match(key, /^blokrush-/, `storage key "${key}" is not namespaced`);
         }
       },
     },
@@ -149,7 +149,7 @@ module.exports = {
         // Language is applied at boot, so that key is expected. Nothing else
         // should be touched until there is a score worth keeping.
         const g = boot();
-        a.not("neonbreak-best-score" in g.store,
+        a.not("blokrush-best-score" in g.store,
           "a fresh session should not write a best score before one exists");
       },
     },

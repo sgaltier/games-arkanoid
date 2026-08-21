@@ -224,13 +224,13 @@ module.exports = {
     {
       name: "the best score tracks and survives a restart",
       fn(a) {
-        const g = boot({ storage: { "neonbreak-hall-of-fame": FULL_HOF } }).start();
+        const g = boot({ storage: { "blokrush-hall-of-fame": FULL_HOF } }).start();
         g.T.state.score = 1234;
         g.T.state.lives = 1;
         g.loseBall();
         a.eq(g.T.state.phase, "gameover");
         a.eq(g.T.state.best, 1234, "the best score should have been updated");
-        a.eq(g.store["neonbreak-best-score"], "1234", "and persisted");
+        a.eq(g.store["blokrush-best-score"], "1234", "and persisted");
         g.el("btn-restart").click(1);
         a.eq(g.T.state.score, 0, "the running score resets");
         a.eq(g.T.state.best, 1234, "the best score does not");
@@ -239,7 +239,7 @@ module.exports = {
     {
       name: "a lower score does not overwrite the best",
       fn(a) {
-        const g = boot({ storage: { "neonbreak-best-score": "5000" } });
+        const g = boot({ storage: { "blokrush-best-score": "5000" } });
         a.eq(g.T.state.best, 5000);
         g.start();
         g.T.state.score = 10;

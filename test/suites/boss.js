@@ -162,7 +162,7 @@ module.exports = {
     {
       name: "clearing the last boss (Omega) wins the campaign",
       fn(a) {
-        const g = boot({ storage: { "neonbreak-hall-of-fame": FULL_HOF } });
+        const g = boot({ storage: { "blokrush-hall-of-fame": FULL_HOF } });
         g.el("btn-start").click(1);
         g.T.startLevel(g.T.CONFIG.progression.totalLevels - 1);
         g.key("Space");

@@ -9,11 +9,11 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 9 open items — #47 (promoted from [feature-ideas.md](feature-ideas.md) §A), #50
-(promoted from §B), #56–57 (promoted from §C), #62–64 (promoted from §D), and #82–83 (raised directly,
+**Status:** 8 open items — #47 (promoted from [feature-ideas.md](feature-ideas.md) §A), #50
+(promoted from §B), #56–57 (promoted from §C), #62–64 (promoted from §D), and #83 (raised directly,
 not promoted from `feature-ideas.md`). Every review finding, and every other directly-requested
-feature, raised so far has shipped, and so have #46 from the §A batch and #53, #54, and #55 from the
-§C batch (see [done.md](done.md)).
+feature, raised so far has shipped, and so have #46 from the §A batch, #53, #54, and #55 from the
+§C batch, and #82 (raised directly) (see [done.md](done.md)).
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
 test → fix → move the finding's whole entry from this file to [done.md](done.md), prepending a
@@ -32,12 +32,12 @@ Every review finding raised so far has shipped, and so has every directly-reques
 (effect-bar names), #76 (hall-of-fame name validation), #77 (hall-of-fame profanity filtering), #79
 (the boss-kill death beat's music/explosion/sound gaps), #80 (level-progress-driven music intensity),
 #81 (the level-clear fanfare), #46 (level select), #53 (the fireball power-up), #54 (the safety-net
-shield), and #55 (magnet paddle / hold-to-slow bullet time) — see [done.md](done.md). What is open
-below is #47 (daily challenge seed), #50 (moving bricks), #62 (colourblind-safe brick markers), #63
-(difficulty selection), #64 (resume an interrupted run), and two power-up/ball-mechanics ideas, all
-promoted from [feature-ideas.md](feature-ideas.md) and keeping their numbers; that file still holds
-the proposals not yet promoted. #82 (the `neonbreak-*` → `blokrush-*` rename) and #83 (per-level star
-ratings, split out of #46 — the two were originally one item) were raised directly rather than
+shield), #55 (magnet paddle / hold-to-slow bullet time), and #82 (the `neonbreak-*` → `blokrush-*`
+rename) — see [done.md](done.md). What is open below is #47 (daily challenge seed), #50 (moving
+bricks), #62 (colourblind-safe brick markers), #63 (difficulty selection), #64 (resume an interrupted
+run), and two power-up/ball-mechanics ideas, all promoted from [feature-ideas.md](feature-ideas.md)
+and keeping their numbers; that file still holds the proposals not yet promoted. #83 (per-level star
+ratings, split out of #46 — the two were originally one item) was raised directly rather than
 promoted from there. New review findings go here too, keeping the shared numbering: the next free
 number is **#84**.
 
@@ -152,7 +152,7 @@ is nowhere near that envelope, so a shared endpoint would either reject genuine 
 catch forged ones. This needs its own table (additive, per the D1 discipline in
 [CLAUDE.md](../CLAUDE.md) — `daily_scores` with a `seed_date` column, never touching `scores`) and its
 own route or a `mode`-discriminated branch in the existing one, with its own tuned thresholds. The
-local-storage fallback should follow the same `neonbreak-` namespaced, defensively-parsed pattern as
+local-storage fallback should follow the same `blokrush-` namespaced, defensively-parsed pattern as
 `HOF_KEY`/`ACH_KEY`, but keyed by date rather than being one flat list — and, deliberately out of
 scope for this pass, does not need to let a player browse or resubmit to a past day's board; only
 today's is ever writable, mirroring how the world board already discards a stale token in
@@ -465,7 +465,7 @@ than inventing a new control.** `.lang-btn`/`data-lang`/`aria-pressed` (with `ap
 set-and-persist function, #23's fix for toggle buttons reflecting their state) is the exact shape a
 `.difficulty-btn`/`data-difficulty` group needs — three buttons, one `aria-pressed="true"`, a
 `setDifficulty(value)` sibling to `applyLanguage()` that writes `state.difficulty`, persists it under
-a new `neonbreak-difficulty` key (same defensive-default-to-`"normal"` read as every other
+a new `blokrush-difficulty` key (same defensive-default-to-`"normal"` read as every other
 `storageGet` caller), and updates the pressed state. It belongs only on `overlay-start` — nowhere
 reachable mid-run offers it, so there is no separate "lock it for the run" mechanism to build:
 `newGame()` simply reads whatever `state.difficulty` currently holds when `btn-start`/`btn-restart` is
@@ -564,7 +564,7 @@ during an ordinary mid-run pause — covers it: a new `state.resumedFromSave` fl
 restore path gates its visibility, and its handler is just `clearResume()` (drop the saved snapshot)
 followed by `newGame()`.
 
-**Persistence follows the established shape.** A new `RESUME_KEY = "neonbreak-resume"` (namespaced
+**Persistence follows the established shape.** A new `RESUME_KEY = "blokrush-resume"` (namespaced
 like every other key `persistence.js` asserts), `loadResume()`/`saveResume()`/`clearResume()`
 following `loadAchievements()`'s defensive pattern — guard against valid-JSON-but-wrong-shape data and
 return `null` rather than throwing, since a corrupt snapshot should fall back to an ordinary boot, not
@@ -588,49 +588,3 @@ over either way).
   round-trip).
 - `#64e` — `newGame()` and `endGame()` both clear any saved snapshot (`loadResume()` afterward returns
   `null`).
-
----
-
-## E. Code quality / structure
-
-Raised directly, not promoted from [feature-ideas.md](feature-ideas.md).
-
-### 82. Rename `neonbreak-*` to `blokrush-*` (S)
-
-[CLAUDE.md](../CLAUDE.md)'s persistence section currently says to leave the four/five `localStorage`
-keys (`BEST_KEY`, `LANG_KEY`, `MUTED_KEY`, `HOF_KEY`, `ACH_KEY` — `html/index.html` around L2377-2381)
-named `neonbreak-*`, because renaming them would orphan an existing player's save. That reasoning no
-longer holds: the game has not been released to production, so there is no installed base to strand.
-Renaming the namespace to `blokrush-*` is now purely a cleanup, not a compatibility break worth
-avoiding — do it.
-
-**This isn't just the five key literals.** `persistence.js` (the test suite) asserts the namespace
-structurally, not just by example — a `^neonbreak-` regex, presumably in `test/suites/persistence.js`
-near where it walks every persisted key — so the assertion itself has to flip to `^blokrush-` in the
-same change, or the suite would fail the moment the keys move. Every test file that boots against a
-seeded `storage: { "neonbreak-...": ... }` fixture needs the same string updated — `persistence.js`,
-`i18n.js`, `rules.js`, `state.js`, `boss.js`, and `regressions.js` all currently seed or assert against
-literal `neonbreak-*` keys (`git grep -in neonbreak` is the way to find every call site, since new
-ones get added as tests are written — safer than trusting this list to stay exhaustive).
-
-**[CLAUDE.md](../CLAUDE.md) itself needs its wording changed, not just the code.** The Persistence
-section's "The keys are still named `neonbreak-*` from before the rename to Blokrush. **Leave
-them.**" paragraph is the thing that would otherwise contradict this fix on the next read — it has to
-be rewritten to describe the *new* namespace and the fact that the rename already happened, or the
-project's own guidance would tell a future session to leave what this finding just changed.
-[docs/testing.md](testing.md)'s example snippet (`storage: { "neonbreak-best-score": "500" }`) needs
-the same update so a copy-pasted example still works.
-
-**`docs/done.md` is history, not live documentation — leave its existing entries alone.** Past
-`✅ FIXED` write-ups (e.g. the hall-of-fame and achievements entries) describe what shipped *at the
-time*, under the name that was then current; rewriting them to say `blokrush-*` would misdescribe what
-actually happened in that commit. This finding's own entry, once it moves to `done.md`, is what
-records the rename — earlier entries don't need touching.
-
-#### Tests
-
-- `#82a` — every persisted key written by a fresh boot (`localStorage`/the test harness's fake store)
-  matches `/^blokrush-/`, and none matches `/^neonbreak-/`.
-- `#82b` — `persistence.js`'s namespace assertion itself checks `^blokrush-`, not `^neonbreak-`
-  (guards against the regex being left behind if the keys are renamed by hand later without also
-  touching the test).

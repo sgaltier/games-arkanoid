@@ -137,14 +137,14 @@ module.exports = {
     {
       name: "a stored preference overrides detection",
       fn(a) {
-        const g = boot({ langs: ["fr-FR"], storage: { "neonbreak-lang": "en" } });
+        const g = boot({ langs: ["fr-FR"], storage: { "blokrush-lang": "en" } });
         a.eq(g.T.state.lang, "en", "the stored choice should win over the browser locale");
       },
     },
     {
       name: "a corrupt stored preference falls back to detection",
       fn(a) {
-        const g = boot({ langs: ["fr-FR"], storage: { "neonbreak-lang": "klingon" } });
+        const g = boot({ langs: ["fr-FR"], storage: { "blokrush-lang": "klingon" } });
         a.eq(g.T.state.lang, "fr", "a value outside the supported set must be ignored");
       },
     },
@@ -195,7 +195,7 @@ module.exports = {
       fn(a) {
         const g = boot({ langs: ["fr-FR"] });
         g.langButton("en").click(1);
-        a.eq(g.store["neonbreak-lang"], "en");
+        a.eq(g.store["blokrush-lang"], "en");
       },
     },
     {
@@ -243,7 +243,7 @@ module.exports = {
         const fullHof = JSON.stringify(
           Array.from({ length: 10 }, (_, i) => ({ name: "CPU", score: 999000 - i }))
         );
-        const g = boot({ langs: ["fr-FR"], storage: { "neonbreak-hall-of-fame": fullHof } }).start();
+        const g = boot({ langs: ["fr-FR"], storage: { "blokrush-hall-of-fame": fullHof } }).start();
         g.T.state.score = 77;
         g.T.state.lives = 1;
         g.loseBall();

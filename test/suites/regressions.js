@@ -420,7 +420,7 @@ module.exports = {
         g.frame();
         a.eq(g.T.state.phase, "levelclear", "the level should have cleared, not ended the game");
         a.eq(g.T.state.best, 999, "the best score should update in memory on level clear");
-        a.eq(g.store["neonbreak-best-score"], "999",
+        a.eq(g.store["blokrush-best-score"], "999",
           "closing the tab right after a level clear would otherwise lose the score");
       },
     },
@@ -544,7 +544,7 @@ module.exports = {
         a.eq(first.T.state.muted, false, "starts unmuted by default");
         first.el("btn-mute").click(1);
         a.eq(first.T.state.muted, true);
-        a.eq(first.store["neonbreak-muted"], "1",
+        a.eq(first.store["blokrush-muted"], "1",
           "the mute toggle should write straight through to storage, like the language toggle does");
 
         const second = boot({ storage: first.store });
@@ -1168,13 +1168,13 @@ module.exports = {
           Array.from({ length: 10 }, (_, i) => ({ name: "CPU", score: 100 - i }))
         ); // lowest entry: 91
 
-        const tie = boot({ storage: { "neonbreak-hall-of-fame": full } }).start();
+        const tie = boot({ storage: { "blokrush-hall-of-fame": full } }).start();
         tie.T.state.score = 91; // ties the lowest — must not qualify
         tie.T.state.lives = 1;
         tie.loseBall();
         a.eq(tie.T.state.phase, "gameover", "a tie with the lowest entry should not bump it");
 
-        const beats = boot({ storage: { "neonbreak-hall-of-fame": full } }).start();
+        const beats = boot({ storage: { "blokrush-hall-of-fame": full } }).start();
         beats.T.state.score = 92; // beats the lowest by one point
         beats.T.state.lives = 1;
         beats.loseBall();
@@ -1185,7 +1185,7 @@ module.exports = {
       name: "#42d — submitting a name inserts it into the board in sorted order",
       fn(a) {
         const seeded = JSON.stringify([{ name: "AAA", score: 300 }, { name: "BBB", score: 100 }]);
-        const g = boot({ storage: { "neonbreak-hall-of-fame": seeded } }).start();
+        const g = boot({ storage: { "blokrush-hall-of-fame": seeded } }).start();
         g.T.state.score = 200;
         g.T.state.lives = 1;
         g.loseBall();
@@ -1196,7 +1196,7 @@ module.exports = {
         const list = g.T.state.hallOfFame;
         a.eq(JSON.stringify(list.map((e) => e.name)), JSON.stringify(["AAA", "Ada", "BBB"]),
           "the new entry should land between the one it beats and the one it doesn't");
-        a.eq(g.store["neonbreak-hall-of-fame"], JSON.stringify(list), "the board should persist immediately");
+        a.eq(g.store["blokrush-hall-of-fame"], JSON.stringify(list), "the board should persist immediately");
       },
     },
     {
@@ -1408,7 +1408,7 @@ module.exports = {
         const full = JSON.stringify(
           Array.from({ length: 10 }, (_, i) => ({ name: "CPU", score: 200 - i }))
         );
-        const g = boot({ storage: { "neonbreak-hall-of-fame": full } }).start();
+        const g = boot({ storage: { "blokrush-hall-of-fame": full } }).start();
         g.T.state.score = 500; // beats everything on the board
         g.T.state.lives = 1;
         g.loseBall();
@@ -1484,7 +1484,7 @@ module.exports = {
       async fn(a) {
         // boot() with no `api` option rejects every fetch, which is the state
         // every suite predating #67 runs in.
-        const g = boot({ storage: { "neonbreak-hall-of-fame": JSON.stringify([{ name: "Loc", score: 90 }]) } });
+        const g = boot({ storage: { "blokrush-hall-of-fame": JSON.stringify([{ name: "Loc", score: 90 }]) } });
         await g.settle();
         a.eq(g.T.state.globalScores, null, "a failed fetch must leave globalScores null, not []");
         g.el("btn-view-hof").click(1);
@@ -1496,7 +1496,7 @@ module.exports = {
       name: "#67b — the world board replaces the local one once the API answers",
       async fn(a) {
         const g = boot({
-          storage: { "neonbreak-hall-of-fame": JSON.stringify([{ name: "Loc", score: 90 }]) },
+          storage: { "blokrush-hall-of-fame": JSON.stringify([{ name: "Loc", score: 90 }]) },
           api: () => ({ scores: [{ name: "Wld", score: 5000 }], token: "tok-1" }),
         });
         await g.settle();
@@ -1563,7 +1563,7 @@ module.exports = {
         // inserting. A shorter world board would return an index that happens to
         // be correct locally too, and this test would prove nothing.
         const g = boot({
-          storage: { "neonbreak-hall-of-fame": JSON.stringify([{ name: "A", score: 300 }, { name: "B", score: 100 }]) },
+          storage: { "blokrush-hall-of-fame": JSON.stringify([{ name: "A", score: 300 }, { name: "B", score: 100 }]) },
           api: () => ({
             scores: [9000, 8000, 7000, 6000, 5000].map((s, i) => ({ name: "W" + i, score: s })),
             token: "tok-3",
@@ -2188,7 +2188,7 @@ module.exports = {
     {
       name: "#59c — mute silences the music as well as the sound effects",
       fn(a) {
-        const g = boot({ storage: { "neonbreak-muted": "1" } }).start();
+        const g = boot({ storage: { "blokrush-muted": "1" } }).start();
         g.runAlive(2);
         a.empty(g.notes, "a muted game must not queue a single note");
 
@@ -2429,7 +2429,7 @@ module.exports = {
 
         blast(at(3, 0));
         a.includes(g.T.state.achievements, "firstCrack", "the first brick should unlock the first one");
-        a.eq(g.store["neonbreak-achievements"], JSON.stringify(["firstCrack"]),
+        a.eq(g.store["blokrush-achievements"], JSON.stringify(["firstCrack"]),
           "and it should have been written straight away, not at the end of the run");
 
         // The check runs every frame; the unlock must not.
@@ -2458,7 +2458,7 @@ module.exports = {
         g.T.state.lives = g.T.state.maxLives;
         g.run(1);
         a.empty(g.T.state.achievements, "#69's exclusion covers achievements too");
-        a.not(g.store["neonbreak-achievements"], "and nothing should have been persisted");
+        a.not(g.store["blokrush-achievements"], "and nothing should have been persisted");
 
         g.el("btn-view-ach").click(1);
         a.eq(g.T.state.phase, "achievements");
@@ -2477,14 +2477,14 @@ module.exports = {
       fn(a) {
         // Same hazard loadHallOfFame() guards: valid JSON that is not what we
         // put there — a manual edit, another app sharing the origin.
-        a.empty(boot({ storage: { "neonbreak-achievements": '{"nope":1}' } }).T.state.achievements);
-        a.empty(boot({ storage: { "neonbreak-achievements": "not json at all" } }).T.state.achievements);
-        a.empty(boot({ storage: { "neonbreak-achievements": "[1,2,3]" } }).T.state.achievements,
+        a.empty(boot({ storage: { "blokrush-achievements": '{"nope":1}' } }).T.state.achievements);
+        a.empty(boot({ storage: { "blokrush-achievements": "not json at all" } }).T.state.achievements);
+        a.empty(boot({ storage: { "blokrush-achievements": "[1,2,3]" } }).T.state.achievements,
           "entries that are not strings are not ids");
 
         // An id that is no longer in the roster is dropped, so retiring an
         // achievement cannot leave a row nothing can render.
-        const g = boot({ storage: { "neonbreak-achievements": '["firstCrack","retiredLongAgo"]' } });
+        const g = boot({ storage: { "blokrush-achievements": '["firstCrack","retiredLongAgo"]' } });
         a.eq(g.T.state.achievements.join(","), "firstCrack");
         g.el("btn-view-ach").click(1);
         a.includes(g.el("ach-list").innerHTML, g.T.t("ach.firstCrack.name"));
@@ -2508,7 +2508,7 @@ module.exports = {
           };
         };
         const unlocking = play({});
-        const quiet = play({ "neonbreak-achievements": every });
+        const quiet = play({ "blokrush-achievements": every });
         a.eq(JSON.stringify(unlocking), JSON.stringify(quiet),
           "an unlock must not move the ball, the score, the drops or anything else");
       },
@@ -2536,7 +2536,7 @@ module.exports = {
     {
       name: "#65f — the roster is reachable from the end screens and returns to them",
       fn(a) {
-        const g = boot({ storage: { "neonbreak-hall-of-fame": FULL_HOF } }).start();
+        const g = boot({ storage: { "blokrush-hall-of-fame": FULL_HOF } }).start();
         g.T.state.score = 30;
         g.T.state.lives = 1;
         g.loseBall();
@@ -2960,7 +2960,7 @@ module.exports = {
           },
         };
         for (const [phase, go] of Object.entries(reach)) {
-          const g = go(boot({ storage: { "neonbreak-hall-of-fame": FULL_HOF } }));
+          const g = go(boot({ storage: { "blokrush-hall-of-fame": FULL_HOF } }));
           a.eq(g.T.state.phase, phase, `fixture for ${phase} did not land there`);
           chord(g);
           a.eq(g.T.state.phase, "leveljump", `the chord did not open the prompt from ${phase}`);
@@ -3071,7 +3071,7 @@ module.exports = {
         g.loseBall();
         a.eq(g.T.state.phase, "gameover", "a jumped run must not be offered the board");
         a.eq(g.T.state.best, 0, "and must not set the best score either");
-        a.not(g.store["neonbreak-best-score"], "nothing should have been persisted");
+        a.not(g.store["blokrush-best-score"], "nothing should have been persisted");
 
         // Sticky for the whole run: a jump on an early level still taints a
         // score submitted much later.
@@ -3125,7 +3125,7 @@ module.exports = {
         a.eq(g.T.state.balls.length, 1, "with a fresh ball");
 
         // The last life takes the same beat before the run ends.
-        const last = boot({ storage: { "neonbreak-hall-of-fame": FULL_HOF } }).start();
+        const last = boot({ storage: { "blokrush-hall-of-fame": FULL_HOF } }).start();
         last.T.state.lives = 1;
         last.T.state.balls.length = 0;
         last.frame();
@@ -3205,7 +3205,7 @@ module.exports = {
             "every note should shift by the same interval — a transposition, not a new tune");
         }
 
-        const muted = boot({ storage: { "neonbreak-muted": "1" } }).start();
+        const muted = boot({ storage: { "blokrush-muted": "1" } }).start();
         muted.notes.length = 0;
         muted.T.state.balls.length = 0;
         muted.frame();
@@ -3264,7 +3264,7 @@ module.exports = {
 
         // Same score, same ending, no jump — and nothing to explain. FULL_HOF
         // keeps it off the nameentry detour so both runs end on gameover.
-        const plain = boot({ storage: { "neonbreak-hall-of-fame": FULL_HOF } }).start();
+        const plain = boot({ storage: { "blokrush-hall-of-fame": FULL_HOF } }).start();
         plain.T.state.score = 30;
         plain.T.state.lives = 1;
         plain.loseBall();
@@ -3328,7 +3328,7 @@ module.exports = {
     {
       name: "#73a — from gameover the board opens and continue comes back to gameover",
       fn(a) {
-        const g = boot({ storage: { "neonbreak-hall-of-fame": FULL_HOF } }).start();
+        const g = boot({ storage: { "blokrush-hall-of-fame": FULL_HOF } }).start();
         g.T.state.score = 30;
         g.T.state.lives = 1;
         g.loseBall();
@@ -3347,7 +3347,7 @@ module.exports = {
     {
       name: "#73b — the same from victory",
       fn(a) {
-        const g = boot({ storage: { "neonbreak-hall-of-fame": FULL_HOF } }).start();
+        const g = boot({ storage: { "blokrush-hall-of-fame": FULL_HOF } }).start();
         g.T.startLevel(g.T.CONFIG.progression.totalLevels - 1);
         g.key("Space");
         clearBricks(g);
@@ -3601,7 +3601,7 @@ module.exports = {
         a.eq(g.T.state.phase, "levelclear", "sanity: the level should have cleared");
         a.eq(g.T.state.levelProgress.length, 1);
         a.eq(g.T.state.levelProgress[0].level, 0, "level 1 is index 0");
-        a.eq(g.store["neonbreak-levels"], JSON.stringify(g.T.state.levelProgress),
+        a.eq(g.store["blokrush-levels"], JSON.stringify(g.T.state.levelProgress),
           "should be persisted the moment the level clears, not at the end of the run");
 
         // Re-clearing the same level (as level select lets a player do) must
@@ -3620,17 +3620,17 @@ module.exports = {
     {
       name: "#46b — malformed level-progress storage degrades to nothing cleared rather than throwing",
       fn(a) {
-        a.doesNotThrow(() => boot({ storage: { "neonbreak-levels": "not json at all" } }),
+        a.doesNotThrow(() => boot({ storage: { "blokrush-levels": "not json at all" } }),
           "unparsable JSON under the levels key must not take down the whole IIFE");
-        a.empty(boot({ storage: { "neonbreak-levels": "not json at all" } }).T.state.levelProgress);
+        a.empty(boot({ storage: { "blokrush-levels": "not json at all" } }).T.state.levelProgress);
         a.empty(
-          boot({ storage: { "neonbreak-levels": JSON.stringify({ not: "an array" }) } }).T.state.levelProgress,
+          boot({ storage: { "blokrush-levels": JSON.stringify({ not: "an array" }) } }).T.state.levelProgress,
           "valid JSON that isn't an array should also degrade to empty"
         );
-        a.empty(boot({ storage: { "neonbreak-levels": "[1,2,3]" } }).T.state.levelProgress,
+        a.empty(boot({ storage: { "blokrush-levels": "[1,2,3]" } }).T.state.levelProgress,
           "entries that are not per-level objects are dropped");
 
-        const g = boot({ storage: { "neonbreak-levels": JSON.stringify([{ level: 3 }, { level: "x" }]) } });
+        const g = boot({ storage: { "blokrush-levels": JSON.stringify([{ level: 3 }, { level: "x" }]) } });
         a.eq(g.T.state.levelProgress.length, 1, "an entry with a non-numeric level is dropped");
         a.eq(g.T.state.levelProgress[0].level, 3);
       },
@@ -3651,7 +3651,7 @@ module.exports = {
         g.loseBall();
         a.eq(g.T.state.phase, "gameover", "a level-select run must not be offered the hall of fame");
         a.eq(g.T.state.best, 0, "and must not set the best score either");
-        a.not(g.store["neonbreak-best-score"], "nothing should have been persisted");
+        a.not(g.store["blokrush-best-score"], "nothing should have been persisted");
 
         // An ordinary run does not carry the flag.
         a.eq(boot().T.state.jumped, false);
@@ -3687,6 +3687,38 @@ module.exports = {
         a.eq(g.el("level-row-2").disabled, false, "level 2 should now be open");
         g.el("btn-levelselect-continue").click(1);
         a.eq(g.T.state.phase, "gameover", "continue must return to the run that just ended");
+      },
+    },
+    {
+      name: "#82a — every key a session persists is namespaced blokrush-, none neonbreak-",
+      fn(a) {
+        const { g, at, blast } = gridLevel({ langs: ["fr-FR"] });
+        g.langButton("en").click(1);
+        g.el("btn-mute").click(1);
+
+        blast(at(0, 0)); // first brick down: unlocks the firstCrack achievement
+        a.includes(g.T.state.achievements, "firstCrack");
+
+        clearBricks(g);
+        g.frame();
+        a.eq(g.T.state.phase, "levelclear", "sanity: the level should have cleared");
+        g.el("btn-next").click(1);
+        g.key("Space");
+        g.T.state.score = 500;
+        g.T.state.lives = 1;
+        g.loseBall();
+        a.eq(g.T.state.phase, "nameentry", "sanity: the score should qualify for the hall of fame");
+        g.el("nameentry-input").value = "Ren";
+        g.el("btn-nameentry-submit").click(1);
+
+        const keys = Object.keys(g.store);
+        for (const suffix of ["lang", "muted", "achievements", "levels", "best-score", "hall-of-fame"]) {
+          a.includes(keys, "blokrush-" + suffix, `expected blokrush-${suffix} to have been written`);
+        }
+        for (const key of keys) {
+          a.match(key, /^blokrush-/, `storage key "${key}" is not namespaced blokrush-`);
+          a.not(/^neonbreak-/.test(key), `storage key "${key}" is still under the retired neonbreak- namespace`);
+        }
       },
     },
   ],

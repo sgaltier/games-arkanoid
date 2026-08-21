@@ -189,7 +189,7 @@ module.exports = {
     {
       name: "restarting from game over resets score, lives and level",
       fn(a) {
-        const g = boot({ storage: { "neonbreak-hall-of-fame": FULL_HOF } }).start();
+        const g = boot({ storage: { "blokrush-hall-of-fame": FULL_HOF } }).start();
         g.T.state.score = 500;
         g.T.state.levelIndex = 2;
         g.T.state.lives = 1;
