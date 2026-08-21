@@ -115,6 +115,12 @@ function boot(opts) {
     },
   };
 
+  // Canvas ops are counted, not recorded — a frame draws hundreds of them and
+  // no assertion needs the history. handle.recordCanvas() opens a log for the
+  // few tests that read the draw path itself (#85b: which fill a boss part was
+  // actually painted with), and it stays closed everywhere else.
+  let canvasLog = null;
+
   // Canvas context: every method call and property write is counted. The bare
   // proxy answers every method with a counted no-op returning undefined, which
   // is wrong for the handful that hand back an object the caller goes on to
@@ -127,7 +133,19 @@ function boot(opts) {
   }, {
     get(target, key) {
       if (key in target) return target[key];
-      return function () { counters.canvasOps++; };
+      return function (...args) {
+        counters.canvasOps++;
+        if (canvasLog) {
+          canvasLog.push({
+            op: key,
+            args,
+            fillStyle: target.fillStyle,
+            strokeStyle: target.strokeStyle,
+            shadowColor: target.shadowColor,
+            globalAlpha: target.globalAlpha,
+          });
+        }
+      };
     },
     set(target, key, value) {
       target[key] = value;
@@ -451,6 +469,10 @@ function boot(opts) {
     // Every note scheduled, in order: { freq, slide, type, detune, at, vol }.
     // Never reset — take a length before the action under test and slice.
     notes,
+    // Start recording canvas ops and hand back the live log: one entry per
+    // call, { op, args } plus the fill/stroke/shadow/alpha in force at the
+    // time. Off until asked for, since a single frame appends hundreds.
+    recordCanvas() { canvasLog = []; return canvasLog; },
     // The API paths are promise-chained, so their effects land a few microtasks
     // after the call that triggered them. Await this before asserting on
     // anything the network was supposed to change.

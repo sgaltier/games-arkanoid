@@ -1773,11 +1773,19 @@ canvas {
   var BOSS_BLANK = "..........";
   function bossArena(rows) { return [BOSS_BLANK, BOSS_BLANK, BOSS_BLANK, BOSS_BLANK].concat(rows); }
 
+  // #85: every fight owns a `color`/`glow` pair, the way BRICK_COLOR and
+  // POWERUPS do. Seven draw sites read them (the body, the hp strip, the three
+  // hit bursts, the death-beat lightning) and none of them can fall back:
+  // assigning undefined to fillStyle/shadowColor is silently ignored by the
+  // canvas, so a missing colour is not a default, it is whatever was painted
+  // last. Hues are spread across the wheel rather than themed to the act, so
+  // no two of the ten read as the same fight.
   var BOSSES = [
     // B1 — Sentinel: the entity itself. No hazard, empty arena — the whole
     // level is "here is a thing that fights back" with nothing else to read.
     {
       id: "sentinel", killBonus: 400, arena: bossArena([]),
+      color: "#38d9ff", glow: "rgba(56,217,255,.75)",
       spawn: function (b) {
         var p = mkPart(GAME_W / 2 - 70, 90, 140, 30, 12, "body");
         p.dir = 1;
@@ -1794,6 +1802,7 @@ canvas {
     // at a brick.
     {
       id: "salvo", killBonus: 550, arena: bossArena(["1.2.3.4.1."]),
+      color: "#ff7a2f", glow: "rgba(255,122,47,.75)",
       spawn: function (b) {
         var p = mkPart(GAME_W / 2 - 65, 90, 130, 30, 16, "body");
         p.dir = 1;
@@ -1814,6 +1823,7 @@ canvas {
     // becomes hittable, but a dead plate regrows every 8s.
     {
       id: "carapace", killBonus: 700, arena: bossArena(["2.3.4.1.2."]),
+      color: "#2fe08a", glow: "rgba(47,224,138,.75)",
       spawn: function (b) {
         var coreW = 170, coreH = 34, cx = GAME_W / 2 - coreW / 2, cy = 96;
         var core = mkPart(cx, cy, coreW, coreH, 12, "core");
@@ -1850,6 +1860,7 @@ canvas {
     // half-width bodies moving in opposition, each with their own hit points.
     {
       id: "gemini", killBonus: 900, arena: bossArena(["#........#", "#........#"]),
+      color: "#a565ff", glow: "rgba(165,101,255,.75)",
       spawn: function (b) {
         var p = mkPart(GAME_W / 2 - 60, 90, 120, 30, 12, "body");
         p.dir = 1;
@@ -1894,6 +1905,7 @@ canvas {
     // paddle is still under it.
     {
       id: "aegis", killBonus: 1150, arena: bossArena(["1.2.3.4.1.", "#........#"]),
+      color: "#ffcc29", glow: "rgba(255,204,41,.75)",
       spawn: function (b) {
         var p = mkPart(GAME_W / 2 - 70, 90, 140, 30, 26, "body");
         p.dir = 1;
@@ -1918,6 +1930,7 @@ canvas {
     // pressure comes from minions it spawns in pairs, capped at six alive.
     {
       id: "hive", killBonus: 1300, arena: bossArena(["1.3.1.3.1.", ".2.4.2.4.."]),
+      color: "#8ae62e", glow: "rgba(138,230,46,.7)",
       spawn: function (b) {
         var p = mkPart(GAME_W / 2 - 70, 90, 140, 30, 28, "body");
         p.dir = 1;
@@ -1941,6 +1954,9 @@ canvas {
     // it drops explosive minions instead of firing at range.
     {
       id: "phantom", killBonus: 1500, arena: bossArena(["..1..2..3."]),
+      // Pale rather than saturated: Phantom fades in and out, and a washed-out
+      // hue is what "barely there" looks like next to the other nine.
+      color: "#c2c9ff", glow: "rgba(194,201,255,.7)",
       spawn: function (b) {
         var p = mkPart(GAME_W / 2 - 65, 90, 130, 30, 32, "body");
         b.parts = [p];
@@ -1964,6 +1980,7 @@ canvas {
     // stops tracking and barrages instead for a few seconds.
     {
       id: "mirage", killBonus: 1700, arena: bossArena(["#........#", "#........#"]),
+      color: "#ff5fd2", glow: "rgba(255,95,210,.75)",
       spawn: function (b) {
         var p = mkPart(GAME_W / 2 - 65, 90, 130, 30, 34, "body");
         b.parts = [p];
@@ -1995,6 +2012,7 @@ canvas {
     // telegraphed so that always reads as fair rather than a surprise.
     {
       id: "leviathan", killBonus: 2200, arena: bossArena(["#........#", "#........#", "#........#"]),
+      color: "#3f7bff", glow: "rgba(63,123,255,.8)",
       spawn: function (b) {
         var w = 240, h = 32;
         var p = mkPart(GAME_W / 2 - w / 2, 80, w, h, 38, "body");
@@ -2022,6 +2040,7 @@ canvas {
     // the ordinary way, through bossDefeated() -> checkLevelClear().
     {
       id: "omega", killBonus: 4000, arena: bossArena(["#1#2#3#4#1", "2S3S4S1S2S"]),
+      color: "#ff2f4d", glow: "rgba(255,47,77,.85)",
       spawn: function (b) { b.phase = 0; spawnOmegaPhase(b, 0); },
       update: function (b, dt) {
         if (b.transition) return; // ticked centrally in updateBoss()

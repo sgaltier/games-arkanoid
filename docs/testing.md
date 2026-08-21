@@ -117,8 +117,16 @@ continues), `frame()`, `key(code)`, `hold`/`release`, `mouseMove(x)`, `touch(typ
 `shownOverlays()`, `apiCalls` (every fetch made, with the parsed request body), `settle()` (flushes
 the API promise chain — await it before asserting on anything the network was meant to change),
 `notes` (every note the game scheduled: `{ freq, slide, type, detune, at, vol }` — sound is only
-observable as what it queues, which since #59 is a feature surface), and `counters` for per-frame
-budgets.
+observable as what it queues, which since #59 is a feature surface), `counters` for per-frame
+budgets, and `recordCanvas()`.
+
+`recordCanvas()` (#85b) starts recording canvas ops and returns the live log: one entry per call,
+`{ op, args }` plus the `fillStyle`/`strokeStyle`/`shadowColor`/`globalAlpha` in force at the time,
+so a test can assert what a draw actually painted with. It is off until asked for — a single frame
+appends hundreds of entries. One difference from a browser to keep in mind: assigning `undefined` to
+`fillStyle` leaves it `undefined` in the log, where a real canvas silently keeps the previous value.
+That makes "no colour was set" visible here, but it means a test after that shape should assert a
+value was set *and* which one, since the on-screen symptom is the stale colour, not a missing one.
 
 Since #70 a note can also be a burst of noise rather than an oscillator — the hi-hat. Those carry
 `type: "noise"`, a `filterFreq` (the band it was limited to) and `freq: 0`, deliberately: several

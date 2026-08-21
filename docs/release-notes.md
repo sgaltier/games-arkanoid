@@ -53,10 +53,45 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #46 | ✅ Fixed — 2026-08-21 |
 | #82 | ✅ Fixed — 2026-08-21 |
 | #84 | ✅ Fixed — 2026-08-21 |
+| #85 | ✅ Fixed — 2026-08-21 |
 
-72 of 81 fixed — #85–#93 are open, the rest of the ten findings a full-codebase review raised on
+73 of 81 fixed — #86–#93 are open, the rest of the ten findings a full-codebase review raised on
 2026-08-21. See [todo.md](todo.md) for those and for the feature ideas promoted alongside them, and
 [feature-ideas.md](feature-ideas.md) for proposals not yet promoted to it.
+
+---
+
+## 2026-08-21 — Every boss is drawn with the previous shape's colour (#85)
+
+### Fixed
+
+**Each of the ten boss fights now has its own colour.** Seven draw sites read `def.color`/`def.glow`
+and no entry in `BOSSES` ever defined either. Assigning `undefined` to `fillStyle`/`shadowColor` is
+not an error — the canvas silently ignores it — so a boss body, its hp strip, its hit bursts and
+#79's death-beat lightning were all painted in whatever fill the brick layer happened to leave
+behind on the way past, and the neon glow the rest of the game is built on was missing entirely from
+the one entity that most needs to stand out. The only part that read correctly was an *in*vulnerable
+one, because that colour is a literal.
+
+The fix is data, not defensive call sites: every entry now carries a `color`/`glow` pair, the way
+`BRICK_COLOR` and `POWERUPS` already do. Hues are spread across the wheel rather than themed to the
+act — Sentinel cyan, Salvo orange, Carapace jade, Gemini violet, Aegis gold, Hive chartreuse,
+Phantom pale lilac (washed out on purpose: it fades in and out), Mirage magenta, Leviathan deep
+blue, Omega red — so no two of the ten read as the same fight.
+
+### Tests
+
+Two new cases in `regressions.js`, both watched failing first. `#85a` is the data guard: every entry
+defines a non-empty `color` and `glow`, and no two share a `color`. `#85b` reads the draw path
+itself — it records one frame of the Sentinel fight, finds the `fillRect` that painted the body, and
+asserts a fill and a shadow colour were set for it and are the ones the roster defines.
+
+**New harness seam:** `handle.recordCanvas()` in [dom-stub.js](../test/dom-stub.js) opens a log of
+canvas ops (`{ op, args }` plus the fill/stroke/shadow/alpha in force at the time). It is off unless
+a test asks for it, since a single frame appends hundreds of entries.
+
+**Doc anchors across `done.md` and `todo.md` were re-anchored** by the +19 lines this added to
+`index.html`, per the re-anchoring discipline both files describe.
 
 ---
 

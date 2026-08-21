@@ -3797,5 +3797,49 @@ module.exports = {
         a.eq(shooters.slice().sort().join(","), "1,2", "fire() must shoot from the two halves");
       },
     },
+    {
+      name: "#85a — every boss carries its own colour and glow, and no two share a colour",
+      fn(a) {
+        const { BOSSES } = boot().T;
+        BOSSES.forEach((def) => {
+          a.ok(typeof def.color === "string" && def.color, `${def.id}: no color to draw it with`);
+          a.ok(typeof def.glow === "string" && def.glow, `${def.id}: no glow to draw it with`);
+        });
+        a.eq(new Set(BOSSES.map((def) => def.color)).size, BOSSES.length,
+          "two fights share a colour — a hue per boss is the point");
+      },
+    },
+    {
+      name: "#85b — a boss part is painted in its own colour, not whatever fill was left behind",
+      fn(a) {
+        const g = boot();
+        g.el("btn-start").click(1);
+        g.T.startLevel(9); // Sentinel — one part, always vulnerable, never shielded
+        g.key("Space");
+        const b = g.T.state.boss;
+        const def = g.T.BOSSES[b.defIdx];
+        const part = b.parts[0];
+
+        const log = g.recordCanvas();
+        g.frame();
+        // update() runs before the draw within the frame, so the part's
+        // position on the way out is the one it was painted at.
+        a.ok(part.vulnerable && part.alive, "sanity: Sentinel's body is vulnerable from the first frame");
+        a.eq(part.hitFlash, 0, "sanity: an untouched part is not flashing white");
+        const painted = log.find((e) => e.op === "fillRect"
+          && e.args[0] === part.x && e.args[1] === part.y
+          && e.args[2] === part.w && e.args[3] === part.h);
+        a.ok(painted, "the boss body was never painted");
+        // Assigning undefined to fillStyle is a silent no-op on a real canvas,
+        // so "no colour of its own" reads on screen as the previous draw's
+        // fill — hence checking that a fill was set at all, then which one.
+        a.ok(typeof painted.fillStyle === "string" && painted.fillStyle,
+          "no fill was set for the body — it keeps whatever drew last");
+        a.ok(typeof painted.shadowColor === "string" && painted.shadowColor,
+          "no glow was set for the body — it keeps whatever drew last");
+        a.eq(painted.fillStyle, def.color, "the body was drawn in someone else's colour");
+        a.eq(painted.shadowColor, def.glow, "the body was drawn with someone else's glow");
+      },
+    },
   ],
 };
