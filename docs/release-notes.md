@@ -64,11 +64,61 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #93 | ✅ Fixed — 2026-08-21 |
 | #64 | ✅ Fixed — 2026-08-21 |
 | #57 | ✅ Fixed — 2026-08-21 |
+| #83 | ✅ Fixed — 2026-08-21 |
+| #94 | ✅ Fixed — 2026-08-21 |
 
-83 of 83 fixed — the full-codebase review raised on 2026-08-21 is done, ten for ten, #64 (resume an
+84 of 84 fixed — the full-codebase review raised on 2026-08-21 is done, ten for ten, #64 (resume an
 interrupted run) has shipped alongside it, and #57 (laser-vs-bad-drop counterplay) closes out the §C
-power-up batch. See [todo.md](todo.md) for the feature ideas still open, and
-[feature-ideas.md](feature-ideas.md) for proposals not yet promoted to it.
+power-up batch. #83 (per-level star ratings) is the other half of what was originally #46, and #94
+puts that rating on screen at the moment it's earned, not just later in level select. See
+[todo.md](todo.md) for the feature ideas still open, and [feature-ideas.md](feature-ideas.md) for
+proposals not yet promoted to it.
+
+---
+
+## 2026-08-21 — Show the star rating on the levelclear overlay (#94)
+
+### Fixed
+
+`#83` rated a level 1-3 stars the moment it cleared, but the only place that rating ever showed up was
+level select — the levelclear overlay itself, shown right when the rating is earned, said nothing
+about it. `checkLevelClear()` now stashes the computed rating in `state.lastLevelStars` (a display-only
+field — not persisted, not part of a resumed run's snapshot), and `renderDynamicText()` writes it into
+a new `#levelclear-stars` line using the same `starGlyphs()` level select already uses, so the two
+never draw a rating two different ways. It's styled gold via the existing `--neon-amber` token, with a
+glow and a larger size than the score line above it, since here it's the payoff the screen exists to
+show.
+
+### Tests
+
+One new case in `regressions.js` (`#94`), confirmed failing first against the unfixed code (the element
+didn't exist yet): clearing a level for 3 stars shows `"★★★"`, and clearing the next one for 1 star
+updates it to `"★☆☆"` rather than leaving the previous level's rating on screen.
+
+---
+
+## 2026-08-21 — Per-level star ratings (#83)
+
+### Fixed
+
+Once a level is unlocked (#46), it's now graded 1-3 stars on how well it was cleared, shown next to
+its number in level select. `startLevel()` captures `state.levelStartScore = state.score` so
+`checkLevelClear()` can isolate what the level just finished actually earned
+(`state.score - state.levelStartScore`) from the run's cumulative score. `starsForClear()` rates that
+against `CONFIG.progression.starThresholds`, expressed as a multiple of `levelMultiplier()` rather than
+a fixed number, so the same raw score reads as fewer stars on a late level than an early one — matching
+how brick value itself scales (#41). `recordLevelClear()` now takes the computed rating and folds it
+into the same `{level}` record `#46` already persists under `LEVELS_KEY`, raising a level's stored
+rating only ever up, never down, on a replay. `renderLevelSelect()` shows it as "★"/"☆" repeated per
+star, the same plain-glyph convention as the "?"/"X"/"R" brick markers elsewhere rather than a new icon.
+
+### Tests
+
+Three new cases in `regressions.js` (`#83a`, `#83b`, `#83c`), confirmed failing first against the
+unfixed code: a worse replay never lowers an already-earned rating and a better one raises it; the
+same absolute per-level score earns fewer stars on a late, high-multiplier level than an early one;
+and a level cleared right after a huge cumulative score is rated on what it alone earned, not inflated
+by the run so far.
 
 ---
 

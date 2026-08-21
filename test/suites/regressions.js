@@ -3749,6 +3749,95 @@ module.exports = {
       },
     },
     {
+      name: "#83a — re-clearing an already-rated level never lowers its stored stars, and a better replay raises it",
+      fn(a) {
+        const g = boot().start(); // level 1, levelMultiplier(1) === 1
+        const entry = () => g.T.state.levelProgress.find((e) => e.level === 0);
+
+        g.T.state.score = 300; // between the 2- and 3-star thresholds (250/500)
+        clearBricks(g);
+        g.frame();
+        a.eq(g.T.state.phase, "levelclear", "sanity: the level should have cleared");
+        a.eq(entry().stars, 2, "sanity: 300 earned on level 1 should be a 2-star clear");
+
+        // Replay it worse — must not lower the rating already on record.
+        g.T.startLevel(0);
+        g.T.setPhase("playing");
+        g.T.state.score += 100; // only 100 earned this replay, a 1-star showing alone
+        clearBricks(g);
+        g.frame();
+        a.eq(entry().stars, 2, "a worse replay must not lower a rating already earned");
+
+        // Replay it better — must raise the rating.
+        g.T.startLevel(0);
+        g.T.setPhase("playing");
+        g.T.state.score += 600; // 600 earned this replay, a clean 3-star showing
+        clearBricks(g);
+        g.frame();
+        a.eq(entry().stars, 3, "a better replay should raise the stored rating");
+      },
+    },
+    {
+      name: "#83b — star thresholds scale with levelMultiplier(): the same absolute per-level score earns fewer stars late than early",
+      fn(a) {
+        const early = boot().start(); // level 1, levelMultiplier(1) === 1
+        early.T.state.score = 600; // clears both thresholds (250/500) at mult 1
+        clearBricks(early);
+        early.frame();
+        a.eq(early.T.state.phase, "levelclear", "sanity: the level should have cleared");
+        a.eq(early.T.state.levelProgress.find((e) => e.level === 0).stars, 3,
+          "sanity: 600 earned on level 1 should be a full 3-star clear");
+
+        const late = boot();
+        late.T.startLevel(50); // level 51, well past LEVELS.length — a large multiplier
+        late.T.setPhase("playing");
+        late.T.state.score = 600; // the exact same absolute score as the early-level run
+        clearBricks(late);
+        late.frame();
+        a.eq(late.T.state.phase, "levelclear", "sanity: the level should have cleared");
+        a.lt(late.T.state.levelProgress.find((e) => e.level === 50).stars, 3,
+          "the same absolute score should earn fewer stars on a late, high-multiplier level");
+      },
+    },
+    {
+      name: "#83c — a level cleared for the first time is rated on the score earned during that level, not the run's cumulative score",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.score = 100000; // a large cumulative total, as if earned on an earlier level
+        g.T.startLevel(1); // advancing to level 2 resets the level-start baseline to it
+        g.T.setPhase("playing");
+        // No further score earned this level: state.score - state.levelStartScore is 0.
+        clearBricks(g);
+        g.frame();
+        a.eq(g.T.state.phase, "levelclear", "sanity: the level should have cleared");
+        a.eq(g.T.state.levelProgress.find((e) => e.level === 1).stars, 1,
+          "zero marginal score should rate the minimum, not be inflated by the prior level's cumulative score");
+      },
+    },
+    {
+      name: "#94 — the levelclear overlay shows the star rating this level just earned",
+      fn(a) {
+        const g = boot().start(); // level 1, levelMultiplier(1) === 1
+        g.T.state.score = 600; // clears both thresholds (250/500) — a 3-star clear
+        clearBricks(g);
+        g.frame();
+        a.eq(g.T.state.phase, "levelclear", "sanity: the level should have cleared");
+        a.eq(g.T.state.lastLevelStars, 3, "sanity: 600 earned on level 1 should be a 3-star clear");
+        a.eq(g.el("levelclear-stars").textContent, "★★★", "the overlay should show 3 filled stars");
+
+        // Next level, cleared with barely any additional score — a 1-star showing.
+        g.el("btn-next").click(1);
+        g.T.setPhase("playing");
+        g.T.state.score += 10;
+        clearBricks(g);
+        g.frame();
+        a.eq(g.T.state.phase, "levelclear", "sanity: the level should have cleared");
+        a.eq(g.T.state.lastLevelStars, 1, "sanity: 10 earned on level 2 should be a 1-star clear");
+        a.eq(g.el("levelclear-stars").textContent, "★☆☆",
+          "a lower rating must actually update the overlay, not leave a stale 3 stars showing");
+      },
+    },
+    {
       name: "#82a — every key a session persists is namespaced blokrush-, none neonbreak-",
       fn(a) {
         const { g, at, blast } = gridLevel({ langs: ["fr-FR"] });

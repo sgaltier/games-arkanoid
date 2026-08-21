@@ -9,12 +9,12 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 5 open items — #47 (promoted from [feature-ideas.md](feature-ideas.md) §A), #50
-(promoted from §B), #56 (promoted from §C), #63 (promoted from §D), and #83 (raised directly,
-not promoted from `feature-ideas.md`). #46 from the §A batch, #53, #54, #55, and #57 from the §C
-batch, #82 (raised directly), #84–#93 (the full 2026-08-21 review pass, correctness and
-security/backend alike), and #64 (promoted from §D) have shipped (see [done.md](done.md)). #62
-(promoted from §D) was discarded outright rather than fixed — see the note in §D below.
+**Status:** 4 open items — #47 (promoted from [feature-ideas.md](feature-ideas.md) §A), #50
+(promoted from §B), #56 (promoted from §C), and #63 (promoted from §D). #46 from the §A batch, #53,
+#54, #55, and #57 from the §C batch, #82 (raised directly), #83 (raised directly), #84–#93 (the full
+2026-08-21 review pass, correctness and security/backend alike), #64 (promoted from §D), and #94
+(raised directly) have shipped (see [done.md](done.md)). #62 (promoted from §D) was discarded outright
+rather than fixed — see the note in §D below.
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
 test → fix → move the finding's whole entry from this file to [done.md](done.md), prepending a
@@ -33,16 +33,16 @@ celebration built on top of it), #75 (a follow-on to #37), #78 (effect-bar names
 name validation), #77 (hall-of-fame profanity filtering), #79 (the boss-kill death beat's
 music/explosion/sound gaps), #80 (level-progress-driven music intensity), #81 (the level-clear
 fanfare), #46 (level select), #53 (the fireball power-up), #54 (the safety-net shield), #55 (magnet
-paddle / hold-to-slow bullet time), #82 (the `neonbreak-*` → `blokrush-*` rename), and #64 (resume an
-interrupted run) — see [done.md](done.md). Everything left open below is a feature: #47 (daily
-challenge seed), #50 (moving bricks), #63 (difficulty selection), and two power-up/ball-mechanics
-ideas, all promoted from [feature-ideas.md](feature-ideas.md) and keeping their numbers; that file
-still holds the proposals not yet promoted. #83 (per-level star ratings, split out of #46 — the two
-were originally one item) was raised directly rather than promoted from there. The ten findings
-raised by a full-codebase review on 2026-08-21 (#84–#93, correctness and security/backend alike) are
-all shipped — see [done.md](done.md) §I. #62 (colourblind-safe brick markers) was discarded rather
-than shipped — see §D.
-New review findings go here too, keeping the shared numbering: the next free number is **#94**.
+paddle / hold-to-slow bullet time), #82 (the `neonbreak-*` → `blokrush-*` rename), #83 (per-level star
+ratings, split out of #46 — the two were originally one item), #64 (resume an interrupted run), and
+#94 (showing #83's star rating on the levelclear overlay itself, not just in level select) — see
+[done.md](done.md). Everything left open below is a feature: #47 (daily challenge seed), #50 (moving
+bricks), #63 (difficulty selection), and two power-up/ball-mechanics ideas, all promoted from
+[feature-ideas.md](feature-ideas.md) and keeping their numbers; that file still holds the proposals
+not yet promoted. The ten findings raised by a full-codebase review on 2026-08-21 (#84–#93, correctness
+and security/backend alike) are all shipped — see [done.md](done.md) §I. #62 (colourblind-safe brick
+markers) was discarded rather than shipped — see §D.
+New review findings go here too, keeping the shared numbering: the next free number is **#95**.
 
 ---
 
@@ -52,50 +52,10 @@ Promoted from [feature-ideas.md](feature-ideas.md) §A. #45 (procedural levels p
 and #48 (a level editor and shareable layouts) were discarded outright rather than promoted alongside
 these — #45 duplicated finding #41, already shipped as the 100-level campaign; #48 was dropped from
 the menu. #47 keeps its number. #46 originally covered both level select and per-level star ratings as
-one item; the two were split before either shipped — star ratings moved out to **#83**, immediately
-below, since they're usable independently of one another (star ratings need a per-level score to rate,
-but level select doesn't need a rating to be worth shipping on its own). Level select itself has since
-shipped — see [done.md](done.md) — leaving #83 the one half of the original item still open here.
-
-### 83. Per-level star ratings (S)
-
-Raised directly, split out of what was originally one item (#46) covering both level select and star
-ratings. This entry is the rating half: once a level is unlocked (#46), grade how well it was
-cleared, 1–3 stars, and show that rating wherever the level is listed. It builds on #46's persistence
-and level-select overlay rather than duplicating either — #46 is a prerequisite in practice (there's
-nowhere to display a star rating without a level-select list), though nothing here requires #46 to
-land in the same change if the two are picked up separately; a rating with no list to show it in is
-still worth persisting, just not visibly useful yet.
-
-**Extends #46's stored record, not a second key.** #46's `LEVELS_KEY` persists at least the highest
-cleared index; this entry adds a 1–3 star field to that same per-level record via
-`loadLevelProgress()`/`saveLevelProgress()`, rather than introducing a parallel store that the two
-features would have to keep in sync. Re-clearing an already-rated level should only ever raise its
-stored rating, never lower it — a worse replay of a level already mastered shouldn't erase that
-level's best showing.
-
-**Star thresholds have to scale with the level, not be fixed.** `CONFIG.progression.scoreCap`/
-`scoreTau` already grow the per-brick score multiplier through `levelMultiplier()` as the campaign
-progresses (#41), so a fixed point threshold that means "3 stars" on level 3 would be trivial on
-level 80. Nothing today tracks score *per level* — `state.score` is cumulative for the whole run —
-so this needs a small addition: capture `state.levelStartScore = state.score` in `startLevel()`
-(next to where it already resets `state.achStats.levelTime`), and rate stars at clear time off
-`state.score - state.levelStartScore` against thresholds expressed as a multiple of that level's
-`levelMultiplier()`, not an absolute number.
-
-**Display is a small addition to #46's list, not a new screen.** `overlay-levelselect`'s rows already
-show lock/unlock state (#46); an unlocked row additionally renders its stored star count (a glyph
-repeated per star, matching how `?`/`X`/`R` already render non-colour brick markers elsewhere in the
-canvas rather than inventing a new icon convention). No new overlay, no new entry point.
-
-#### Tests
-
-- `#83a` — re-clearing an already-unlocked level never lowers a star rating already earned, and a
-  better replay raises it.
-- `#83b` — star thresholds scale with `levelMultiplier()`: the same absolute per-level score earns
-  fewer stars on a late level than on an early one.
-- `#83c` — a level cleared for the first time is rated using only the score earned *during that
-  level* (`state.score - state.levelStartScore`), not cumulative run score.
+one item; the two were split before either shipped, into #46 and #83, since they're usable
+independently of one another (star ratings need a per-level score to rate, but level select doesn't
+need a rating to be worth shipping on its own). Both halves have since shipped — see
+[done.md](done.md).
 
 ### 47. Daily challenge seed (M)
 

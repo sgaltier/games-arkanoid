@@ -406,6 +406,18 @@ canvas {
   color: var(--neon-cyan);
 }
 
+/* #83: the star rating just earned, on the levelclear overlay. Golden to read
+   as a reward rather than another readout — same "?"/"X"/"R" plain-glyph
+   convention as the level-select rows, just larger since this is the one
+   place it's the star of the screen rather than a small addition to a list. */
+.overlay-stars {
+  margin: 0;
+  font-size: 22px;
+  letter-spacing: .12em;
+  color: var(--neon-amber);
+  text-shadow: 0 0 10px rgba(255, 182, 39, .7);
+}
+
 /* #72: the end-of-run notice that a level jump (#69) kept this score out of the
    hall of fame. renderDynamicText() empties it on an ordinary run, so it must
    take no room at all when it says nothing. */
@@ -805,6 +817,8 @@ canvas {
           <p class="overlay-eyebrow" data-i18n="levelclear.eyebrow">Bravo</p>
           <h2 class="overlay-title" id="levelclear-title">Niveau clair !</h2>
           <p class="overlay-score" id="levelclear-score">Score : 0</p>
+          <!-- #83: the star rating this level just earned — see recordLevelClear()/starsForClear(). -->
+          <p class="overlay-stars" id="levelclear-stars">★★★</p>
           <button class="btn" id="btn-next" type="button" data-i18n="levelclear.btn">Niveau suivant</button>
         </div>
 
@@ -1524,7 +1538,14 @@ canvas {
       speedTau: 25,         // ...with a time constant of this many levels
       scoreCap: 20,         // same shape for the per-level score multiplier
       scoreTau: 30,
-      extraLifeEvery: 10    // +1 life on clearing every Nth level, capped at maxLives
+      extraLifeEvery: 10,   // +1 life on clearing every Nth level, capped at maxLives
+      // #83: score earned during a level (state.score - state.levelStartScore),
+      // as a multiple of that level's levelMultiplier(), needed for 2/3 stars —
+      // a clean clear with no combo already clears the low end of this range,
+      // so a bare clear reads as 1 star rather than 0; a fixed absolute number
+      // would make a late-campaign 3-star trivial once brick value saturates
+      // (#41) while an early one stayed out of reach.
+      starThresholds: [250, 500] // [needed for 2 stars, needed for 3 stars]
     },
     dropFallSpeed: 130,      // px/s a dropped power-up capsule falls at
     particleGravity: 260,    // px/s² downward acceleration on burst particles
@@ -2657,10 +2678,11 @@ canvas {
 
   // #46: one entry per level ever cleared (0-based, matching state.levelIndex),
   // not just the highest — an array of per-level objects rather than a bare
-  // list of indices, so a later per-level field (a star rating, say) has
-  // somewhere to live without a second key to keep in sync with this one.
-  // Same hazard as the board/roster above: valid JSON that isn't the shape
-  // expected degrades to "nothing cleared yet" rather than throwing.
+  // list of indices. #83 is that later per-level field: a 1-3 star rating,
+  // normalized onto every entry below rather than a second key to keep in
+  // sync with this one. Same hazard as the board/roster above: valid JSON
+  // that isn't the shape expected degrades to "nothing cleared yet" rather
+  // than throwing.
   function loadLevelProgress() {
     var raw = storageGet(LEVELS_KEY);
     if (!raw) return [];
@@ -2669,6 +2691,12 @@ canvas {
       if (!Array.isArray(list)) return [];
       return list.filter(function (e) {
         return e && typeof e === "object" && Number.isInteger(e.level) && e.level >= 0;
+      }).map(function (e) {
+        // #83: entries saved before this field existed have no .stars at all —
+        // that degrades to 0 (rendered as an unrated clear), not a thrown/dropped
+        // entry, the same "corrupt data degrades gracefully" rule as above.
+        var stars = Number.isInteger(e.stars) && e.stars >= 0 && e.stars <= 3 ? e.stars : 0;
+        return { level: e.level, stars: stars };
       });
     } catch (e) {
       return [];
@@ -2694,14 +2722,36 @@ canvas {
     return idx === 0 || idx <= highestClearedLevel() + 1;
   }
 
+  // #83: 1-3 stars for how well a level was cleared, off the score earned
+  // *during* that level (state.score - state.levelStartScore, captured by
+  // startLevel()) rather than the run's cumulative score. Thresholds scale
+  // with levelMultiplier() so the same raw score reads as fewer stars on a
+  // late level than an early one, matching how brick value itself scales (#41)
+  // — a fixed absolute threshold would make a late-campaign 3-star trivial.
+  function starsForClear(idx, earnedScore) {
+    var mult = levelMultiplier(idx + 1);
+    var t = CONFIG.progression.starThresholds;
+    if (earnedScore >= t[1] * mult) return 3;
+    if (earnedScore >= t[0] * mult) return 2;
+    return 1;
+  }
+
   // Called once a level's clear is already settled (see checkLevelClear()).
-  // Only ever adds: re-clearing an already-recorded level is a no-op here, the
-  // same "unlock, never re-lock" rule the achievement roster follows.
-  function recordLevelClear(idx) {
+  // Stars only ever rise: re-clearing an already-recorded level with a worse
+  // rating is a no-op, the same "unlock, never re-lock" rule the achievement
+  // roster follows — a worse replay of a level already mastered shouldn't
+  // erase that level's best showing.
+  function recordLevelClear(idx, stars) {
     for (var i = 0; i < state.levelProgress.length; i++) {
-      if (state.levelProgress[i].level === idx) return;
+      if (state.levelProgress[i].level === idx) {
+        if (stars > state.levelProgress[i].stars) {
+          state.levelProgress[i].stars = stars;
+          saveLevelProgress(state.levelProgress);
+        }
+        return;
+      }
     }
-    state.levelProgress.push({ level: idx });
+    state.levelProgress.push({ level: idx, stars: stars });
     saveLevelProgress(state.levelProgress);
   }
 
@@ -2716,7 +2766,7 @@ canvas {
   //   ordinary serve) needs to be saved.
   // ---------------------------------------------------------------------
   var RESUME_FIELDS = [
-    "levelIndex", "score", "lives", "jumped", "combo", "difficultyMult",
+    "levelIndex", "score", "levelStartScore", "lives", "jumped", "combo", "difficultyMult",
     "bricksDestroyed", "remainingBricks", "levelBrickTotal", "baseBallSpeed",
     "slowMeter", "widthEffect", "speedEffect", "stickyEffect", "laserEffect",
     "fireballEffect", "shieldEffect", "magnetEffect", "balls", "bricks",
@@ -2857,6 +2907,8 @@ canvas {
     phase: "start", // start | ready | playing | lifelost | paused | levelclear | nameentry | halloffame | victory | gameover | leveljump
     levelIndex: 0,
     score: 0,
+    levelStartScore: 0, // #83: this level's baseline for star rating; see startLevel()
+    lastLevelStars: 0,  // #83: the rating just earned, shown on the levelclear overlay only
     best: loadBest(),
     lives: 3,
     maxLives: 5,
@@ -3069,6 +3121,10 @@ canvas {
     state.achStats.levelTime = 0;
     state.achStats.levelLosses = 0;
     state.achStats.levelBadPickups = 0;
+    // #83: the baseline this level's star rating is measured against — see
+    // starsForClear()/checkLevelClear(). state.score is cumulative for the
+    // whole run, so this is the only way to isolate what this level alone earns.
+    state.levelStartScore = state.score;
     setPhase("ready");
     updateHud();
   }
@@ -3601,6 +3657,7 @@ canvas {
     document.getElementById("levelclear-title").textContent =
       t("levelclear.title", { n: state.levelIndex + 1 });
     document.getElementById("levelclear-score").textContent = t("score", { score: state.score });
+    document.getElementById("levelclear-stars").textContent = starGlyphs(state.lastLevelStars);
     document.getElementById("nameentry-score").textContent = t("score", { score: state.score });
     document.getElementById("nameentry-error").textContent = state.nameEntryError
       ? t("nameentry.error", { min: CONFIG.hallOfFame.nameMin }) : "";
@@ -5380,8 +5437,12 @@ canvas {
       checkAchievements();
       // #46: the level just finished unlocks the next one for level select,
       // settled here alongside the rest of this level's verdict so the
-      // campaign's last level unlocks too — see recordLevelClear().
-      recordLevelClear(state.levelIndex);
+      // campaign's last level unlocks too. #83: also rated here, off exactly
+      // what this level added to the score — see recordLevelClear()/starsForClear().
+      // state.lastLevelStars is purely a display value for the levelclear
+      // overlay (renderDynamicText()) — not persisted, not resumed.
+      state.lastLevelStars = starsForClear(state.levelIndex, state.score - state.levelStartScore);
+      recordLevelClear(state.levelIndex, state.lastLevelStars);
       if (state.levelIndex >= CONFIG.progression.totalLevels - 1) {
         endGame(true);
       } else {
@@ -5670,16 +5731,38 @@ canvas {
     }).join("");
   }
 
+  // #83: the stored rating for a level, or -1 if it has never been cleared —
+  // distinct from 0 stars (a legacy pre-#83 clear on record with no rating
+  // yet), which still gets its own empty-star row below.
+  function starsForLevel(idx) {
+    for (var i = 0; i < state.levelProgress.length; i++) {
+      if (state.levelProgress[i].level === idx) return state.levelProgress[i].stars;
+    }
+    return -1;
+  }
+
+  // #83: "★"/"☆" repeated per star out of 3 — the same plain-glyph convention
+  // as the "?"/"X"/"R" brick markers elsewhere, rather than a new icon.
+  function starGlyphs(n) {
+    var s = "";
+    for (var i = 0; i < 3; i++) s += i < n ? "★" : "☆";
+    return s;
+  }
+
   // #46: locks/unlocks every row of the 100-level grid against the player's
-  // own progress. Rendered on open only, unlike the board/roster above — a
-  // row's content (a number, or a locked number) is not translatable, so a
-  // language switch mid-overlay has nothing here to redo.
+  // own progress. #83: an unlocked, ever-cleared row also gets its star
+  // rating appended. Rendered on open only, unlike the board/roster above —
+  // a row's content is not translatable, so a language switch mid-overlay has
+  // nothing here to redo.
   function renderLevelSelect() {
     for (var n = 1; n <= CONFIG.progression.totalLevels; n++) {
       var idx = n - 1;
       var unlocked = isLevelUnlocked(idx);
+      var stars = starsForLevel(idx);
+      var label = unlocked ? String(n) : "🔒 " + n;
+      if (unlocked && stars >= 0) label += " " + starGlyphs(stars);
       var row = document.getElementById("level-row-" + n);
-      row.textContent = unlocked ? String(n) : "🔒 " + n;
+      row.textContent = label;
       row.disabled = !unlocked;
     }
   }
