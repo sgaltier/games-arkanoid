@@ -3590,5 +3590,104 @@ module.exports = {
         a.lte(g.T.state.slowMeter, max, "recharge should never overshoot the cap");
       },
     },
+    {
+      name: "#46a — clearing a level for the first time persists it, and re-clearing is a no-op on that record",
+      fn(a) {
+        const g = boot().start();
+        a.empty(g.T.state.levelProgress, "a fresh install has cleared nothing");
+
+        clearBricks(g);
+        g.frame();
+        a.eq(g.T.state.phase, "levelclear", "sanity: the level should have cleared");
+        a.eq(g.T.state.levelProgress.length, 1);
+        a.eq(g.T.state.levelProgress[0].level, 0, "level 1 is index 0");
+        a.eq(g.store["neonbreak-levels"], JSON.stringify(g.T.state.levelProgress),
+          "should be persisted the moment the level clears, not at the end of the run");
+
+        // Re-clearing the same level (as level select lets a player do) must
+        // not grow a second record for it.
+        g.T.startLevel(0);
+        g.T.setPhase("playing");
+        clearBricks(g);
+        g.frame();
+        a.eq(g.T.state.levelProgress.length, 1, "re-clearing an already-recorded level is a no-op");
+
+        const reloaded = boot({ storage: g.store });
+        a.eq(reloaded.T.state.levelProgress.length, 1, "progress should survive a reload");
+        a.eq(reloaded.T.state.levelProgress[0].level, 0);
+      },
+    },
+    {
+      name: "#46b — malformed level-progress storage degrades to nothing cleared rather than throwing",
+      fn(a) {
+        a.doesNotThrow(() => boot({ storage: { "neonbreak-levels": "not json at all" } }),
+          "unparsable JSON under the levels key must not take down the whole IIFE");
+        a.empty(boot({ storage: { "neonbreak-levels": "not json at all" } }).T.state.levelProgress);
+        a.empty(
+          boot({ storage: { "neonbreak-levels": JSON.stringify({ not: "an array" }) } }).T.state.levelProgress,
+          "valid JSON that isn't an array should also degrade to empty"
+        );
+        a.empty(boot({ storage: { "neonbreak-levels": "[1,2,3]" } }).T.state.levelProgress,
+          "entries that are not per-level objects are dropped");
+
+        const g = boot({ storage: { "neonbreak-levels": JSON.stringify([{ level: 3 }, { level: "x" }]) } });
+        a.eq(g.T.state.levelProgress.length, 1, "an entry with a non-numeric level is dropped");
+        a.eq(g.T.state.levelProgress[0].level, 3);
+      },
+    },
+    {
+      name: "#46c — starting a run from level select sets state.jumped, excluded from the hall of fame exactly like #69's chord",
+      fn(a) {
+        const g = boot();
+        g.el("btn-view-levels").click(1);
+        g.el("level-row-1").click(1);
+        a.eq(g.T.state.phase, "ready");
+        a.eq(g.T.state.levelIndex, 0);
+        a.eq(g.T.state.jumped, true, "a level-select run is excluded the same way a developer jump is");
+
+        g.key("Space");
+        g.T.state.score = 500000;
+        g.T.state.lives = 1;
+        g.loseBall();
+        a.eq(g.T.state.phase, "gameover", "a level-select run must not be offered the hall of fame");
+        a.eq(g.T.state.best, 0, "and must not set the best score either");
+        a.not(g.store["neonbreak-best-score"], "nothing should have been persisted");
+
+        // An ordinary run does not carry the flag.
+        a.eq(boot().T.state.jumped, false);
+      },
+    },
+    {
+      name: "#46d — level select is bounded to the player's own unlock progress, and reachable from all three screens",
+      fn(a) {
+        const g = boot();
+        g.el("btn-view-levels").click(1);
+        a.eq(g.T.state.phase, "levelselect");
+        a.eq(g.el("level-row-1").disabled, false, "level 1 is always open");
+        a.eq(g.el("level-row-2").disabled, true, "nothing past it is, with nothing cleared yet");
+        g.el("level-row-2").click(1);
+        a.eq(g.T.state.phase, "levelselect", "a locked row must not start anything");
+        g.el("btn-levelselect-continue").click(1);
+        a.eq(g.T.state.phase, "start", "continue returns to whichever screen opened it");
+
+        // Clear level 1 for real, which is what actually opens level 2.
+        g.start();
+        clearBricks(g);
+        g.frame();
+        a.eq(g.T.state.phase, "levelclear");
+        g.el("btn-next").click(1);
+        a.eq(g.T.state.levelIndex, 1, "now on level 2");
+        g.key("Space");
+        g.T.state.lives = 1;
+        g.loseBall();
+        a.eq(g.T.state.phase, "gameover");
+
+        g.el("btn-view-levels-over").click(1);
+        a.eq(g.T.state.phase, "levelselect");
+        a.eq(g.el("level-row-2").disabled, false, "level 2 should now be open");
+        g.el("btn-levelselect-continue").click(1);
+        a.eq(g.T.state.phase, "gameover", "continue must return to the run that just ended");
+      },
+    },
   ],
 };

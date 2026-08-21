@@ -575,6 +575,40 @@ canvas {
 }
 .run-unlocked:empty { display: none; }
 
+/* ---------- level select (#46) ---------- */
+.levelselect-list {
+  margin: 0;
+  padding: 0;
+  width: min(400px, 100%);
+  /* Fixed at 10 columns (10 rows for 100 levels) rather than auto-fill, so the
+     grid always shows every level at once instead of scrolling — auto-fill
+     packed fewer, larger columns at this width and pushed the rest below a
+     scrollbar. Cells shrink with the column, never wrap into an 11th row. */
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 4px;
+  /* The overlay lets clicks fall through to the canvas by default; this
+     re-enables them so the buttons in the grid are actually clickable. */
+  pointer-events: auto;
+}
+.levelselect-row {
+  padding: 6px 0;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: rgba(45, 226, 230, .08);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.levelselect-row:hover:not(:disabled) { background: rgba(45, 226, 230, .2); }
+.levelselect-row:focus-visible { outline: 2px solid var(--neon-amber); outline-offset: 2px; }
+/* Locked rows (past the player's own progress — see isLevelUnlocked()) are
+   real disabled buttons, not just styled to look inert: that also keeps them
+   out of tab order and read as unavailable by a screen reader. */
+.levelselect-row:disabled { color: var(--text-dim); background: transparent; cursor: default; }
+
 /* The unlock banner. Stacked above the overlays (see the markup) and never
    interactive, so it must not take pointer events back from the canvas. */
 .ach-toast {
@@ -748,6 +782,8 @@ canvas {
           <button class="btn btn-ghost" id="btn-view-hof" type="button" data-i18n="hof.view">Tableau des scores</button>
           <!-- #65: the only route to the roster before a run has been played. -->
           <button class="btn btn-ghost" id="btn-view-ach" type="button" data-i18n="ach.view">Succès</button>
+          <!-- #46: the earned, player-facing counterpart to the S+E+B chord. -->
+          <button class="btn btn-ghost" id="btn-view-levels" type="button" data-i18n="levelselect.view">Niveaux</button>
         </div>
 
         <div class="overlay" id="overlay-ready" role="status" aria-live="polite" aria-hidden="true">
@@ -784,6 +820,7 @@ canvas {
                just ended — and the only one a jumped run ever gets. -->
           <button class="btn btn-ghost" id="btn-view-hof-win" type="button" data-i18n="hof.view">Tableau des scores</button>
           <button class="btn btn-ghost" id="btn-view-ach-win" type="button" data-i18n="ach.view">Succès</button>
+          <button class="btn btn-ghost" id="btn-view-levels-win" type="button" data-i18n="levelselect.view">Niveaux</button>
         </div>
 
         <div class="overlay" id="overlay-gameover" role="status" aria-live="polite" aria-hidden="true">
@@ -796,6 +833,7 @@ canvas {
           <button class="btn" id="btn-restart" type="button" data-i18n="gameover.btn">Rejouer</button>
           <button class="btn btn-ghost" id="btn-view-hof-over" type="button" data-i18n="hof.view">Tableau des scores</button>
           <button class="btn btn-ghost" id="btn-view-ach-over" type="button" data-i18n="ach.view">Succès</button>
+          <button class="btn btn-ghost" id="btn-view-levels-over" type="button" data-i18n="levelselect.view">Niveaux</button>
         </div>
 
         <!-- #42: a run that ends with a hall-of-fame-qualifying score detours
@@ -829,6 +867,120 @@ canvas {
           <p class="run-flag" id="ach-jumped"></p>
           <ol class="ach-list" id="ach-list"></ol>
           <button class="btn" id="btn-ach-continue" type="button" data-i18n="achievements.btn">Continuer</button>
+        </div>
+
+        <!-- #46: the earned, player-facing counterpart to the developer chord
+             directly below it — a level unlocks once its predecessor is
+             cleared (see checkLevelClear()/isLevelUnlocked()), and starting
+             one this way is bounded to the player's own progress rather than
+             free-typed. Reached from the same three screens as the board and
+             the roster above; state.returnPhase works the same way here too. -->
+        <div class="overlay" id="overlay-levelselect" role="status" aria-live="polite" aria-hidden="true">
+          <p class="overlay-eyebrow" data-i18n="levelselect.eyebrow">Progression</p>
+          <h2 class="overlay-title" data-i18n="levelselect.title">Sélection du niveau</h2>
+          <div class="levelselect-list" id="levelselect-list">
+            <button class="levelselect-row" id="level-row-1" type="button" data-level="1">1</button>
+            <button class="levelselect-row" id="level-row-2" type="button" data-level="2">2</button>
+            <button class="levelselect-row" id="level-row-3" type="button" data-level="3">3</button>
+            <button class="levelselect-row" id="level-row-4" type="button" data-level="4">4</button>
+            <button class="levelselect-row" id="level-row-5" type="button" data-level="5">5</button>
+            <button class="levelselect-row" id="level-row-6" type="button" data-level="6">6</button>
+            <button class="levelselect-row" id="level-row-7" type="button" data-level="7">7</button>
+            <button class="levelselect-row" id="level-row-8" type="button" data-level="8">8</button>
+            <button class="levelselect-row" id="level-row-9" type="button" data-level="9">9</button>
+            <button class="levelselect-row" id="level-row-10" type="button" data-level="10">10</button>
+            <button class="levelselect-row" id="level-row-11" type="button" data-level="11">11</button>
+            <button class="levelselect-row" id="level-row-12" type="button" data-level="12">12</button>
+            <button class="levelselect-row" id="level-row-13" type="button" data-level="13">13</button>
+            <button class="levelselect-row" id="level-row-14" type="button" data-level="14">14</button>
+            <button class="levelselect-row" id="level-row-15" type="button" data-level="15">15</button>
+            <button class="levelselect-row" id="level-row-16" type="button" data-level="16">16</button>
+            <button class="levelselect-row" id="level-row-17" type="button" data-level="17">17</button>
+            <button class="levelselect-row" id="level-row-18" type="button" data-level="18">18</button>
+            <button class="levelselect-row" id="level-row-19" type="button" data-level="19">19</button>
+            <button class="levelselect-row" id="level-row-20" type="button" data-level="20">20</button>
+            <button class="levelselect-row" id="level-row-21" type="button" data-level="21">21</button>
+            <button class="levelselect-row" id="level-row-22" type="button" data-level="22">22</button>
+            <button class="levelselect-row" id="level-row-23" type="button" data-level="23">23</button>
+            <button class="levelselect-row" id="level-row-24" type="button" data-level="24">24</button>
+            <button class="levelselect-row" id="level-row-25" type="button" data-level="25">25</button>
+            <button class="levelselect-row" id="level-row-26" type="button" data-level="26">26</button>
+            <button class="levelselect-row" id="level-row-27" type="button" data-level="27">27</button>
+            <button class="levelselect-row" id="level-row-28" type="button" data-level="28">28</button>
+            <button class="levelselect-row" id="level-row-29" type="button" data-level="29">29</button>
+            <button class="levelselect-row" id="level-row-30" type="button" data-level="30">30</button>
+            <button class="levelselect-row" id="level-row-31" type="button" data-level="31">31</button>
+            <button class="levelselect-row" id="level-row-32" type="button" data-level="32">32</button>
+            <button class="levelselect-row" id="level-row-33" type="button" data-level="33">33</button>
+            <button class="levelselect-row" id="level-row-34" type="button" data-level="34">34</button>
+            <button class="levelselect-row" id="level-row-35" type="button" data-level="35">35</button>
+            <button class="levelselect-row" id="level-row-36" type="button" data-level="36">36</button>
+            <button class="levelselect-row" id="level-row-37" type="button" data-level="37">37</button>
+            <button class="levelselect-row" id="level-row-38" type="button" data-level="38">38</button>
+            <button class="levelselect-row" id="level-row-39" type="button" data-level="39">39</button>
+            <button class="levelselect-row" id="level-row-40" type="button" data-level="40">40</button>
+            <button class="levelselect-row" id="level-row-41" type="button" data-level="41">41</button>
+            <button class="levelselect-row" id="level-row-42" type="button" data-level="42">42</button>
+            <button class="levelselect-row" id="level-row-43" type="button" data-level="43">43</button>
+            <button class="levelselect-row" id="level-row-44" type="button" data-level="44">44</button>
+            <button class="levelselect-row" id="level-row-45" type="button" data-level="45">45</button>
+            <button class="levelselect-row" id="level-row-46" type="button" data-level="46">46</button>
+            <button class="levelselect-row" id="level-row-47" type="button" data-level="47">47</button>
+            <button class="levelselect-row" id="level-row-48" type="button" data-level="48">48</button>
+            <button class="levelselect-row" id="level-row-49" type="button" data-level="49">49</button>
+            <button class="levelselect-row" id="level-row-50" type="button" data-level="50">50</button>
+            <button class="levelselect-row" id="level-row-51" type="button" data-level="51">51</button>
+            <button class="levelselect-row" id="level-row-52" type="button" data-level="52">52</button>
+            <button class="levelselect-row" id="level-row-53" type="button" data-level="53">53</button>
+            <button class="levelselect-row" id="level-row-54" type="button" data-level="54">54</button>
+            <button class="levelselect-row" id="level-row-55" type="button" data-level="55">55</button>
+            <button class="levelselect-row" id="level-row-56" type="button" data-level="56">56</button>
+            <button class="levelselect-row" id="level-row-57" type="button" data-level="57">57</button>
+            <button class="levelselect-row" id="level-row-58" type="button" data-level="58">58</button>
+            <button class="levelselect-row" id="level-row-59" type="button" data-level="59">59</button>
+            <button class="levelselect-row" id="level-row-60" type="button" data-level="60">60</button>
+            <button class="levelselect-row" id="level-row-61" type="button" data-level="61">61</button>
+            <button class="levelselect-row" id="level-row-62" type="button" data-level="62">62</button>
+            <button class="levelselect-row" id="level-row-63" type="button" data-level="63">63</button>
+            <button class="levelselect-row" id="level-row-64" type="button" data-level="64">64</button>
+            <button class="levelselect-row" id="level-row-65" type="button" data-level="65">65</button>
+            <button class="levelselect-row" id="level-row-66" type="button" data-level="66">66</button>
+            <button class="levelselect-row" id="level-row-67" type="button" data-level="67">67</button>
+            <button class="levelselect-row" id="level-row-68" type="button" data-level="68">68</button>
+            <button class="levelselect-row" id="level-row-69" type="button" data-level="69">69</button>
+            <button class="levelselect-row" id="level-row-70" type="button" data-level="70">70</button>
+            <button class="levelselect-row" id="level-row-71" type="button" data-level="71">71</button>
+            <button class="levelselect-row" id="level-row-72" type="button" data-level="72">72</button>
+            <button class="levelselect-row" id="level-row-73" type="button" data-level="73">73</button>
+            <button class="levelselect-row" id="level-row-74" type="button" data-level="74">74</button>
+            <button class="levelselect-row" id="level-row-75" type="button" data-level="75">75</button>
+            <button class="levelselect-row" id="level-row-76" type="button" data-level="76">76</button>
+            <button class="levelselect-row" id="level-row-77" type="button" data-level="77">77</button>
+            <button class="levelselect-row" id="level-row-78" type="button" data-level="78">78</button>
+            <button class="levelselect-row" id="level-row-79" type="button" data-level="79">79</button>
+            <button class="levelselect-row" id="level-row-80" type="button" data-level="80">80</button>
+            <button class="levelselect-row" id="level-row-81" type="button" data-level="81">81</button>
+            <button class="levelselect-row" id="level-row-82" type="button" data-level="82">82</button>
+            <button class="levelselect-row" id="level-row-83" type="button" data-level="83">83</button>
+            <button class="levelselect-row" id="level-row-84" type="button" data-level="84">84</button>
+            <button class="levelselect-row" id="level-row-85" type="button" data-level="85">85</button>
+            <button class="levelselect-row" id="level-row-86" type="button" data-level="86">86</button>
+            <button class="levelselect-row" id="level-row-87" type="button" data-level="87">87</button>
+            <button class="levelselect-row" id="level-row-88" type="button" data-level="88">88</button>
+            <button class="levelselect-row" id="level-row-89" type="button" data-level="89">89</button>
+            <button class="levelselect-row" id="level-row-90" type="button" data-level="90">90</button>
+            <button class="levelselect-row" id="level-row-91" type="button" data-level="91">91</button>
+            <button class="levelselect-row" id="level-row-92" type="button" data-level="92">92</button>
+            <button class="levelselect-row" id="level-row-93" type="button" data-level="93">93</button>
+            <button class="levelselect-row" id="level-row-94" type="button" data-level="94">94</button>
+            <button class="levelselect-row" id="level-row-95" type="button" data-level="95">95</button>
+            <button class="levelselect-row" id="level-row-96" type="button" data-level="96">96</button>
+            <button class="levelselect-row" id="level-row-97" type="button" data-level="97">97</button>
+            <button class="levelselect-row" id="level-row-98" type="button" data-level="98">98</button>
+            <button class="levelselect-row" id="level-row-99" type="button" data-level="99">99</button>
+            <button class="levelselect-row" id="level-row-100" type="button" data-level="100">100</button>
+          </div>
+          <button class="btn" id="btn-levelselect-continue" type="button" data-i18n="levelselect.btn">Continuer</button>
         </div>
 
         <!-- #69: the developer level jump, reachable with S+E+B from any phase.
@@ -2038,6 +2190,11 @@ canvas {
       "achievements.eyebrow": "Progression",
       "achievements.title": "Succès",
       "achievements.btn": "Continuer",
+      // #46: the level-select screen.
+      "levelselect.view": "Niveaux",
+      "levelselect.eyebrow": "Progression",
+      "levelselect.title": "Sélection du niveau",
+      "levelselect.btn": "Continuer",
       "achievements.progress": "{n} / {total} débloqués",
       "achievements.unlocked": "Succès débloqué",
       "achievements.run": "Succès débloqués cette partie : {n}",
@@ -2176,6 +2333,11 @@ canvas {
       "achievements.eyebrow": "Progress",
       "achievements.title": "Achievements",
       "achievements.btn": "Continue",
+      // #46: the level-select screen.
+      "levelselect.view": "Levels",
+      "levelselect.eyebrow": "Progress",
+      "levelselect.title": "Level select",
+      "levelselect.btn": "Continue",
       "achievements.progress": "{n} / {total} unlocked",
       "achievements.unlocked": "Achievement unlocked",
       "achievements.run": "Unlocked this run: {n}",
@@ -2379,6 +2541,7 @@ canvas {
   var MUTED_KEY = "neonbreak-muted";
   var HOF_KEY = "neonbreak-hall-of-fame";
   var ACH_KEY = "neonbreak-achievements";
+  var LEVELS_KEY = "neonbreak-levels";
 
   // Touching localStorage can throw outright — Safari private browsing, blocked
   // site data, some sandboxed file:// contexts. Since these are read while
@@ -2449,6 +2612,56 @@ canvas {
       if (ACHIEVEMENTS[i].id === id) return ACHIEVEMENTS[i];
     }
     return null;
+  }
+
+  // #46: one entry per level ever cleared (0-based, matching state.levelIndex),
+  // not just the highest — an array of per-level objects rather than a bare
+  // list of indices, so a later per-level field (a star rating, say) has
+  // somewhere to live without a second key to keep in sync with this one.
+  // Same hazard as the board/roster above: valid JSON that isn't the shape
+  // expected degrades to "nothing cleared yet" rather than throwing.
+  function loadLevelProgress() {
+    var raw = storageGet(LEVELS_KEY);
+    if (!raw) return [];
+    try {
+      var list = JSON.parse(raw);
+      if (!Array.isArray(list)) return [];
+      return list.filter(function (e) {
+        return e && typeof e === "object" && Number.isInteger(e.level) && e.level >= 0;
+      });
+    } catch (e) {
+      return [];
+    }
+  }
+  function saveLevelProgress(list) { storageSet(LEVELS_KEY, JSON.stringify(list)); }
+
+  // -1 when nothing has been cleared yet, so isLevelUnlocked(0) still holds
+  // (level 1 is always open).
+  function highestClearedLevel() {
+    var max = -1;
+    for (var i = 0; i < state.levelProgress.length; i++) {
+      if (state.levelProgress[i].level > max) max = state.levelProgress[i].level;
+    }
+    return max;
+  }
+
+  // A level is open once its predecessor has been cleared — the only way to
+  // reach a new one is still a real, continuous run (see checkLevelClear());
+  // this is what bounds level select to practice rather than free-typing, the
+  // way #69's developer chord does.
+  function isLevelUnlocked(idx) {
+    return idx === 0 || idx <= highestClearedLevel() + 1;
+  }
+
+  // Called once a level's clear is already settled (see checkLevelClear()).
+  // Only ever adds: re-clearing an already-recorded level is a no-op here, the
+  // same "unlock, never re-lock" rule the achievement roster follows.
+  function recordLevelClear(idx) {
+    for (var i = 0; i < state.levelProgress.length; i++) {
+      if (state.levelProgress[i].level === idx) return;
+    }
+    state.levelProgress.push({ level: idx });
+    saveLevelProgress(state.levelProgress);
   }
 
   // ---------------------------------------------------------------------
@@ -2583,6 +2796,10 @@ canvas {
     achievements: loadAchievements(),
     achStats: freshAchStats(),
     achToasts: [],
+    // #46: [{level}, ...] for every level ever cleared — the source
+    // isLevelUnlocked()/highestClearedLevel() read, and what recordLevelClear()
+    // appends to. Survives a run the same way achievements does.
+    levelProgress: loadLevelProgress(),
     // #67: the world board, or null when the API has not answered. null is the
     // signal to fall back to hallOfFame above, so it must stay null rather than
     // becoming [] on failure — an empty array is a legitimately empty world board.
@@ -3082,6 +3299,24 @@ canvas {
     setPhase(state.jumpReturn || "start");
   }
 
+  // #46/#69: the shared "this run doesn't count" entry into an arbitrary
+  // level — the developer chord and level select both land here, differing
+  // only in how idx is chosen (free-typed vs bounded by unlock progress) and
+  // whether a run was already under way to preserve. Score/lives only reset
+  // when starting fresh; jumped is always set, the one flag both routes rely
+  // on for the hall-of-fame/achievements boundary (#69/#72).
+  function jumpToLevel(idx, preserveRun) {
+    if (!preserveRun) {
+      state.score = 0;
+      state.lives = 3;
+      fetchGlobalBoard(); // refreshes the session token too — see newGame()
+    }
+    // Sticky for the rest of the run, cleared only by newGame(). A jump on
+    // level 3 still taints a score submitted at level 90.
+    state.jumped = true;
+    startLevel(idx);
+  }
+
   function submitLevelJump() {
     var total = CONFIG.progression.totalLevels;
     var raw = document.getElementById("leveljump-input").value.trim();
@@ -3095,15 +3330,7 @@ canvas {
       return;
     }
     state.jumpError = false;
-    if (!RUN_PHASES[state.jumpReturn]) {
-      state.score = 0;
-      state.lives = 3;
-      fetchGlobalBoard(); // refreshes the session token too — see newGame()
-    }
-    // Sticky for the rest of the run, cleared only by newGame(). A jump on
-    // level 3 still taints a score submitted at level 90.
-    state.jumped = true;
-    startLevel(n - 1);
+    jumpToLevel(n - 1, RUN_PHASES[state.jumpReturn]);
   }
 
   // ---------------------------------------------------------------------
@@ -3137,6 +3364,8 @@ canvas {
     // #65: reached the same way "halloffame" is — a pure view that returns to
     // whichever phase opened it, never a step in the run.
     achievements: { overlay: "overlay-achievements", button: "btn-ach-continue" },
+    // #46: same shape again — a pure view, reached the same way "achievements" is.
+    levelselect: { overlay: "overlay-levelselect", button: "btn-levelselect-continue" },
     victory: { overlay: "overlay-victory", button: "btn-restart-win" },
     gameover: { overlay: "overlay-gameover", button: "btn-restart" },
     // #69: reachable from any phase above rather than from one of them, and it
@@ -3342,12 +3571,38 @@ canvas {
     renderAchievements();
     setPhase("achievements");
   }
+  // #46: same shape again.
+  function viewLevelSelect(from) {
+    state.returnPhase = from;
+    renderLevelSelect();
+    setPhase("levelselect");
+  }
+  // The practice route into an already-unlocked level — see jumpToLevel().
+  // Locked rows are real disabled buttons in a real browser, so this check is
+  // defence in depth rather than the only thing enforcing it.
+  function selectLevel(idx) {
+    if (!isLevelUnlocked(idx)) return;
+    jumpToLevel(idx, false); // reached only from start/victory/gameover — never mid-run
+  }
   document.getElementById("btn-view-hof").addEventListener("click", function () {
     viewHallOfFame("start");
   });
   document.getElementById("btn-view-ach").addEventListener("click", function () {
     viewAchievements("start");
   });
+  document.getElementById("btn-view-levels").addEventListener("click", function () {
+    viewLevelSelect("start");
+  });
+  // One listener per row, wired once rather than re-wired on every render —
+  // the ids are fixed (level-row-1 .. level-row-<totalLevels>), so there is
+  // nothing render-time about which element gets which handler.
+  for (var levelRowN = 1; levelRowN <= CONFIG.progression.totalLevels; levelRowN++) {
+    (function (idx) {
+      document.getElementById("level-row-" + (idx + 1)).addEventListener("click", function () {
+        selectLevel(idx);
+      });
+    })(levelRowN - 1);
+  }
   document.getElementById("btn-resume").addEventListener("click", resume);
   // The deck buttons stay on screen, so a mouse click would leave one focused and
   // it would then swallow the Space the player expects to launch with. Drop focus
@@ -3377,7 +3632,16 @@ canvas {
   document.getElementById("btn-view-ach-win").addEventListener("click", function () {
     viewAchievements("victory");
   });
+  document.getElementById("btn-view-levels-over").addEventListener("click", function () {
+    viewLevelSelect("gameover");
+  });
+  document.getElementById("btn-view-levels-win").addEventListener("click", function () {
+    viewLevelSelect("victory");
+  });
   document.getElementById("btn-ach-continue").addEventListener("click", function () {
+    setPhase(state.returnPhase);
+  });
+  document.getElementById("btn-levelselect-continue").addEventListener("click", function () {
     setPhase(state.returnPhase);
   });
   document.getElementById("btn-nameentry-submit").addEventListener("click", submitHallOfFameName);
@@ -4932,6 +5196,10 @@ canvas {
         ? state.achStats.cleanPowerStreak + 1 : 0;
       if (state.achStats.levelTime < BLITZ_SECONDS) state.achStats.blitz = true;
       checkAchievements();
+      // #46: the level just finished unlocks the next one for level select,
+      // settled here alongside the rest of this level's verdict so the
+      // campaign's last level unlocks too — see recordLevelClear().
+      recordLevelClear(state.levelIndex);
       if (state.levelIndex >= CONFIG.progression.totalLevels - 1) {
         endGame(true);
       } else {
@@ -5207,6 +5475,20 @@ canvas {
           '<span class="ach-desc">' + escapeHtml(t("ach." + a.id + ".desc")) + "</span>" +
         "</span></li>";
     }).join("");
+  }
+
+  // #46: locks/unlocks every row of the 100-level grid against the player's
+  // own progress. Rendered on open only, unlike the board/roster above — a
+  // row's content (a number, or a locked number) is not translatable, so a
+  // language switch mid-overlay has nothing here to redo.
+  function renderLevelSelect() {
+    for (var n = 1; n <= CONFIG.progression.totalLevels; n++) {
+      var idx = n - 1;
+      var unlocked = isLevelUnlocked(idx);
+      var row = document.getElementById("level-row-" + n);
+      row.textContent = unlocked ? String(n) : "🔒 " + n;
+      row.disabled = !unlocked;
+    }
   }
 
   // ---------------------------------------------------------------------

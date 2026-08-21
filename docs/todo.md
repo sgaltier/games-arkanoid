@@ -9,11 +9,11 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 10 open items — #46 and #47 (promoted from [feature-ideas.md](feature-ideas.md) §A), #50
+**Status:** 9 open items — #47 (promoted from [feature-ideas.md](feature-ideas.md) §A), #50
 (promoted from §B), #56–57 (promoted from §C), #62–64 (promoted from §D), and #82–83 (raised directly,
 not promoted from `feature-ideas.md`). Every review finding, and every other directly-requested
-feature, raised so far has shipped, and so have #53, #54, and #55 from the §C batch (see
-[done.md](done.md)).
+feature, raised so far has shipped, and so have #46 from the §A batch and #53, #54, and #55 from the
+§C batch (see [done.md](done.md)).
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
 test → fix → move the finding's whole entry from this file to [done.md](done.md), prepending a
@@ -31,9 +31,9 @@ Every review finding raised so far has shipped, and so has every directly-reques
 (boss levels), #74 (the boss-kill celebration built on top of it), #75 (a follow-on to #37), #78
 (effect-bar names), #76 (hall-of-fame name validation), #77 (hall-of-fame profanity filtering), #79
 (the boss-kill death beat's music/explosion/sound gaps), #80 (level-progress-driven music intensity),
-#81 (the level-clear fanfare), #53 (the fireball power-up), #54 (the safety-net shield), and #55
-(magnet paddle / hold-to-slow bullet time) — see [done.md](done.md). What is open below is #46 (level
-select), #47 (daily challenge seed), #50 (moving bricks), #62 (colourblind-safe brick markers), #63
+#81 (the level-clear fanfare), #46 (level select), #53 (the fireball power-up), #54 (the safety-net
+shield), and #55 (magnet paddle / hold-to-slow bullet time) — see [done.md](done.md). What is open
+below is #47 (daily challenge seed), #50 (moving bricks), #62 (colourblind-safe brick markers), #63
 (difficulty selection), #64 (resume an interrupted run), and two power-up/ball-mechanics ideas, all
 promoted from [feature-ideas.md](feature-ideas.md) and keeping their numbers; that file still holds
 the proposals not yet promoted. #82 (the `neonbreak-*` → `blokrush-*` rename) and #83 (per-level star
@@ -48,71 +48,11 @@ number is **#84**.
 Promoted from [feature-ideas.md](feature-ideas.md) §A. #45 (procedural levels past the authored 10)
 and #48 (a level editor and shareable layouts) were discarded outright rather than promoted alongside
 these — #45 duplicated finding #41, already shipped as the 100-level campaign; #48 was dropped from
-the menu. #46 and #47 keep their numbers. #46 originally covered both level select and per-level star
-ratings as one item; the two are now split — star ratings moved out to **#83**, immediately below,
-since they're usable independently of one another (star ratings need a per-level score to rate, but
-level select doesn't need a rating to be worth shipping on its own).
-
-### 46. Level select (S/M)
-
-Today a run always starts at `startLevel(0)` via `newGame()`; the only way to reach a later level
-directly is `submitLevelJump()` behind the `S`+`E`+`B` developer chord (`openLevelJump()`), which is
-unrestricted (any level 1–100) and always sets `state.jumped = true`, permanently excluding that run
-from the hall of fame (#69). This entry is the player-facing, *earned* version of the same mechanism:
-a level unlocks once cleared, and revisiting it doesn't pretend to be a full run. Rating those cleared
-levels with stars is a separate, follow-on item — see **#83** — layered on top of the persistence and
-UI this entry builds; nothing here depends on #83 shipping.
-
-**Persistence: a new key, same defensive shape as the others.** Add `LEVELS_KEY =
-"blokrush-levels"` (keeping the `^blokrush-` namespace `persistence.js` asserts, per #82) storing
-per-level progress — at minimum the highest level index ever cleared. `loadLevelProgress()`/
-`saveLevelProgress()` should follow `loadAchievements()`'s pattern exactly: guard against
-valid-JSON-but-wrong-shape data (an object instead of an array, non-numeric entries) and drop anything
-that doesn't parse rather than throwing — `storageGet`/`storageSet` already swallow the *access*
-throwing (Safari private-browsing), but a corrupt *value* is a separate failure mode neither of those
-functions catches. #83 extends this same record with a per-level star field rather than introducing a
-second key, so the shape here is worth choosing with that in mind (e.g. an array of per-level objects,
-not a bare array of cleared indices, even though only the index is populated yet).
-
-**Where the unlock actually happens.** `checkLevelClear()` is the single place a level's clear is
-already settled — it increments `state.achStats.levelsCleared` and runs `checkAchievements()` before
-branching on whether the run is over. Recording the unlock belongs right there, using
-`state.levelIndex` (the level just finished, not the one about to start), before the
-`endGame(true)` / `setPhase("levelclear")` branch, so the campaign's last level unlocks too.
-
-**The level-select screen is a new overlay, not a repurposed one.** The closest existing precedent
-is `overlay-achievements` (#65): a pure list view reached from the start screen and from both
-end-of-run screens, populated in JS (`ol.ach-list`), with `state.returnPhase` telling `Continuer`
-where to go back to. A new `overlay-levelselect` should follow the same shape — a scrollable list of
-the 100 levels, each row showing whether it's unlocked or a lock glyph past the highest cleared index
-— wired into `PHASE_OVERLAY`/`showOverlay()` like every other phase, and reached via a new ghost
-button next to `btn-view-hof`/`btn-view-ach` on `overlay-start` (and their `-win`/`-over` twins, for
-consistency with how those two are already offered on all three screens). #83 adds a star rating to
-each unlocked row later; this entry's rows only need the lock/unlock state.
-
-**Starting from a selected level has to reuse #69's hall-of-fame boundary, not invent a new one.**
-`RUN_PHASES` and `state.jumped` already exist to answer exactly this question for the developer jump:
-a run that didn't start at level 1 doesn't get to submit to the board (#67's "one global board still
-means something" only holds if a score reflects the levels it claims to). Selecting a level should
-call the same `startLevel(n - 1)` / `state.jumped = true` path `submitLevelJump()` uses, rather than
-adding a second, parallel notion of "this run doesn't count" — the only difference is that level
-select's `n` is bounded by the player's own unlock progress, not free-typed. This does mean the
-feature is for practice, not for grinding the world board from a late level, which is the intended
-boundary here, not an oversight to fix later.
-
-**Interaction with `newGame()`.** `newGame()` should keep always calling `startLevel(0)` — the start
-screen's primary button stays a clean, hall-of-fame-eligible run. Level select is reached only
-through the new secondary button, mirroring how `btn-view-hof`/`btn-view-ach` are secondary too.
-
-#### Tests
-
-- `#46a` — clearing a level for the first time persists it (highest-cleared index advances, the
-  storage key is namespaced `blokrush-`), and re-clearing an already-unlocked level is a no-op on that
-  record.
-- `#46b` — `loadLevelProgress()` recovers to an empty/default state from malformed storage (missing
-  key, non-JSON, JSON that isn't an array) instead of throwing.
-- `#46c` — starting a run from level select sets `state.jumped` the same way `submitLevelJump()`
-  does, and such a run is excluded from hall-of-fame submission exactly as a developer-jumped run is.
+the menu. #47 keeps its number. #46 originally covered both level select and per-level star ratings as
+one item; the two were split before either shipped — star ratings moved out to **#83**, immediately
+below, since they're usable independently of one another (star ratings need a per-level score to rate,
+but level select doesn't need a rating to be worth shipping on its own). Level select itself has since
+shipped — see [done.md](done.md) — leaving #83 the one half of the original item still open here.
 
 ### 83. Per-level star ratings (S)
 

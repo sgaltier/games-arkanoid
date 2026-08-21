@@ -50,9 +50,42 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #81 | ✅ Fixed — 2026-08-19 |
 | #54 | ✅ Fixed — 2026-08-20 |
 | #55 | ✅ Fixed — 2026-08-20 |
+| #46 | ✅ Fixed — 2026-08-21 |
 
-69 of 69 fixed — nothing open. See [todo.md](todo.md), and [feature-ideas.md](feature-ideas.md) for
+70 of 70 fixed — nothing open. See [todo.md](todo.md), and [feature-ideas.md](feature-ideas.md) for
 proposals not yet promoted to it.
+
+---
+
+## 2026-08-21 — Level select (#46)
+
+### Fixed
+
+**A level unlocks once its predecessor is cleared, and a new screen lets a player replay any level
+already earned.** `checkLevelClear()` now records the level just finished (`recordLevelClear()`,
+`neonbreak-levels` in storage) the moment its clear is settled, so the campaign's last level unlocks
+too. `isLevelUnlocked()` reads that record back: level 1 is always open, and each further level opens
+once the one before it has a record — replaying an already-unlocked level is a no-op on it, never a
+regression.
+
+**A new `overlay-levelselect`, reached the same way the achievements roster is** — a ghost button next
+to `btn-view-hof`/`btn-view-ach` on the start screen and both end screens. Its 100 rows are real
+`<button>` elements rather than an `innerHTML`-rendered list like the board or the roster: a locked row
+is a genuinely disabled button (out of tab order, read as unavailable by a screen reader), not one
+merely styled to look inert. Selecting an unlocked row reuses #69's developer-jump machinery —
+`submitLevelJump()` was split to share a new `jumpToLevel(idx, preserveRun)` with the new
+`selectLevel()`, both setting `state.jumped = true` — so a level-select run is excluded from the hall
+of fame and the best score exactly like a chord-jumped one, and level select can never be used to grind
+the world board from a late level.
+
+**Persistence deviates from the original write-up in one place.** The finding anticipated the
+`blokrush-` namespace #82 (the `neonbreak-*` → `blokrush-*` rename) would establish; #82 hasn't shipped
+yet, so the new key follows the namespace `persistence.js` actually asserts today, `neonbreak-levels`.
+
+**Follow-up: the grid now shows all 100 levels at once, no scrollbar.** The first cut capped the list
+at `max-height: 46%` with `overflow-y: auto`, matching `.ach-list` — with an `auto-fill` grid at that
+width, most of the 100 rows landed below the fold. Switched to a fixed 10-column grid sized to fit all
+of them: cells shrink with the available width instead of wrapping into an eleventh row.
 
 ---
 
