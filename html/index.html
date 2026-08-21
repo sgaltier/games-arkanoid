@@ -1858,9 +1858,15 @@ canvas {
       },
       update: function (b, dt) {
         if (!b.split) { sideToSide(b.parts[0], dt, 80); return; }
+        // #84: the halves are parts[1]/parts[2], not [0]/[1] — onPartDown
+        // pushes them onto the array the spent body is still sitting in, and
+        // it stays there because bossBounds() unions over dead parts too (see
+        // its comment). fire() below already indexes them this way; this used
+        // to be one lower, which handed the left half the right half's bounds
+        // and left the right half never updated at all.
         var mid = GAME_W / 2;
-        if (b.parts[0].alive) sideToSide(b.parts[0], dt, 90, FIELD_PAD, mid - 4 - b.parts[0].w);
-        if (b.parts[1] && b.parts[1].alive) sideToSide(b.parts[1], dt, 90, mid + 4, GAME_W - FIELD_PAD - b.parts[1].w);
+        if (b.parts[1] && b.parts[1].alive) sideToSide(b.parts[1], dt, 90, FIELD_PAD, mid - 4 - b.parts[1].w);
+        if (b.parts[2] && b.parts[2].alive) sideToSide(b.parts[2], dt, 90, mid + 4, GAME_W - FIELD_PAD - b.parts[2].w);
       },
       onPartDown: function (b, part) {
         if (part.kind !== "body" || b.split) return;

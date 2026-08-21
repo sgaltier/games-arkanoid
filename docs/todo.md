@@ -9,11 +9,12 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 18 open items — #47 (promoted from [feature-ideas.md](feature-ideas.md) §A), #50
+**Status:** 17 open items — #47 (promoted from [feature-ideas.md](feature-ideas.md) §A), #50
 (promoted from §B), #56–57 (promoted from §C), #62–64 (promoted from §D), #83 (raised directly, not
-promoted from `feature-ideas.md`), and **#84–#93, the correctness and security findings of the
+promoted from `feature-ideas.md`), and **#85–#93, the correctness and security findings of the
 2026-08-21 review pass** (§E and §F). #46 from the §A batch, #53, #54, and #55 from the §C batch,
-and #82 (raised directly) have shipped (see [done.md](done.md)).
+#82 (raised directly), and #84 (the first of the review batch) have shipped (see
+[done.md](done.md)).
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
 test → fix → move the finding's whole entry from this file to [done.md](done.md), prepending a
@@ -38,11 +39,11 @@ challenge seed), #50 (moving bricks), #62 (colourblind-safe brick markers), #63 
 selection), #64 (resume an interrupted run), and two power-up/ball-mechanics ideas, all promoted from
 [feature-ideas.md](feature-ideas.md) and keeping their numbers; that file still holds the proposals
 not yet promoted. #83 (per-level star ratings, split out of #46 — the two were originally one item)
-was raised directly rather than promoted from there. The defects are **#84–#93**, raised by a
-full-codebase review on 2026-08-21 and grouped into §E (correctness, all in `index.html`) and §F
-(security and backend, mostly `functions/api/scores.js`) — the first review findings this file has
-carried since #82 shipped. New review findings go here too, keeping the shared numbering: the next
-free number is **#94**.
+was raised directly rather than promoted from there. The defects are **#85–#93**, what is left of the
+ten (#84–#93) raised by a full-codebase review on 2026-08-21, grouped into §E (correctness, all in
+`index.html`) and §F (security and backend, mostly `functions/api/scores.js`); #84 of that batch has
+already shipped (see [done.md](done.md) §I). New review findings go here too, keeping the shared
+numbering: the next free number is **#94**.
 
 ---
 
@@ -598,36 +599,13 @@ over either way).
 
 Raised directly by a read of the whole codebase rather than promoted from
 [feature-ideas.md](feature-ideas.md), so unlike §A–§D these describe code that exists and is wrong
-today. All six are in [index.html](../html/index.html) and five of the six are in the #44 boss layer,
+today. All six were in [index.html](../html/index.html) and five of the six in the #44 boss layer,
 which is the newest and least-exercised part of the file — the test suite reaches `BOSSES`' data
-(arenas, ids, hit counts) but not its per-frame motion or its draw path. Ordered by severity.
+(arenas, ids, hit counts) but not its per-frame motion or its draw path. Ordered by severity; the
+first of them, #84, has shipped and its entry now lives in [done.md](done.md) §I.
 
 Unlike the entries above, these **do** carry line anchors, since they point at real code: re-anchor
 them the same way [done.md](done.md)'s entries are re-anchored whenever `index.html` shifts.
-
-### 84. Gemini's split halves are indexed off by one (M)
-
-`onPartDown` ([1865-1872](../html/index.html#L1865-L1872)) pushes the two halves onto the array the
-dead body is still in, leaving `b.parts === [body, left, right]` — but `update`
-([1859-1864](../html/index.html#L1859-L1864)) drives `b.parts[0]` and `b.parts[1]` as if they were
-the two halves. `b.parts[0]` is the dead body, so its `sideToSide` call is skipped by the `alive`
-guard; `b.parts[1]` is the **left** half, and it gets the **right** half's bounds
-(`mid + 4 … GAME_W - FIELD_PAD - w`); `b.parts[2]`, the right half, is never updated at all.
-
-Observed against the current file: the halves spawn at `x = 10` and `x = 415`, and two seconds later
-sit at `x ≈ 407` and `x = 415` — both crammed into the right quarter of the field, one of them
-frozen for the whole fight. "Two half-width bodies moving in opposition", which is the entire idea
-of the fight and what the comment at [1849-1850](../html/index.html#L1849-L1850) promises, never
-happens.
-
-**The fix is one line, but pick the shape deliberately.** `fire`
-([1873-1883](../html/index.html#L1873-L1883)) already reads `b.parts[1]`/`b.parts[2]` and is
-therefore correct — so correcting `update`'s indices to match is the smaller change and keeps the
-dead body in `parts`, which `bossBounds()` ([4577-4585](../html/index.html#L4577-L4585)) unions over
-deliberately (see its comment: a dead part keeps its geometry, and #79's death beat is anchored on
-it). Splicing the body out instead would break that and would also have to be mirrored in `fire`.
-Omega's phase 1 is the model for what correct looks like — `spawnOmegaPhase()` replaces `b.parts`
-wholesale, so its `[0]`/`[1]` really are the two halves.
 
 ### 85. Every boss is drawn with the previous shape's colour — `BOSSES` has no `color`/`glow` (M)
 
@@ -637,17 +615,17 @@ Six sites read `def.color` and one reads `def.glow`, and no entry in `BOSSES`
 `ctx.fillStyle`/`ctx.shadowColor` is not an error, it is silently ignored, so the canvas keeps
 whatever was last set:
 
-- `drawBoss()` ([5723-5758](../html/index.html#L5723-L5758)) paints a vulnerable part
-  ([5734](../html/index.html#L5734)) and the hp strip ([5755](../html/index.html#L5755)) in whatever
+- `drawBoss()` ([5729-5764](../html/index.html#L5729-L5764)) paints a vulnerable part
+  ([5740](../html/index.html#L5740)) and the hp strip ([5761](../html/index.html#L5761)) in whatever
   fill `drawBricks()` left behind on the way past — in practice one of its marker colours, e.g. the
   `rgba(255,255,255,0.9)` of a `?` glyph. An *in*vulnerable part is the only one that reads
   correctly, because `"#3d4463"` is a literal. `shadowColor = def.glow`
-  ([5731](../html/index.html#L5731)) never takes either, so the neon glow the rest of the game is
+  ([5737](../html/index.html#L5737)) never takes either, so the neon glow the rest of the game is
   built on is missing from the one entity that most needs to stand out.
-- `bossPartHit()`'s three bursts ([4546](../html/index.html#L4546),
-  [4558](../html/index.html#L4558), [4564](../html/index.html#L4564)) store `undefined` as the
+- `bossPartHit()`'s three bursts ([4552](../html/index.html#L4552),
+  [4564](../html/index.html#L4564), [4570](../html/index.html#L4570)) store `undefined` as the
   particle colour, which `drawParticles()` then hands to `fillStyle` with the same result.
-- #79's death-beat lightning ([4646](../html/index.html#L4646)) does the same to `strokeStyle`.
+- #79's death-beat lightning ([4652](../html/index.html#L4652)) does the same to `strokeStyle`.
 
 **The fix is data, not code: give each entry a `color`/`glow` pair**, the way `BRICK_COLOR`
 ([1144-1161](../html/index.html#L1144-L1161)) and `POWERUPS`
@@ -657,9 +635,9 @@ in miniature — a distinct hue per boss is the cheap half of making a fight rea
 
 ### 86. A life lost to a boss hazard is invisible to the achievement roster (S/M)
 
-`applyBossHazard("life")` ([4681-4699](../html/index.html#L4681-L4699)) decrements `state.lives`
+`applyBossHazard("life")` ([4687-4705](../html/index.html#L4687-L4705)) decrements `state.lives`
 directly and never touches `state.achStats`. `loseLife()`
-([5120-5143](../html/index.html#L5120-L5143)) — the only other thing that takes a life — increments
+([5126-5149](../html/index.html#L5126-L5149)) — the only other thing that takes a life — increments
 `ballsLost` and `levelLosses` right at the top, and those two counters are what four achievements
 read: "Untouchable" (`won && ballsLost === 0`), "Flawless Victory"
 (`bossDefeated()`'s `levelLosses === 0`), and "Clean Sheet"/"Iron Ten" via `cleanStreak` in
@@ -682,18 +660,18 @@ be "route this through `loseLife()`".
 
 ### 87. Minions detonate on the paddle *line*, not on the paddle (S/M)
 
-`updateMinions()` ([4764-4769](../html/index.html#L4764-L4769)) tests `m.y + m.r >= state.paddle.y`
+`updateMinions()` ([4770-4775](../html/index.html#L4770-L4775)) tests `m.y + m.r >= state.paddle.y`
 and nothing else, so a minion reaching the paddle's height anywhere across the field applies
 `narrow` — confirmed with the paddle parked at `x = 400` and a minion crossing at `x = 5`. The
 paddle narrows regardless.
 
-`updateBossShots()` ([4719-4727](../html/index.html#L4719-L4727)) gets this right for the other
+`updateBossShots()` ([4725-4733](../html/index.html#L4725-L4733)) gets this right for the other
 hazard shape, testing both axes. The asymmetry is what makes this read as an oversight rather than a
 design choice: `spawnMinion()`'s own comment
-([4732-4735](../html/index.html#L4732-L4735)) calls a minion "a small enemy the ball can destroy in
+([4738-4741](../html/index.html#L4738-L4741)) calls a minion "a small enemy the ball can destroy in
 flight" whose reaching the paddle line "detonates it (narrow) rather than costing a life outright" —
 which describes the code, but the whole point of drawing minions as dodgeable objects that drift on
-their own `vx` ([4749-4755](../html/index.html#L4749-L4755)) is that dodging is a thing a player can
+their own `vx` ([4755-4761](../html/index.html#L4755-L4761)) is that dodging is a thing a player can
 do. Today it isn't: Hive's pairs, Phantom's explosives and Omega's third phase all land their
 `narrow` unconditionally, and the ball is the only counterplay.
 
@@ -703,16 +681,16 @@ paddle" branch (splice it, no effect, maybe a sound), not in a hit test that pre
 
 ### 88. Leviathan's telegraph is invisible (S)
 
-`spawnBossShot`'s `telegraph` ([4674](../html/index.html#L4674)) holds a hazard still before it
+`spawnBossShot`'s `telegraph` ([4680](../html/index.html#L4680)) holds a hazard still before it
 starts moving, and `updateBossShots` honours it for every kind
-([4704](../html/index.html#L4704)). But `drawBossShots()` only *renders* the warning state inside
-its `kind === "beam"` branch ([5778-5782](../html/index.html#L5778-L5782)) — the `else` branch draws
+([4710](../html/index.html#L4710)). But `drawBossShots()` only *renders* the warning state inside
+its `kind === "beam"` branch ([5784-5788](../html/index.html#L5784-L5788)) — the `else` branch draws
 a plain red circle whatever `s.telegraph` holds.
 
 Aegis's beam is a beam, so it is fine. Leviathan's shot
-([2005-2011](../html/index.html#L2005-L2011)) is a `drop` with `telegraph: 1.0`, and it is the only
+([2011-2017](../html/index.html#L2011-L2017)) is a `drop` with `telegraph: 1.0`, and it is the only
 hazard in the game that costs a life outright — the comment above the fight
-([1986-1989](../html/index.html#L1986-L1989)) says it is "telegraphed so that always reads as fair
+([1992-1995](../html/index.html#L1992-L1995)) says it is "telegraphed so that always reads as fair
 rather than a surprise", and it isn't: for that whole second it is pixel-identical to a live
 incoming shot that merely happens not to be moving yet.
 
@@ -722,9 +700,9 @@ across both hazard shapes.
 
 ### 89. The profanity filter renames ordinary people (M)
 
-`isProfaneName()` ([5325-5331](../html/index.html#L5325-L5331)) matches every entry of
-`PROFANITY_LIST` ([5295-5304](../html/index.html#L5295-L5304)) as a **plain substring** of the
-normalised name, and `normalizeForProfanity()` ([5317-5324](../html/index.html#L5317-L5324)) first
+`isProfaneName()` ([5331-5337](../html/index.html#L5331-L5337)) matches every entry of
+`PROFANITY_LIST` ([5301-5310](../html/index.html#L5301-L5310)) as a **plain substring** of the
+normalised name, and `normalizeForProfanity()` ([5323-5330](../html/index.html#L5323-L5330)) first
 strips everything that isn't `a`-`z` — including the spaces and punctuation that would otherwise mark
 a word boundary. #77 chose that deliberately, to catch `asshole` from `ass` and `s e x` from `sex`.
 The cost was never written down: three-and-four-letter roots in a boundary-free substring match are
@@ -761,10 +739,6 @@ message.
 
 #### Tests
 
-- `#84a` — after Gemini splits, the left half stays left of the field midpoint and the right half
-  right of it, and **both** move (each half's `x` changes over a second of frames).
-- `#84b` — `fire`'s alternating shooter and `update`'s movement address the same two parts (a
-  regression guard against re-introducing the index skew in one function and not the other).
 - `#85a` — every entry of `BOSSES` defines a non-empty `color` and `glow`, and no two share a
   `color`.
 - `#85b` — `drawBoss()` sets a defined `fillStyle` for a vulnerable part rather than inheriting the
@@ -874,7 +848,7 @@ again without needing a Worker runtime, a D1 binding, or a network. That is a de
 Filed last because it is cosmetic and arguably intentional, but it is a documented behaviour that
 does not happen. `cycleBlink()` ([1741-1749](../html/index.html#L1741-L1749)) exists to teleport a
 part "to a new x each time it comes back", and Phantom (level 70) gets exactly that. Omega's phase 1
-([2035-2044](../html/index.html#L2035-L2044)) calls it and then immediately runs `sideToSide` on the
+([2041-2050](../html/index.html#L2041-L2050)) calls it and then immediately runs `sideToSide` on the
 same part with half-field bounds, which clamps the teleport away in the same frame — so `b.parts[0]`
 reappears at one of its two lane edges every cycle instead of somewhere new, and `b.parts[1]` is
 never passed to `cycleBlink` at all, so it never teleports even in principle.

@@ -55,6 +55,30 @@ function beatFrames(g) {
 // own trigger, and would end the level out from under the test.
 function maxProgress(g) { g.T.state.remainingBricks = 1; }
 
+// #84: Gemini (level 40) fights as one body until it goes down, then as two
+// half-width bodies. Drop the body with a real ball hit so onPartDown() fires
+// through the genuine bossPartHit() path rather than being simulated, and hand
+// back a handle sitting in the split half of the fight. The ball is left at
+// speed 1 (the same trick boss.js's hitPart() uses) so it stays out of the way
+// of whatever the caller is measuring.
+function splitGemini() {
+  const g = boot();
+  g.el("btn-start").click(1);
+  g.T.startLevel(39);
+  g.key("Space");
+  const body = g.T.state.boss.parts[0];
+  body.hp = 1;
+  const ball = g.T.state.balls[0];
+  ball.attached = false;
+  ball.x = body.x + body.w / 2;
+  ball.y = body.y + body.h + ball.r - 2;
+  ball.dx = 0;
+  ball.dy = -1;
+  ball.speed = 1;
+  g.frame();
+  return g;
+}
+
 // A board already full of higher scores, so ending a run goes straight to
 // gameover rather than detouring through nameentry (#42).
 const FULL_HOF = JSON.stringify(
@@ -3719,6 +3743,58 @@ module.exports = {
           a.match(key, /^blokrush-/, `storage key "${key}" is not namespaced blokrush-`);
           a.not(/^neonbreak-/.test(key), `storage key "${key}" is still under the retired neonbreak- namespace`);
         }
+      },
+    },
+    {
+      name: "#84a — Gemini's split halves each hold their own side of the field, and both of them move",
+      fn(a) {
+        const g = splitGemini();
+        const parts = g.T.state.boss.parts;
+        a.eq(parts.length, 3, "sanity: the dead body stays in parts, with the two halves after it");
+        const left = parts[1], right = parts[2];
+        const mid = g.T.GAME_W / 2;
+        const startL = left.x, startR = right.x;
+        a.lt(startL + left.w, mid, "sanity: the left half spawns wholly left of the midpoint");
+        a.gt(startR, mid, "sanity: the right half spawns right of the midpoint");
+
+        let movedL = 0, movedR = 0;
+        for (let i = 0; i < 120; i++) {
+          g.frame();
+          a.lte(left.x + left.w, mid, `the left half crossed the midpoint (x=${left.x.toFixed(1)})`);
+          a.gte(right.x, mid, `the right half crossed the midpoint (x=${right.x.toFixed(1)})`);
+          movedL = Math.max(movedL, Math.abs(left.x - startL));
+          movedR = Math.max(movedR, Math.abs(right.x - startR));
+        }
+        a.gt(movedL, 1, "the left half never moved");
+        a.gt(movedR, 1, "the right half never moved — it is the one update() used to skip entirely");
+      },
+    },
+    {
+      name: "#84b — update() and fire() address the same two Gemini halves",
+      fn(a) {
+        const g = splitGemini();
+        const b = g.T.state.boss;
+        const def = g.T.BOSSES[b.defIdx];
+
+        // Which parts update() actually moves. Driven directly rather than
+        // through frames so nothing else in the fight can nudge an x.
+        const before = b.parts.map((p) => p.x);
+        for (let i = 0; i < 60; i++) def.update(b, 1 / 60);
+        const movers = b.parts.map((p, i) => (p.x !== before[i] ? i : -1)).filter((i) => i !== -1);
+
+        // ...and which parts fire() actually shoots from. One call per shot,
+        // each with a dt past the cadence, so both sides of the toggle are seen.
+        b.fireGrace = 0;
+        g.T.state.bossShots.length = 0;
+        def.fire(b, 4);
+        def.fire(b, 4);
+        a.eq(g.T.state.bossShots.length, 2, "sanity: both halves should have fired once");
+        const shooters = g.T.state.bossShots.map((s) =>
+          b.parts.findIndex((p) => Math.abs(p.x + p.w / 2 - s.x) < 0.001)
+        );
+
+        a.eq(movers.join(","), "1,2", "update() must drive the two halves, not the dead body");
+        a.eq(shooters.slice().sort().join(","), "1,2", "fire() must shoot from the two halves");
       },
     },
   ],

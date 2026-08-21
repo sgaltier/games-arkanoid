@@ -52,9 +52,46 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #55 | ✅ Fixed — 2026-08-20 |
 | #46 | ✅ Fixed — 2026-08-21 |
 | #82 | ✅ Fixed — 2026-08-21 |
+| #84 | ✅ Fixed — 2026-08-21 |
 
-71 of 71 fixed — nothing open. See [todo.md](todo.md), and [feature-ideas.md](feature-ideas.md) for
-proposals not yet promoted to it.
+72 of 81 fixed — #85–#93 are open, the rest of the ten findings a full-codebase review raised on
+2026-08-21. See [todo.md](todo.md) for those and for the feature ideas promoted alongside them, and
+[feature-ideas.md](feature-ideas.md) for proposals not yet promoted to it.
+
+---
+
+## 2026-08-21 — Gemini's split halves are indexed off by one (#84)
+
+### Fixed
+
+**Both halves of the level-40 boss now fight.** Gemini opens as a single body and splits into two
+half-width bodies when it goes down, each meant to slide in opposition across its own side of the
+field. `onPartDown` pushes the halves onto the array the spent body is still in — `[body, left,
+right]` — but `update` addressed `parts[0]`/`parts[1]` as though they were the two halves. `parts[0]`
+was the dead body, skipped by its own `alive` guard; `parts[1]` was the *left* half and was handed
+the *right* half's bounds, so it jumped across the midpoint on its first frame; `parts[2]`, the right
+half, was never updated at all and stood still for the whole fight. Both halves therefore ended up
+crowded into the right quarter of the field, one of them frozen — the "two targets moving in
+opposition" the fight is built around never happened at any point since #44 shipped.
+
+`update` now uses `parts[1]`/`parts[2]`, matching the indexing `fire` already used. The spent body
+stays in `parts` deliberately: `bossBounds()` unions over dead parts so that #79's death beat is
+anchored on the boss's real geometry, which splicing would take away.
+
+**Nothing else in the fight changed.** `hpTotal` is still snapshotted at spawn over the single body,
+so #80's music progress still dips when the split adds parts — documented behaviour, not a second bug.
+
+### Tests
+
+Two new cases in `regressions.js`, both watched failing first. `#84a` splits the boss through the
+real `bossPartHit()`/`onPartDown()` path, then asserts lane containment every frame for two seconds
+*and* that both halves actually moved — the second half of that is what catches the frozen one.
+`#84b` is the structural guard: it collects the parts `update()` moves and the parts `fire()` shoots
+from and asserts the two sets are equal, so re-introducing the skew in one function alone fails even
+when each function is internally consistent.
+
+**Doc anchors across `done.md` and `todo.md` were re-anchored** by the +6 lines this added to
+`index.html`, per the re-anchoring discipline both files describe.
 
 ---
 
