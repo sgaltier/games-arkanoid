@@ -9,11 +9,11 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 14 open items — #47 (promoted from [feature-ideas.md](feature-ideas.md) §A), #50
+**Status:** 13 open items — #47 (promoted from [feature-ideas.md](feature-ideas.md) §A), #50
 (promoted from §B), #56–57 (promoted from §C), #62–64 (promoted from §D), #83 (raised directly, not
-promoted from `feature-ideas.md`), and **#88–#93, the correctness and security findings of the
+promoted from `feature-ideas.md`), and **#89–#93, the correctness and security findings of the
 2026-08-21 review pass** (§E and §F). #46 from the §A batch, #53, #54, and #55 from the §C batch,
-#82 (raised directly), and #84–#87 (the first four of the review batch) have shipped (see
+#82 (raised directly), and #84–#88 (the first five of the review batch) have shipped (see
 [done.md](done.md)).
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
@@ -39,9 +39,9 @@ challenge seed), #50 (moving bricks), #62 (colourblind-safe brick markers), #63 
 selection), #64 (resume an interrupted run), and two power-up/ball-mechanics ideas, all promoted from
 [feature-ideas.md](feature-ideas.md) and keeping their numbers; that file still holds the proposals
 not yet promoted. #83 (per-level star ratings, split out of #46 — the two were originally one item)
-was raised directly rather than promoted from there. The defects are **#88–#93**, what is left of the
+was raised directly rather than promoted from there. The defects are **#89–#93**, what is left of the
 ten (#84–#93) raised by a full-codebase review on 2026-08-21, grouped into §E (correctness, all in
-`index.html`) and §F (security and backend, mostly `functions/api/scores.js`); #84–#87 of that
+`index.html`) and §F (security and backend, mostly `functions/api/scores.js`); #84–#88 of that
 batch have already shipped (see [done.md](done.md) §I). New review findings go here too, keeping the
 shared numbering: the next free number is **#94**.
 
@@ -602,30 +602,11 @@ Raised directly by a read of the whole codebase rather than promoted from
 today. All six were in [index.html](../html/index.html) and five of the six in the #44 boss layer,
 which is the newest and least-exercised part of the file — the test suite reaches `BOSSES`' data
 (arenas, ids, hit counts) but not its per-frame motion or its draw path. Ordered by severity; the
-first four of them, #84, #85, #86, and #87, have shipped and their entries now live in
+first five of them, #84, #85, #86, #87, and #88, have shipped and their entries now live in
 [done.md](done.md) §I.
 
 Unlike the entries above, these **do** carry line anchors, since they point at real code: re-anchor
 them the same way [done.md](done.md)'s entries are re-anchored whenever `index.html` shifts.
-
-### 88. Leviathan's telegraph is invisible (S)
-
-`spawnBossShot`'s `telegraph` ([4699](../html/index.html#L4699)) holds a hazard still before it
-starts moving, and `updateBossShots` honours it for every kind
-([4735](../html/index.html#L4735)). But `drawBossShots()` only *renders* the warning state inside
-its `kind === "beam"` branch ([5816-5820](../html/index.html#L5816-L5820)) — the `else` branch draws
-a plain red circle whatever `s.telegraph` holds.
-
-Aegis's beam is a beam, so it is fine. Leviathan's shot
-([2029-2035](../html/index.html#L2029-L2035)) is a `drop` with `telegraph: 1.0`, and it is the only
-hazard in the game that costs a life outright — the comment above the fight
-([2009-2012](../html/index.html#L2009-L2012)) says it is "telegraphed so that always reads as fair
-rather than a surprise", and it isn't: for that whole second it is pixel-identical to a live
-incoming shot that merely happens not to be moving yet.
-
-**Hoisting `var warn = s.telegraph > 0` above the branch and reusing the beam's own treatment** (the
-`#ff3b3b`/`0.35`-alpha pair) is the minimal fix and keeps one visual vocabulary for "not yet armed"
-across both hazard shapes.
 
 ### 89. The profanity filter renames ordinary people (M)
 
@@ -668,8 +649,6 @@ message.
 
 #### Tests
 
-- `#88a` — a shot still inside its `telegraph` window draws in the warning treatment, not the live
-  one, for `kind: "drop"` as well as `kind: "beam"`.
 - `#89a` — `Computer`, `Cassandra`, `Hitchcock`, `Dickens`, `Essex` and `Analyst` all survive
   `isProfaneName()` unchanged.
 - `#89b` — the #77 cases still fail it: `a55`, `s e x`, `nègre`, and a plain profanity, plus a

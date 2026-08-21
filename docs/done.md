@@ -23,7 +23,7 @@ current `index.html`.
 > **Fixed 2026-08-12.** The file now opens with `<!doctype html>` / `<html lang="fr">` and a real
 > `<head>` carrying `<meta charset="utf-8">`, a viewport meta, and a `<title>`, with the markup
 > wrapped in `<body>` — see [1-7](../html/index.html#L1-L7),
-> [718](../html/index.html#L718), [5902-5903](../html/index.html#L5902-L5903).
+> [718](../html/index.html#L718), [5903-5904](../html/index.html#L5903-L5904).
 
 The file previously began directly with `<style>`, with no doctype, `<html>`, `<head>`, `<title>`,
 charset, viewport, or `lang` attribute. Two real consequences:
@@ -61,7 +61,7 @@ until the key was pressed and released again.
 > feeds while the phase is `playing`. See [4171-4188](../html/index.html#L4171-L4188), the effect
 > durations each `remaining` starts from in `CONFIG.effects`
 > ([1530-1542](../html/index.html#L1530-L1542), added by #21, since extended by #30), and the call site at
-> [5859](../html/index.html#L5859).
+> [5860](../html/index.html#L5860).
 > Verified: a `widen` survives a 30-second pause intact, then expires after its full 10 seconds of
 > actual play.
 
@@ -184,7 +184,7 @@ single most expensive line in the render path.
 > **Fixed 2026-08-13.** A `hudLast` cache [5471](../html/index.html#L5471) records what's currently
 > displayed for each of the four HUD fields; `updateHud()` [5472-5483](../html/index.html#L5472-L5483)
 > only touches `textContent` for a field whose value actually changed since the last call. The
-> unconditional per-frame call [5996](../html/index.html#L5996) stays — it's still what catches
+> unconditional per-frame call [5997](../html/index.html#L5997) stays — it's still what catches
 > `state.best` needing a live update against `state.score` — but an idle frame now writes nothing.
 
 `updateHud()` was called unconditionally every frame, in addition to the event-driven calls in
@@ -238,7 +238,7 @@ state.
 >   thing ~16 ms later via `draw()` [5783-5802](../html/index.html#L5783-L5802), and the HUD's own
 >   one-time init call [5386](../html/index.html#L5386) already covers the pre-play text.
 > - `updateBalls` [4847](../html/index.html#L4847) now declares only the `dt` parameter it uses; the
->   call site [5922](../html/index.html#L5922) no longer passes the unused `now`.
+>   call site [5923](../html/index.html#L5923) no longer passes the unused `now`.
 
 - `state.paddle.w` was assigned in `updatePaddle` but never read — every draw/collision path called
   `paddleWidth()` instead.
@@ -389,7 +389,7 @@ last brick.
 > ([3021-3026](../html/index.html#L3021-L3026), rising and fading over `CONFIG.floatingText.life`
 > seconds via `updateFloatingTexts()`/`drawFloatingTexts()`
 > [4664-4671](../html/index.html#L4664-L4671)/[5766-5781](../html/index.html#L5766-L5781)), wired into
-> the frame loop alongside particles [5868](../html/index.html#L5868)/[5875](../html/index.html#L5875)
+> the frame loop alongside particles [5869](../html/index.html#L5869)/[5876](../html/index.html#L5876)
 > and `draw()` [5800](../html/index.html#L5800). Consecutive bricks destroyed without the ball touching
 > the paddle also build a combo [4782-4787](../html/index.html#L4782-L4787) that scales the points
 > awarded, capped at `CONFIG.combo.max`; any paddle contact — top face or side clip — resets it
@@ -434,7 +434,7 @@ additions.
 > are toggled with the `hidden` attribute and resized via the fill's inline width rather than
 > created/destroyed — see `updateEffectBar()`/`renderEffectBars()`
 > [5411-5440](../html/index.html#L5411-L5440), called after every `applyPowerup()`
-> [4272](../html/index.html#L4272) and once per frame [5878](../html/index.html#L5878). `state.widthEffect`/
+> [4272](../html/index.html#L4272) and once per frame [5879](../html/index.html#L5879). `state.widthEffect`/
 > `state.speedEffect` don't record which specific powerup produced them, only the resulting `mult`, so
 > the bar recovers it from the sign of `mult` — the same trick `drawPaddle()`
 > [5678](../html/index.html#L5678) already used for its colour swap.
@@ -612,7 +612,7 @@ it, yanking focus back to `document.body` with no user action.
 > **Fixed 2026-08-13.** `PHASE_OVERLAY` now carries a `start: "overlay-start"` entry
 > [3375](../html/index.html#L3375) — `OVERLAY_PRIMARY_BTN` already had the matching
 > `"overlay-start": "btn-start"` since #26 [3375](../html/index.html#L3375) — so boot
-> [6080](../html/index.html#L6080) now calls `setPhase("start")` instead of `showOverlay(...)`
+> [6081](../html/index.html#L6081) now calls `setPhase("start")` instead of `showOverlay(...)`
 > directly. `state.phase` already starts as `"start"`, so the call is a no-op on `state.phase`
 > itself; what it buys is routing the very first overlay through the same single entry point
 > (`setPhase()` → `PHASE_OVERLAY` → `showOverlay()`) every other transition uses, which is what
@@ -1260,7 +1260,7 @@ above), which is already wired up.
 >
 > **The bed.** Four voices over a 16-step bar ([4016-4072](../html/index.html#L4016-L4072)), queued
 > by `updateMusic()` ([4124-4145](../html/index.html#L4124-L4145)) from `frame()`
-> ([5824](../html/index.html#L5824)) and tuned in `CONFIG.music`
+> ([5825](../html/index.html#L5825)) and tuned in `CONFIG.music`
 > ([1595-1601](../html/index.html#L1595-L1601)). Three things about it are deliberate:
 >
 > - **Frames decide what, the audio clock decides when.** A note placed at `frame()` time lands
@@ -1309,7 +1309,7 @@ toggle and its persisted state cover the opt-out.
 >
 > **The parallax is three star layers plus a scrolling horizon**
 > ([5462-5479](../html/index.html#L5462-L5479)), all derived from one number — `state.bgScroll`,
-> seconds of real time accumulated in `frame()` ([5829](../html/index.html#L5829)). Nearer layers
+> seconds of real time accumulated in `frame()` ([5830](../html/index.html#L5830)). Nearer layers
 > drift faster (`STAR_LAYERS`, [1196-1200](../html/index.html#L1196-L1200)), which is the whole effect;
 > deriving every offset from the same accumulator is what stops the layers from sliding out of
 > register after a stall. Stars are drawn a layer at a time, so the field costs three fill-style
@@ -1837,7 +1837,7 @@ percussion voice on every step is 16 more nodes a bar than the current busiest v
 > **The beat.** `loseLife()` ([4965-4988](../html/index.html#L4965-L4988)) no longer transitions; it
 > sets `state.lifeLost = {remaining, ended}` and moves to a new `lifelost` phase
 > ([3349](../html/index.html#L3349)), which `frame()` spends a frame at a time
-> ([5850-5853](../html/index.html#L5850-L5853)) before calling `finishLifeLost()`
+> ([5851-5854](../html/index.html#L5851-L5854)) before calling `finishLifeLost()`
 > ([4993-5002](../html/index.html#L4993-L5002)) — the other half of the old function, serving again or
 > ending the run. `CONFIG.impact.lifeLostBeat` is 0.7 s
 > ([1627](../html/index.html#L1627)). Making it a phase rather than a counter checked beside the
@@ -2099,7 +2099,7 @@ and finally the composite of all nine.
 > place (below).
 >
 > **`frame()` freezes the field while the beat plays**, the same idea #71's lost-ball beat already
-> applies to a shorter pause: `inDeathBeat` ([5964](../html/index.html#L5964)) skips
+> applies to a shorter pause: `inDeathBeat` ([5965](../html/index.html#L5965)) skips
 > `updatePaddle`/`updateBricks`/`updateBoss`/`updateBalls`/`updateDrops`/`updateLasers`/
 > `updateBossShots`/`updateMinions` entirely and runs `updateBossDeathBeat()` plus particles/floating
 > text instead — the paddle stops answering, the ball stops moving, and nothing is left to hit
@@ -2210,10 +2210,10 @@ and finally the composite of all nine.
 >
 > **A distinct look for the occasion.** `fireBurst()` ([3024-3036](../html/index.html#L3024-L3036)) is
 > `burst()`'s warm-flame counterpart — a fixed warm palette instead of the caller's color, shorter
-> life, and a `glow` flag `drawParticles()` ([5856-5870](../html/index.html#L5856-L5870)) picks up as
+> life, and a `glow` flag `drawParticles()` ([5857-5871](../html/index.html#L5857-L5871)) picks up as
 > a shadow-blur halo — used for both the pulses and the finishing blast in place of a plain `burst()`
 > call. `spawnLightning()`/`drawLightning()`
-> ([3043-3054](../html/index.html#L3043-L3054)/[5875-5891](../html/index.html#L5875-L5891)) add a
+> ([3043-3054](../html/index.html#L3043-L3054)/[5876-5892](../html/index.html#L5876-L5892)) add a
 > handful of jagged, multi-segment bolts (more for a bigger boss) radiating from the boss's center on
 > the finishing blast only — the midpoints are displaced off the straight line between the two ends,
 > tapering to none at the ends, so a bolt still lands on its target rather than reading as a laser.
@@ -2252,7 +2252,7 @@ and finally the composite of all nine.
 > inactive the new branch's condition is always false, so the loop's behaviour for every existing case —
 > including two adjacent bricks overlapping near a corner — is unchanged.
 >
-> The one purely cosmetic addition: `drawBalls()` ([5803-5819](../html/index.html#L5803-L5819)) reads
+> The one purely cosmetic addition: `drawBalls()` ([5803-5820](../html/index.html#L5803-L5820)) reads
 > `state.fireballEffect` once per frame and swaps every ball's fill/glow to a flame palette while it's
 > active, so a fireball ball reads as different from an ordinary one even mid-bounce. A fifth
 > `.effect-bar` slot (`bar-fireball`, [1027-1029](../html/index.html#L1027-L1029)) and its
@@ -2447,7 +2447,7 @@ them is the correct forgiving-but-not-free reading of "one-shot."
 > `updateEffects()` as first sketched — `state.slowMeter`/`slowPointerHeld`/`bulletTimeActive`
 > ([2800-2810](../html/index.html#L2800-L2810)) and a dedicated `updateBulletTime()`
 > ([4328-4343](../html/index.html#L4328-L4343)), called right before `updateBalls()`
-> ([6045](../html/index.html#L6045)) so `ballSpeedMult()` ([2876-2881](../html/index.html#L2876-L2881))
+> ([6046](../html/index.html#L6046)) so `ballSpeedMult()` ([2876-2881](../html/index.html#L2876-L2881))
 > sees this frame's result. Held via `ShiftLeft`/`ShiftRight` (read directly off `state.keys`, the same
 > way `updatePaddle()` already reads the arrow keys) ORed with `state.slowPointerHeld`, which a new
 > on-screen button (`#btn-slow`, [1047-1051](../html/index.html#L1047-L1051)) sets on
@@ -2900,6 +2900,43 @@ paddle" branch (splice it, no effect, maybe a sound), not in a hit test that pre
 
 - `#87` — a minion crossing the paddle line away from the paddle despawns without applying `narrow`
   or scoring; the existing case of a minion actually over the paddle still detonates it.
+
+### 88. ✅ FIXED — Leviathan's telegraph is invisible (S)
+
+> **Fixed 2026-08-21.** `drawBossShots()` ([5812-5832](../html/index.html#L5812-L5832)) now computes
+> `warn = s.telegraph > 0` once, above the `kind` branch, and the `else` (non-`beam`) branch applies
+> it the same way the `beam` branch already did — `globalAlpha` drops to `0.35` while a shot is still
+> in its telegraph window, back to full once it's live. That's the minimal fix the write-up below
+> argued for: reusing the beam's own warning treatment rather than inventing a second visual
+> vocabulary for "not yet armed".
+>
+> One test in `regressions.js`, confirmed failing first (`a shot still inside its telegraph window
+> must draw at warning alpha (0.35)`, unmet on the unfixed `else` branch). `#88a` parks a `kind:
+> "drop"` shot with `telegraph: 1.0`, records one frame's canvas ops, and asserts a `fill` was logged
+> at `globalAlpha === 0.35` and none at `1` — reusing `handle.recordCanvas()`, the seam #85b already
+> added.
+
+`spawnBossShot`'s `telegraph` ([4699](../html/index.html#L4699)) holds a hazard still before it
+starts moving, and `updateBossShots` honours it for every kind
+([4735](../html/index.html#L4735)). But `drawBossShots()` only *renders* the warning state inside
+its `kind === "beam"` branch ([5817-5820](../html/index.html#L5817-L5820)) — the `else` branch draws
+a plain red circle whatever `s.telegraph` holds.
+
+Aegis's beam is a beam, so it is fine. Leviathan's shot
+([2029-2035](../html/index.html#L2029-L2035)) is a `drop` with `telegraph: 1.0`, and it is the only
+hazard in the game that costs a life outright — the comment above the fight
+([2009-2012](../html/index.html#L2009-L2012)) says it is "telegraphed so that always reads as fair
+rather than a surprise", and it isn't: for that whole second it is pixel-identical to a live
+incoming shot that merely happens not to be moving yet.
+
+**Hoisting `var warn = s.telegraph > 0` above the branch and reusing the beam's own treatment** (the
+`#ff3b3b`/`0.35`-alpha pair) is the minimal fix and keeps one visual vocabulary for "not yet armed"
+across both hazard shapes.
+
+#### Tests
+
+- `#88a` — a shot still inside its `telegraph` window draws in the warning treatment, not the live
+  one, for `kind: "drop"` as well as `kind: "beam"`.
 
 ---
 

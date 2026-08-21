@@ -3893,5 +3893,24 @@ module.exports = {
         a.not(g.T.state.achStats.flawlessBoss, "a run that ate a life hazard is not flawless");
       },
     },
+    {
+      name: "#88a — a telegraphed \"drop\" boss shot draws in the warning treatment, not the live one",
+      fn(a) {
+        const g = boot();
+        g.el("btn-start").click(1);
+        g.T.startLevel(89); // Leviathan — a "drop" hazard, the one #88 flags
+        g.key("Space");
+        g.T.state.bossShots = [{
+          x: 100, y: 100, vx: 0, vy: 50,
+          kind: "drop", onPaddle: "life", r: 6, telegraph: 1.0, dur: 0, active: 0,
+        }];
+        const log = g.recordCanvas();
+        g.frame();
+        const warnFill = log.find((e) => e.op === "fill" && e.globalAlpha === 0.35);
+        a.ok(warnFill, "a shot still inside its telegraph window must draw at warning alpha (0.35)");
+        const liveFill = log.find((e) => e.op === "fill" && e.globalAlpha === 1);
+        a.not(liveFill, "a telegraphed shot must not also draw at full (live) alpha");
+      },
+    },
   ],
 };

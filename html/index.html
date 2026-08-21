@@ -5812,13 +5812,14 @@ canvas {
   function drawBossShots() {
     for (var i = 0; i < state.bossShots.length; i++) {
       var s = state.bossShots[i];
+      var warn = s.telegraph > 0;
       ctx.save();
       if (s.kind === "beam") {
-        var warn = s.telegraph > 0;
         ctx.globalAlpha = warn ? 0.35 : 0.7;
         ctx.fillStyle = warn ? "#ff3b3b" : "#ff7a3b";
         ctx.fillRect(s.x - s.w / 2, 0, s.w, GAME_H);
       } else {
+        ctx.globalAlpha = warn ? 0.35 : 1;
         ctx.shadowColor = "#ff3b3b";
         ctx.shadowBlur = 8;
         ctx.fillStyle = "#ff3b3b";

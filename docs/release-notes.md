@@ -56,10 +56,37 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #85 | ✅ Fixed — 2026-08-21 |
 | #86 | ✅ Fixed — 2026-08-21 |
 | #87 | ✅ Fixed — 2026-08-21 |
+| #88 | ✅ Fixed — 2026-08-21 |
 
-75 of 81 fixed — #88–#93 are open, the rest of the ten findings a full-codebase review raised on
+76 of 81 fixed — #89–#93 are open, the rest of the ten findings a full-codebase review raised on
 2026-08-21. See [todo.md](todo.md) for those and for the feature ideas promoted alongside them, and
 [feature-ideas.md](feature-ideas.md) for proposals not yet promoted to it.
+
+---
+
+## 2026-08-21 — Leviathan's telegraph was invisible (#88)
+
+### Fixed
+
+**A telegraphed boss shot now warns before it's live, whichever shape it is.** `drawBossShots()` only
+applied the warning treatment (`globalAlpha` down to `0.35`) inside its `kind === "beam"` branch; the
+`else` branch, which draws every other shot — including Leviathan's `drop` — ignored `s.telegraph`
+entirely and always drew at full opacity. Leviathan's shot is the only hazard in the game that costs a
+life outright, and its whole second of telegraph time is meant to make that read as fair — instead it
+was pixel-identical to a live, incoming shot for that entire second.
+
+`warn = s.telegraph > 0` is now computed once, above the `kind` branch, and both branches read it: the
+beam branch unchanged, the `else` branch newly dropping to the same `0.35` alpha while still
+telegraphed.
+
+### Tests
+
+One new case in `regressions.js`, confirmed failing first. It parks a `kind: "drop"` shot with
+`telegraph: 1.0`, records one frame's canvas ops, and asserts a `fill` was logged at `globalAlpha ===
+0.35` and none at full opacity.
+
+**Doc anchors across `done.md` and `todo.md` were re-anchored** by the one line this added to
+`index.html`, per the re-anchoring discipline both files describe.
 
 ---
 
