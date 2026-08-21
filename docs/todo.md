@@ -9,12 +9,11 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 9 open items — #47 (promoted from [feature-ideas.md](feature-ideas.md) §A), #50
-(promoted from §B), #56–57 (promoted from §C), #62–64 (promoted from §D), #83 (raised directly, not
-promoted from `feature-ideas.md`), and **#93, the last remaining security finding of the 2026-08-21
-review pass** (§F). #46 from the §A batch, #53, #54, and #55 from the §C batch, #82 (raised
-directly), #84–#89 (the review batch's correctness findings, all of them), and #90–#92 (the first
-three of the review batch's security findings) have shipped (see [done.md](done.md)).
+**Status:** 8 open items — #47 (promoted from [feature-ideas.md](feature-ideas.md) §A), #50
+(promoted from §B), #56–57 (promoted from §C), #62–64 (promoted from §D), and #83 (raised directly,
+not promoted from `feature-ideas.md`). #46 from the §A batch, #53, #54, and #55 from the §C batch,
+#82 (raised directly), and #84–#93 (the full 2026-08-21 review pass, correctness and security/backend
+alike) have shipped (see [done.md](done.md)).
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
 test → fix → move the finding's whole entry from this file to [done.md](done.md), prepending a
@@ -34,16 +33,13 @@ name validation), #77 (hall-of-fame profanity filtering), #79 (the boss-kill dea
 music/explosion/sound gaps), #80 (level-progress-driven music intensity), #81 (the level-clear
 fanfare), #46 (level select), #53 (the fireball power-up), #54 (the safety-net shield), #55 (magnet
 paddle / hold-to-slow bullet time), and #82 (the `neonbreak-*` → `blokrush-*` rename) — see
-[done.md](done.md). Open below is a feature half and a defect half. The features are #47 (daily
-challenge seed), #50 (moving bricks), #62 (colourblind-safe brick markers), #63 (difficulty
-selection), #64 (resume an interrupted run), and two power-up/ball-mechanics ideas, all promoted from
-[feature-ideas.md](feature-ideas.md) and keeping their numbers; that file still holds the proposals
-not yet promoted. #83 (per-level star ratings, split out of #46 — the two were originally one item)
-was raised directly rather than promoted from there. The defect is **#93**, the last of the
-ten (#84–#93) raised by a full-codebase review on 2026-08-21 — the correctness half (§E, all in
-`index.html`) is fully shipped; what's left of §F (security and backend, mostly
-`functions/api/scores.js`) is just this one. #84–#89, #90, #91, and #92 of that batch have already
-shipped (see [done.md](done.md) §I).
+[done.md](done.md). Everything left open below is a feature: #47 (daily challenge seed), #50 (moving
+bricks), #62 (colourblind-safe brick markers), #63 (difficulty selection), #64 (resume an interrupted
+run), and two power-up/ball-mechanics ideas, all promoted from [feature-ideas.md](feature-ideas.md)
+and keeping their numbers; that file still holds the proposals not yet promoted. #83 (per-level star
+ratings, split out of #46 — the two were originally one item) was raised directly rather than
+promoted from there. The ten findings raised by a full-codebase review on 2026-08-21 (#84–#93,
+correctness and security/backend alike) are all shipped — see [done.md](done.md) §I.
 New review findings go here too, keeping the shared numbering: the next free number is **#94**.
 
 ---
@@ -593,31 +589,3 @@ over either way).
   round-trip).
 - `#64e` — `newGame()` and `endGame()` both clear any saved snapshot (`loadResume()` afterward returns
   `null`).
-
----
-
-## F. Security and backend — 2026-08-21 review findings
-
-Same 2026-08-21 review pass as #84–#89 (the correctness half, all shipped — see [done.md](done.md)
-§I), but in [functions/api/scores.js](../functions/api/scores.js) and the CI workflow rather than the
-game. None of these is a break of the endpoint's stated threat model — #67's own
-write-up is explicit that a patched client can forge a score inside the plausibility envelope, and
-that raising the cost above `curl` is the whole goal. What is below is either an envelope that turns
-out not to bind, or an operational hazard on a database that #67 forbids resetting. #92 (endpoint and
-CI hardening) has shipped — see [done.md](done.md) §I.
-
-### 93. Omega's phase-2 blink never actually teleports (S)
-
-Filed last because it is cosmetic and arguably intentional, but it is a documented behaviour that
-does not happen. `cycleBlink()` ([1741-1749](../html/index.html#L1741-L1749)) exists to teleport a
-part "to a new x each time it comes back", and Phantom (level 70) gets exactly that. Omega's phase 1
-([2060-2069](../html/index.html#L2060-L2069)) calls it and then immediately runs `sideToSide` on the
-same part with half-field bounds, which clamps the teleport away in the same frame — so `b.parts[0]`
-reappears at one of its two lane edges every cycle instead of somewhere new, and `b.parts[1]` is
-never passed to `cycleBlink` at all, so it never teleports even in principle.
-
-**Decide which of the two mechanics phase 2 is actually for.** If it is the blink, the halves should
-be teleported *within* their own lanes (`rand(minX, maxX)` per part, both parts) instead of across
-the whole field; if it is the opposed sliding, the `cycleBlink` call should keep only its
-solid/vulnerable return value and stop pretending to move anything. Doing neither leaves a call whose
-comment describes something the fight does not do.

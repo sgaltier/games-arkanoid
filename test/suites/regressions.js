@@ -4076,5 +4076,41 @@ module.exports = {
         );
       },
     },
+    {
+      name: "#93 — Omega's phase-2 halves slide continuously; cycleBlink no longer teleports on top of it",
+      fn(a) {
+        const g = boot();
+        g.el("btn-start").click(1);
+        g.T.startLevel(99); // Omega
+        g.key("Space");
+        const b = g.T.state.boss;
+        const def = g.T.BOSSES[b.defIdx];
+
+        def.onDepleted(b); // phase 0 (plates) -> phase 1 (the blinking, sliding halves)
+        a.eq(b.phase, 1, "sanity: onDepleted should have advanced to the blinking phase");
+        b.transition = null; // skip the roar beat so update() actually drives the parts
+
+        const left = b.parts[0], right = b.parts[1];
+        const mid = g.T.GAME_W / 2;
+        // sideToSide's own per-frame budget at 60fps, plus a little slack —
+        // any bigger a jump means something teleported the part instead of
+        // sliding it.
+        const maxStep = 55 * (1 / 60) + 0.5;
+
+        let prevL = left.x, prevR = right.x;
+        for (let i = 0; i < 300; i++) { // 5s — spans more than two 2.4s blink cycles
+          def.update(b, 1 / 60);
+          const dL = Math.abs(left.x - prevL);
+          const dR = Math.abs(right.x - prevR);
+          a.lte(dL, maxStep,
+            `left half jumped ${dL.toFixed(1)}px in one frame (t=${b.blinkT.toFixed(2)}) — cycleBlink's teleport got clamped back instead of the half sliding`);
+          a.lte(dR, maxStep,
+            `right half jumped ${dR.toFixed(1)}px in one frame (t=${b.blinkT.toFixed(2)})`);
+          a.lte(left.x + left.w, mid - 4, "left half crossed into the right half's lane");
+          a.gte(right.x, mid + 4, "right half crossed into the left half's lane");
+          prevL = left.x; prevR = right.x;
+        }
+      },
+    },
   ],
 };

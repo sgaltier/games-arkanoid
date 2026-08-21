@@ -1735,15 +1735,19 @@ canvas {
   }
 
   // Alternates a part between visible/solid and faded/passable, teleporting
-  // to a new x each time it comes back. Returns true while solid. `b.blinkT`
-  // is fight-local time, not wall-clock, so a pause holds the phase exactly
-  // like every other timer here.
-  function cycleBlink(b, dt, period, fadeDur, part) {
+  // to a new x each time it comes back unless `teleport` is passed false —
+  // Omega's phase 2 (#93) wants only the solid/vulnerable timing here, since
+  // its own sideToSide calls are already the part's motion, and a teleport
+  // on top of that would just get clamped back to a lane edge the same
+  // frame. Returns true while solid. `b.blinkT` is fight-local time, not
+  // wall-clock, so a pause holds the phase exactly like every other timer
+  // here.
+  function cycleBlink(b, dt, period, fadeDur, part, teleport) {
     b.blinkT = (b.blinkT || 0) + dt;
     var cycleNum = Math.floor(b.blinkT / period);
     if (cycleNum !== (b.blinkCycle || 0)) {
       b.blinkCycle = cycleNum;
-      part.x = rand(FIELD_PAD, GAME_W - FIELD_PAD - part.w);
+      if (teleport !== false) part.x = rand(FIELD_PAD, GAME_W - FIELD_PAD - part.w);
     }
     return (b.blinkT % period) >= fadeDur;
   }
@@ -2058,7 +2062,9 @@ canvas {
           b.plateRegrowCd -= dt;
           if (b.plateRegrowCd <= 0) { b.plateRegrowCd = 7; reviveRandomPlate(b.parts.slice(0, 5)); }
         } else if (b.phase === 1) {
-          var solid = cycleBlink(b, dt, 2.4, 0.35, b.parts[0]);
+          // Opposed sliding (below) is this phase's actual motion — cycleBlink
+          // is used only for the solid/vulnerable timing, not to move a part.
+          var solid = cycleBlink(b, dt, 2.4, 0.35, b.parts[0], false);
           for (var j = 0; j < b.parts.length; j++) {
             if (!b.parts[j].alive) continue;
             b.parts[j].solid = solid;

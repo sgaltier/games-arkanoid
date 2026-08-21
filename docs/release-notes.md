@@ -61,12 +61,28 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #90 | ✅ Fixed — 2026-08-21 |
 | #91 | ✅ Fixed — 2026-08-21 |
 | #92 | ✅ Fixed — 2026-08-21 |
+| #93 | ✅ Fixed — 2026-08-21 |
 
-80 of 81 fixed — #93 is open, the last of the ten findings a full-codebase review raised on
-2026-08-21. See [todo.md](todo.md) for that and for the feature ideas promoted alongside them, and
-[feature-ideas.md](feature-ideas.md) for proposals not yet promoted to it.
+81 of 81 fixed — the full-codebase review raised on 2026-08-21 is done, ten for ten. See
+[todo.md](todo.md) for the feature ideas still open, and [feature-ideas.md](feature-ideas.md) for
+proposals not yet promoted to it.
 
 ---
+
+## 2026-08-21 — Omega's phase-2 blink never actually teleported (#93)
+
+### Fixed
+
+`cycleBlink()` teleports a part to a new x each time it comes back — Phantom (level 70) relies on
+exactly that. Omega's phase 2 called it too, but immediately ran `sideToSide` on the same part with
+half-field bounds, which clamped the teleport away in the same frame: the half reappeared at
+whichever lane edge was nearest instead of somewhere new, and the second half was never passed to
+`cycleBlink` at all.
+
+The opposed sliding was already phase 2's more distinctive motion, so `cycleBlink()` now takes an
+optional `teleport` flag (default on, so Phantom's call is unchanged) and Omega's phase 2 passes
+`false` — the blink still drives the solid/vulnerable timing for both halves, it just no longer
+fights its own sliding for control of their position.
 
 ## 2026-08-21 — Endpoint and CI hardening (#92)
 
