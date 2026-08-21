@@ -1001,6 +1001,39 @@ module.exports = {
       },
     },
     {
+      name: "#57a — a laser bolt destroys a falling narrow drop before it lands",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.bricks = []; // isolate the drop pass from the brick pass ahead of it
+        const def = g.T.POWERUPS.find((d) => d.type === "narrow");
+        g.T.state.drops = [{ x: 200, y: 300, def }];
+        // Both move before the hit test: updateDrops runs first and nudges
+        // the drop down, then updateLasers moves the bolt up — start the
+        // bolt below the drop so the two still overlap by a comfortable
+        // margin once both have moved.
+        g.T.state.lasers.push({ x: 200, y: 305 });
+        g.frame();
+        a.eq(g.T.state.drops.length, 0, "the bolt should have destroyed the bad drop");
+        a.eq(g.T.state.lasers.length, 0, "the bolt should be consumed on impact");
+      },
+    },
+    {
+      name: "#57b — a laser bolt passes through a widen drop untouched",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.bricks = [];
+        const def = g.T.POWERUPS.find((d) => d.type === "widen");
+        g.T.state.drops = [{ x: 200, y: 300, def }];
+        // Both move before the hit test: updateDrops runs first and nudges
+        // the drop down, then updateLasers moves the bolt up — start the
+        // bolt below the drop so the two still overlap by a comfortable
+        // margin once both have moved.
+        g.T.state.lasers.push({ x: 200, y: 305 });
+        g.frame();
+        a.eq(g.T.state.drops.length, 1, "a good drop must never be destroyed by a laser bolt");
+      },
+    },
+    {
       name: "#31 — active power-up timers show as depleting bars",
       fn(a) {
         const g = boot().start();

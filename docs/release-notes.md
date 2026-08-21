@@ -63,10 +63,32 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #92 | ✅ Fixed — 2026-08-21 |
 | #93 | ✅ Fixed — 2026-08-21 |
 | #64 | ✅ Fixed — 2026-08-21 |
+| #57 | ✅ Fixed — 2026-08-21 |
 
-82 of 82 fixed — the full-codebase review raised on 2026-08-21 is done, ten for ten, and #64 (resume
-an interrupted run) has shipped alongside it. See [todo.md](todo.md) for the feature ideas still
-open, and [feature-ideas.md](feature-ideas.md) for proposals not yet promoted to it.
+83 of 83 fixed — the full-codebase review raised on 2026-08-21 is done, ten for ten, #64 (resume an
+interrupted run) has shipped alongside it, and #57 (laser-vs-bad-drop counterplay) closes out the §C
+power-up batch. See [todo.md](todo.md) for the feature ideas still open, and
+[feature-ideas.md](feature-ideas.md) for proposals not yet promoted to it.
+
+---
+
+## 2026-08-21 — Negative power-up counterplay (#57)
+
+### Fixed
+
+`narrow` and `fast` power-ups used to just happen to you, with no way to see one coming and avoid it
+short of dodging the paddle out of the way. `updateLasers()` gained a third pass — after the existing
+brick and boss-part checks — that sweeps a bolt against `state.drops` and destroys the first `!good`
+one it overlaps, using the same ±10px hit box `updateDrops()` already uses against the paddle. A hit
+splices the drop, bursts in the drop's own colour, and plays a distinct "denied" tone; good drops
+(`widen`, `life`, and the rest) are untouchable by design, and a kill scores nothing — this is
+defence, not offence.
+
+### Tests
+
+Two new cases in `regressions.js` (`#57a`, `#57b`), confirmed failing first against the unfixed code:
+a laser bolt destroys a falling `narrow` drop before it lands, and a bolt passes through a falling
+`widen` drop untouched.
 
 ---
 

@@ -9,12 +9,12 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 6 open items — #47 (promoted from [feature-ideas.md](feature-ideas.md) §A), #50
-(promoted from §B), #56–57 (promoted from §C), #63 (promoted from §D), and #83 (raised directly,
-not promoted from `feature-ideas.md`). #46 from the §A batch, #53, #54, and #55 from the §C batch,
-#82 (raised directly), #84–#93 (the full 2026-08-21 review pass, correctness and security/backend
-alike), and #64 (promoted from §D) have shipped (see [done.md](done.md)). #62 (promoted from §D) was
-discarded outright rather than fixed — see the note in §D below.
+**Status:** 5 open items — #47 (promoted from [feature-ideas.md](feature-ideas.md) §A), #50
+(promoted from §B), #56 (promoted from §C), #63 (promoted from §D), and #83 (raised directly,
+not promoted from `feature-ideas.md`). #46 from the §A batch, #53, #54, #55, and #57 from the §C
+batch, #82 (raised directly), #84–#93 (the full 2026-08-21 review pass, correctness and
+security/backend alike), and #64 (promoted from §D) have shipped (see [done.md](done.md)). #62
+(promoted from §D) was discarded outright rather than fixed — see the note in §D below.
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
 test → fix → move the finding's whole entry from this file to [done.md](done.md), prepending a
@@ -273,11 +273,11 @@ kind of thing that would push this from M to L and isn't needed to ship a first 
 
 Promoted together, originally as four items sharing a handful of functions —
 `updateBalls()`/`resolveBrickCollision()`, `applyPowerup()`, `CONFIG.effects`, `renderEffectBars()`.
-#53 (fireball), #54 (the safety-net shield), and #55 (magnet paddle / hold-to-slow bullet time) have
-since shipped — see [done.md](done.md) for how each landed, including the `.effect-bars`
-capacity/i18n/weight bookkeeping each accounted for on its own. What's left below no longer shares
-much: #56 touches `updateBalls()`/`resolveBrickCollision()` (the paddle-physics half of the original
-set), and #57 touches `updateLasers()` instead — read each as its own item.
+#53 (fireball), #54 (the safety-net shield), #55 (magnet paddle / hold-to-slow bullet time), and #57
+(laser-vs-bad-drop counterplay) have since shipped — see [done.md](done.md) for how each landed,
+including the `.effect-bars` capacity/i18n/weight bookkeeping each accounted for on its own. What's
+left below no longer shares much with the rest of the batch: #56 touches
+`updateBalls()`/`resolveBrickCollision()`, the paddle-physics half of the original set.
 
 ### 56. Paddle spin — English on the ball (M)
 
@@ -316,41 +316,12 @@ overshot) only cares about *where* the ball crossed the paddle's top plane, whic
 change — spin is applied to the outgoing angle after that rewind has already located the hit, so the
 two features don't need to coordinate beyond "spin reads the same `rel` `isTopHit` already computed."
 
-### 57. Negative power-up counterplay (S)
-
-`narrow` and `fast` currently just happen to you — they land in `state.drops`, fall, and either miss
-the paddle or apply themselves with no decision on the player's part. The concrete, cheap version of
-"give the player an out": **let a laser bolt destroy a falling bad capsule before it lands.**
-
-`updateLasers()` already sweeps every bolt against `state.bricks` and, failing that, against
-`state.boss`; it needs a third pass, against `state.drops`, using the same hit-test shape
-`updateDrops()` already uses for the paddle (`d.x`/`d.y` ± the drawn 10px radius). Restricted to
-`!d.def.good` drops only — a bolt should never be able to snipe a `widen` or a `life` out of the
-air; that would make good drops a liability near a laser-holding player, the opposite of the intent.
-On a hit: splice the drop, a small burst at its position, a distinct tone so it reads as "denied"
-rather than "collected," and no score — this is defence, not offence, and awarding points would make
-`laser` strictly better at farming than at its existing job.
-
-**Two small consequences worth deciding rather than discovering:** it only exists while
-`state.laserEffect` is active (no laser, no counterplay — same as every other laser interaction),
-and it stacks with #53's fireball for free if that ships too, since both are read-only additions to
-functions that already loop over their respective collections once per frame.
-
-**Left out of this pass, deliberately:** the feature-ideas entry's second option, a standalone
-"cleanse" pickup that clears whatever bad effect is currently active (`state.widthEffect.mult < 1` /
-`state.speedEffect.mult > 1`, nulled the same way `resetPaddleAndBall()` already does). It's a
-natural follow-up — a new `POWERUPS` row plus a branch in `applyPowerup()`, genuinely S on its own —
-but doing both at once is what would push this above S, and the laser version alone already converts
-the frustration into a decision for anyone who picked up `laser` in the first place.
-
 #### Tests
 
 - `#56a` — a paddle moving right at the moment of contact steers the bounce further right than the
   same hit position would with a stationary paddle, within the clamp.
 - `#56b` — the clamp holds: no combination of hit position and paddle velocity produces a bounce
   angle whose vertical component drops below the existing minimum.
-- `#57a` — a laser bolt destroys a falling `narrow` drop and the drop never reaches the paddle.
-- `#57b` — a laser bolt passes through a falling `widen` drop untouched.
 
 ---
 

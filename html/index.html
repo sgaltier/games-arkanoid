@@ -4595,7 +4595,24 @@ canvas {
       // #44: a bolt that missed every brick can still reach a boss part.
       if (state.boss && !state.boss.dead) {
         var bp = hitTestBossPartAt(laser.x, laser.y);
-        if (bp) { bossPartHit(bp); state.lasers.splice(i, 1); }
+        if (bp) { bossPartHit(bp); state.lasers.splice(i, 1); continue; }
+      }
+      // #57: a bolt that missed everything else can still snipe a falling bad
+      // drop out of the air — restricted to `!good` so a laser can never
+      // deny the player a widen/life/etc, which would make good drops a
+      // liability instead of a bonus. Same 10px hit radius updateDrops uses
+      // against the paddle. No score: this is defence, not offence.
+      for (var k = 0; k < state.drops.length; k++) {
+        var d = state.drops[k];
+        if (d.def.good) continue;
+        if (laser.x >= d.x - 10 && laser.x <= d.x + 10 &&
+            laser.y >= d.y - 10 && laser.y <= d.y + 10) {
+          burst(d.x, d.y, d.def.color, 10);
+          tone({ freq: 400, slide: 120, dur: 0.12, type: "square", vol: 0.1 });
+          state.drops.splice(k, 1);
+          state.lasers.splice(i, 1);
+          break;
+        }
       }
     }
   }
