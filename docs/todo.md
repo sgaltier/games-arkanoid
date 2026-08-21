@@ -9,11 +9,11 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 8 open items — #47 (promoted from [feature-ideas.md](feature-ideas.md) §A), #50
-(promoted from §B), #56–57 (promoted from §C), #62–64 (promoted from §D), and #83 (raised directly,
-not promoted from `feature-ideas.md`). Every review finding, and every other directly-requested
-feature, raised so far has shipped, and so have #46 from the §A batch, #53, #54, and #55 from the
-§C batch, and #82 (raised directly) (see [done.md](done.md)).
+**Status:** 18 open items — #47 (promoted from [feature-ideas.md](feature-ideas.md) §A), #50
+(promoted from §B), #56–57 (promoted from §C), #62–64 (promoted from §D), #83 (raised directly, not
+promoted from `feature-ideas.md`), and **#84–#93, the correctness and security findings of the
+2026-08-21 review pass** (§E and §F). #46 from the §A batch, #53, #54, and #55 from the §C batch,
+and #82 (raised directly) have shipped (see [done.md](done.md)).
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
 test → fix → move the finding's whole entry from this file to [done.md](done.md), prepending a
@@ -27,19 +27,22 @@ function or field name, which does not go stale.
 
 ---
 
-Every review finding raised so far has shipped, and so has every directly-requested feature — #44
-(boss levels), #74 (the boss-kill celebration built on top of it), #75 (a follow-on to #37), #78
-(effect-bar names), #76 (hall-of-fame name validation), #77 (hall-of-fame profanity filtering), #79
-(the boss-kill death beat's music/explosion/sound gaps), #80 (level-progress-driven music intensity),
-#81 (the level-clear fanfare), #46 (level select), #53 (the fireball power-up), #54 (the safety-net
-shield), #55 (magnet paddle / hold-to-slow bullet time), and #82 (the `neonbreak-*` → `blokrush-*`
-rename) — see [done.md](done.md). What is open below is #47 (daily challenge seed), #50 (moving
-bricks), #62 (colourblind-safe brick markers), #63 (difficulty selection), #64 (resume an interrupted
-run), and two power-up/ball-mechanics ideas, all promoted from [feature-ideas.md](feature-ideas.md)
-and keeping their numbers; that file still holds the proposals not yet promoted. #83 (per-level star
-ratings, split out of #46 — the two were originally one item) was raised directly rather than
-promoted from there. New review findings go here too, keeping the shared numbering: the next free
-number is **#84**.
+Every directly-requested feature raised so far has shipped — #44 (boss levels), #74 (the boss-kill
+celebration built on top of it), #75 (a follow-on to #37), #78 (effect-bar names), #76 (hall-of-fame
+name validation), #77 (hall-of-fame profanity filtering), #79 (the boss-kill death beat's
+music/explosion/sound gaps), #80 (level-progress-driven music intensity), #81 (the level-clear
+fanfare), #46 (level select), #53 (the fireball power-up), #54 (the safety-net shield), #55 (magnet
+paddle / hold-to-slow bullet time), and #82 (the `neonbreak-*` → `blokrush-*` rename) — see
+[done.md](done.md). Open below is a feature half and a defect half. The features are #47 (daily
+challenge seed), #50 (moving bricks), #62 (colourblind-safe brick markers), #63 (difficulty
+selection), #64 (resume an interrupted run), and two power-up/ball-mechanics ideas, all promoted from
+[feature-ideas.md](feature-ideas.md) and keeping their numbers; that file still holds the proposals
+not yet promoted. #83 (per-level star ratings, split out of #46 — the two were originally one item)
+was raised directly rather than promoted from there. The defects are **#84–#93**, raised by a
+full-codebase review on 2026-08-21 and grouped into §E (correctness, all in `index.html`) and §F
+(security and backend, mostly `functions/api/scores.js`) — the first review findings this file has
+carried since #82 shipped. New review findings go here too, keeping the shared numbering: the next
+free number is **#94**.
 
 ---
 
@@ -588,3 +591,296 @@ over either way).
   round-trip).
 - `#64e` — `newGame()` and `endGame()` both clear any saved snapshot (`loadResume()` afterward returns
   `null`).
+
+---
+
+## E. Correctness — 2026-08-21 review findings
+
+Raised directly by a read of the whole codebase rather than promoted from
+[feature-ideas.md](feature-ideas.md), so unlike §A–§D these describe code that exists and is wrong
+today. All six are in [index.html](../html/index.html) and five of the six are in the #44 boss layer,
+which is the newest and least-exercised part of the file — the test suite reaches `BOSSES`' data
+(arenas, ids, hit counts) but not its per-frame motion or its draw path. Ordered by severity.
+
+Unlike the entries above, these **do** carry line anchors, since they point at real code: re-anchor
+them the same way [done.md](done.md)'s entries are re-anchored whenever `index.html` shifts.
+
+### 84. Gemini's split halves are indexed off by one (M)
+
+`onPartDown` ([1865-1872](../html/index.html#L1865-L1872)) pushes the two halves onto the array the
+dead body is still in, leaving `b.parts === [body, left, right]` — but `update`
+([1859-1864](../html/index.html#L1859-L1864)) drives `b.parts[0]` and `b.parts[1]` as if they were
+the two halves. `b.parts[0]` is the dead body, so its `sideToSide` call is skipped by the `alive`
+guard; `b.parts[1]` is the **left** half, and it gets the **right** half's bounds
+(`mid + 4 … GAME_W - FIELD_PAD - w`); `b.parts[2]`, the right half, is never updated at all.
+
+Observed against the current file: the halves spawn at `x = 10` and `x = 415`, and two seconds later
+sit at `x ≈ 407` and `x = 415` — both crammed into the right quarter of the field, one of them
+frozen for the whole fight. "Two half-width bodies moving in opposition", which is the entire idea
+of the fight and what the comment at [1849-1850](../html/index.html#L1849-L1850) promises, never
+happens.
+
+**The fix is one line, but pick the shape deliberately.** `fire`
+([1873-1883](../html/index.html#L1873-L1883)) already reads `b.parts[1]`/`b.parts[2]` and is
+therefore correct — so correcting `update`'s indices to match is the smaller change and keeps the
+dead body in `parts`, which `bossBounds()` ([4577-4585](../html/index.html#L4577-L4585)) unions over
+deliberately (see its comment: a dead part keeps its geometry, and #79's death beat is anchored on
+it). Splicing the body out instead would break that and would also have to be mirrored in `fire`.
+Omega's phase 1 is the model for what correct looks like — `spawnOmegaPhase()` replaces `b.parts`
+wholesale, so its `[0]`/`[1]` really are the two halves.
+
+### 85. Every boss is drawn with the previous shape's colour — `BOSSES` has no `color`/`glow` (M)
+
+Six sites read `def.color` and one reads `def.glow`, and no entry in `BOSSES`
+([1776](../html/index.html#L1776)) defines either — every one of the ten is
+`{id, killBonus, arena, spawn, update, fire}` plus the occasional hook. Assigning `undefined` to
+`ctx.fillStyle`/`ctx.shadowColor` is not an error, it is silently ignored, so the canvas keeps
+whatever was last set:
+
+- `drawBoss()` ([5723-5758](../html/index.html#L5723-L5758)) paints a vulnerable part
+  ([5734](../html/index.html#L5734)) and the hp strip ([5755](../html/index.html#L5755)) in whatever
+  fill `drawBricks()` left behind on the way past — in practice one of its marker colours, e.g. the
+  `rgba(255,255,255,0.9)` of a `?` glyph. An *in*vulnerable part is the only one that reads
+  correctly, because `"#3d4463"` is a literal. `shadowColor = def.glow`
+  ([5731](../html/index.html#L5731)) never takes either, so the neon glow the rest of the game is
+  built on is missing from the one entity that most needs to stand out.
+- `bossPartHit()`'s three bursts ([4546](../html/index.html#L4546),
+  [4558](../html/index.html#L4558), [4564](../html/index.html#L4564)) store `undefined` as the
+  particle colour, which `drawParticles()` then hands to `fillStyle` with the same result.
+- #79's death-beat lightning ([4646](../html/index.html#L4646)) does the same to `strokeStyle`.
+
+**The fix is data, not code: give each entry a `color`/`glow` pair**, the way `BRICK_COLOR`
+([1144-1161](../html/index.html#L1144-L1161)) and `POWERUPS`
+([1461-1473](../html/index.html#L1461-L1473)) already do, rather than making the seven call sites
+defensive. Ten fights that currently cannot be told apart by colour is also most of #62's argument
+in miniature — a distinct hue per boss is the cheap half of making a fight readable.
+
+### 86. A life lost to a boss hazard is invisible to the achievement roster (S/M)
+
+`applyBossHazard("life")` ([4681-4699](../html/index.html#L4681-L4699)) decrements `state.lives`
+directly and never touches `state.achStats`. `loseLife()`
+([5120-5143](../html/index.html#L5120-L5143)) — the only other thing that takes a life — increments
+`ballsLost` and `levelLosses` right at the top, and those two counters are what four achievements
+read: "Untouchable" (`won && ballsLost === 0`), "Flawless Victory"
+(`bossDefeated()`'s `levelLosses === 0`), and "Clean Sheet"/"Iron Ten" via `cleanStreak` in
+`checkLevelClear()`.
+
+Confirmed against the current file: one Leviathan beam takes `state.lives` from 3 to 2 while
+`achStats.ballsLost` and `achStats.levelLosses` both stay at `0`. So the one hazard in the game that
+costs a whole life is also the one that a "flawless" run is allowed to eat — including on level 90,
+whose boss is the only one that fires it, and including all the way to "Untouchable", the roster's
+hardest tier-4 entry.
+
+**Where the two counters belong is the decision to make, not whether to add them.** `ballsLost` is
+literally "balls lost" and no ball was lost here, but every predicate reading it means "lives spent",
+which is why `loseLife()` is where it lives; renaming the field is a larger change than this warrants
+and would orphan nothing (it is per-run and never persisted — see `freshAchStats()`), so the smaller
+fix is to increment both from `applyBossHazard`'s `"life"` branch and leave the names alone. Note
+this branch also calls `endGame(false)` directly when the life was the last one, bypassing #71's
+`lifelost` beat — deliberate (there is no ball to hold a beat for), but it means the fix cannot just
+be "route this through `loseLife()`".
+
+### 87. Minions detonate on the paddle *line*, not on the paddle (S/M)
+
+`updateMinions()` ([4764-4769](../html/index.html#L4764-L4769)) tests `m.y + m.r >= state.paddle.y`
+and nothing else, so a minion reaching the paddle's height anywhere across the field applies
+`narrow` — confirmed with the paddle parked at `x = 400` and a minion crossing at `x = 5`. The
+paddle narrows regardless.
+
+`updateBossShots()` ([4719-4727](../html/index.html#L4719-L4727)) gets this right for the other
+hazard shape, testing both axes. The asymmetry is what makes this read as an oversight rather than a
+design choice: `spawnMinion()`'s own comment
+([4732-4735](../html/index.html#L4732-L4735)) calls a minion "a small enemy the ball can destroy in
+flight" whose reaching the paddle line "detonates it (narrow) rather than costing a life outright" —
+which describes the code, but the whole point of drawing minions as dodgeable objects that drift on
+their own `vx` ([4749-4755](../html/index.html#L4749-L4755)) is that dodging is a thing a player can
+do. Today it isn't: Hive's pairs, Phantom's explosives and Omega's third phase all land their
+`narrow` unconditionally, and the ball is the only counterplay.
+
+**Adding the x test is the fix; whether the penalty should survive a clean dodge is the question it
+forces.** If a missed minion should still cost something, that belongs in an explicit "fell past the
+paddle" branch (splice it, no effect, maybe a sound), not in a hit test that pretends to be one.
+
+### 88. Leviathan's telegraph is invisible (S)
+
+`spawnBossShot`'s `telegraph` ([4674](../html/index.html#L4674)) holds a hazard still before it
+starts moving, and `updateBossShots` honours it for every kind
+([4704](../html/index.html#L4704)). But `drawBossShots()` only *renders* the warning state inside
+its `kind === "beam"` branch ([5778-5782](../html/index.html#L5778-L5782)) — the `else` branch draws
+a plain red circle whatever `s.telegraph` holds.
+
+Aegis's beam is a beam, so it is fine. Leviathan's shot
+([2005-2011](../html/index.html#L2005-L2011)) is a `drop` with `telegraph: 1.0`, and it is the only
+hazard in the game that costs a life outright — the comment above the fight
+([1986-1989](../html/index.html#L1986-L1989)) says it is "telegraphed so that always reads as fair
+rather than a surprise", and it isn't: for that whole second it is pixel-identical to a live
+incoming shot that merely happens not to be moving yet.
+
+**Hoisting `var warn = s.telegraph > 0` above the branch and reusing the beam's own treatment** (the
+`#ff3b3b`/`0.35`-alpha pair) is the minimal fix and keeps one visual vocabulary for "not yet armed"
+across both hazard shapes.
+
+### 89. The profanity filter renames ordinary people (M)
+
+`isProfaneName()` ([5325-5331](../html/index.html#L5325-L5331)) matches every entry of
+`PROFANITY_LIST` ([5295-5304](../html/index.html#L5295-L5304)) as a **plain substring** of the
+normalised name, and `normalizeForProfanity()` ([5317-5324](../html/index.html#L5317-L5324)) first
+strips everything that isn't `a`-`z` — including the spaces and punctuation that would otherwise mark
+a word boundary. #77 chose that deliberately, to catch `asshole` from `ass` and `s e x` from `sex`.
+The cost was never written down: three-and-four-letter roots in a boundary-free substring match are
+the Scunthorpe problem in its textbook form.
+
+Held against the current list, all of these are silently replaced with `"Bisounours"`:
+
+| Name | Matches | Name | Matches |
+|---|---|---|---|
+| `Computer` | `pute` | `Cassandra`, `Bassist`, `Classic`, `Massive`, `Nasser` | `ass` |
+| `Hitchcock`, `Peacock` | `cock` | `Dickens` | `dick` |
+| `Essex`, `Sexton` | `sex` | `Analyst`, `Kanal` | `anal` |
+| `Arbiter` | `bite` | `Cumberland` | `cum` |
+| `Spicer` | `spic` | `Casse` (as in *casse-briques*) | `ass` |
+
+And because #77 made a match a **silent substitution** rather than a rejection — the right call for a
+real profanity, and exactly the wrong one here — the player is never told. They type their name, the
+board shows someone else's, and there is nothing on screen that explains it. On the world board that
+is permanent: #67's standing requirement is that `scores` is never reset.
+
+**Word-boundary matching is the fix, and it has to land in both copies at once.** The list is
+mirrored verbatim in [functions/api/scores.js](../functions/api/scores.js) (`PROFANITY_LIST`,
+`normalizeForProfanity`, `filterProfanity`) because `POST /api/scores` is public and reachable by
+`curl`; a fix on one side only would make the two boards judge the same name differently, which is
+precisely the trap CLAUDE.md flags for `NAME_MAX` and the preview bindings. The cheapest shape that
+keeps #77's evasion coverage: keep the fold (leetspeak and accents), but stop deleting non-letters
+outright — collapse them to a single separator instead, then match each list word with a
+`\b`-anchored regex plus an explicit suffix allowance (`ass|asses|asshole…`). That still catches
+`a55` and `s e x` (the separator collapses to nothing *between* letters of one word only if the
+whole string is one run) while leaving `Cassandra` alone. Whichever shape is chosen, the
+substitution should probably stop being silent as well — a short "that name can't go on the board"
+line reusing `#nameentry-error` (#76's field) costs two `STRINGS` keys and turns a mystery into a
+message.
+
+#### Tests
+
+- `#84a` — after Gemini splits, the left half stays left of the field midpoint and the right half
+  right of it, and **both** move (each half's `x` changes over a second of frames).
+- `#84b` — `fire`'s alternating shooter and `update`'s movement address the same two parts (a
+  regression guard against re-introducing the index skew in one function and not the other).
+- `#85a` — every entry of `BOSSES` defines a non-empty `color` and `glow`, and no two share a
+  `color`.
+- `#85b` — `drawBoss()` sets a defined `fillStyle` for a vulnerable part rather than inheriting the
+  previous one — asserted the same way #62's marker tests read the draw path.
+- `#86a` — a `"life"` boss hazard raises `achStats.ballsLost` and `achStats.levelLosses` by exactly
+  one, the same as `loseLife()`.
+- `#86b` — a boss beaten after taking a `"life"` hazard that fight does not set
+  `achStats.flawlessBoss`.
+- `#87a` — a minion crossing the paddle line far from the paddle applies no effect; one crossing
+  over the paddle applies `narrow`.
+- `#88a` — a shot still inside its `telegraph` window draws in the warning treatment, not the live
+  one, for `kind: "drop"` as well as `kind: "beam"`.
+- `#89a` — `Computer`, `Cassandra`, `Hitchcock`, `Dickens`, `Essex` and `Analyst` all survive
+  `isProfaneName()` unchanged.
+- `#89b` — the #77 cases still fail it: `a55`, `s e x`, `nègre`, and a plain profanity, plus a
+  suffixed root (`asshole`).
+- `#89c` — `PROFANITY_LIST` in `index.html` and in `functions/api/scores.js` are identical, asserted
+  structurally rather than by example (the suite already reads the game file as text, so it can read
+  the Worker the same way).
+
+---
+
+## F. Security and backend — 2026-08-21 review findings
+
+Same pass as §E, but in [functions/api/scores.js](../functions/api/scores.js) and the CI workflow
+rather than the game. None of these is a break of the endpoint's stated threat model — #67's own
+write-up is explicit that a patched client can forge a score inside the plausibility envelope, and
+that raising the cost above `curl` is the whole goal. What is below is either an envelope that turns
+out not to bind, or an operational hazard on a database that #67 forbids resetting.
+
+### 90. The scoring-rate ceiling stops binding after ~2h47m (M)
+
+`onRequestPost` rejects a submission when `score > (age / 1000) * MAX_POINTS_PER_SEC`, and
+independently when `score > ABSOLUTE_MAX_SCORE`. With the current constants those two cross at
+`10_000_000 / 1000 = 10_000` seconds — 2 h 47 m. `TOKEN_MAX_AGE_MS` is 24 h. So for any token
+between ~2.8 h and 24 h old, the rate check permits more than the absolute cap already does and is
+therefore dead code: the envelope collapses to the flat 10 M ceiling.
+
+The comment on `TOKEN_MAX_AGE_MS` says stockpiling tokens to age them is pointless because the
+`UNIQUE` constraint on `nonce` prevents replay. That is true of *replay* and not of *aging*: one
+`GET` costs nothing, tokens are handed out unrate-limited, and holding one for three hours converts
+the per-second ceiling into no ceiling at all. A real 100-level run scores roughly 1.5 M, so the gap
+between what play produces and what the endpoint accepts is about 6×.
+
+**Two ways to close it, and they are not equivalent.** Capping the age used in the rate check
+(`Math.min(age, SOME_CAP)`) keeps the 24 h redemption window #64 will make reachable — that window
+exists so a run interrupted for a lunch break can still be submitted, which is a real requirement —
+while making the rate ceiling bind for the whole of it. Shortening `TOKEN_MAX_AGE_MS` instead would
+close this too but would take #64's resume-after-a-day case with it. The first is the one to pick;
+either way the two constants' relationship deserves a comment, because "these two checks cross at
+2 h 47 m" is not visible from reading either line.
+
+### 91. `submissions` is never pruned, and is written after the score it counts (M)
+
+[schema.sql](../schema.sql) creates `submissions` with the note that its rows "may be pruned
+freely" — and nothing anywhere prunes them. Every accepted score appends a row that only the
+10-minute rate-limit window will ever read again, and `idx_submissions_window` grows with it. On a
+never-reset database (#67) that is unbounded growth against D1's row and storage limits, for data
+whose useful life is ten minutes.
+
+Second, smaller problem in the same block: the `INSERT` into `submissions` runs *after* the `INSERT`
+into `scores`. Anything that fails between them — and the `catch` below explicitly expects failures
+there, since that is where `already_submitted` is detected — stores a score without counting it
+against the submitting IP. The rate limiter is meant to be the backstop for the case where the token
+scheme is defeated, so it should be the thing that cannot be skipped.
+
+**Prune opportunistically rather than on a schedule.** A `DELETE FROM submissions WHERE created_at <
+?` with `now - RATE_WINDOW_MS`, run in the same request that already touches the table, keeps the
+table proportional to real traffic with no cron and no second entry point — the same "no extra
+moving parts" reasoning that put the rate limit in D1 rather than in a KV namespace. Swapping the
+two inserts (or moving the `submissions` write above the `scores` one) is a one-line reorder; note
+it makes a rejected replay cost the attacker a rate-limit slot, which is the intended direction.
+
+### 92. Endpoint and CI hardening (S)
+
+Three small ones, none of them exploitable on their own, grouped because each is a two-line change:
+
+- **`POST /api/scores` checks nothing about where the request came from.** There is no
+  `content-type` check and no `Origin` check, so a cross-origin page can drive a visitor's browser
+  into submitting a score under that visitor's IP. The attacker cannot read the response (no CORS
+  headers — correctly, and that should stay), and they can mint their own tokens anyway, so the only
+  thing this buys is burning someone else's rate-limit budget and putting a name of the attacker's
+  choosing on the board attributed to that IP. Requiring `content-type: application/json` blocks the
+  form-POST shape that makes this reachable without CORS at all.
+- **The rate-limit check and its insert are not atomic.** Two POSTs from one IP arriving together
+  both read the same `COUNT(*)` and both pass. D1 has no transaction across the two statements here;
+  the practical fix is to accept the slack (it is bounded by concurrency, not by attacker effort) and
+  say so in the comment, or to move the count and the insert into one statement.
+- **[.github/workflows/test.yml](../.github/workflows/test.yml) declares no `permissions:` block**,
+  so `GITHUB_TOKEN` gets the repository default. The job only runs `node test/run.js`; adding
+  `permissions: contents: read` at the workflow level costs one line and is the standard hardening
+  for a workflow with a `pull_request` trigger.
+
+#### Tests
+
+None of §F is reachable from the test suite as it stands — `functions/api/scores.js` has no
+automated coverage at all, which #77's entry in [done.md](done.md) already notes and CLAUDE.md
+already states as policy ("check `/api/scores` directly rather than trusting the UI"). #90 is the one
+that is worth changing that for, because it is pure arithmetic over two module-level constants: a
+suite that imports `scores.js` and asserts `ABSOLUTE_MAX_SCORE / MAX_POINTS_PER_SEC >=
+TOKEN_MAX_AGE_MS / 1000` (or whatever cap replaces it) would catch the constants drifting apart
+again without needing a Worker runtime, a D1 binding, or a network. That is a decision to make when
+#90 is picked up, not a prerequisite for it.
+
+### 93. Omega's phase-2 blink never actually teleports (S)
+
+Filed last because it is cosmetic and arguably intentional, but it is a documented behaviour that
+does not happen. `cycleBlink()` ([1741-1749](../html/index.html#L1741-L1749)) exists to teleport a
+part "to a new x each time it comes back", and Phantom (level 70) gets exactly that. Omega's phase 1
+([2035-2044](../html/index.html#L2035-L2044)) calls it and then immediately runs `sideToSide` on the
+same part with half-field bounds, which clamps the teleport away in the same frame — so `b.parts[0]`
+reappears at one of its two lane edges every cycle instead of somewhere new, and `b.parts[1]` is
+never passed to `cycleBlink` at all, so it never teleports even in principle.
+
+**Decide which of the two mechanics phase 2 is actually for.** If it is the blink, the halves should
+be teleported *within* their own lanes (`rand(minX, maxX)` per part, both parts) instead of across
+the whole field; if it is the opposed sliding, the `cycleBlink` call should keep only its
+solid/vulnerable return value and stop pretending to move anything. Doing neither leaves a call whose
+comment describes something the fight does not do.
