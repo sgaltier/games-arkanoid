@@ -9,12 +9,11 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 13 open items — #47 (promoted from [feature-ideas.md](feature-ideas.md) §A), #50
+**Status:** 12 open items — #47 (promoted from [feature-ideas.md](feature-ideas.md) §A), #50
 (promoted from §B), #56–57 (promoted from §C), #62–64 (promoted from §D), #83 (raised directly, not
-promoted from `feature-ideas.md`), and **#89–#93, the correctness and security findings of the
-2026-08-21 review pass** (§E and §F). #46 from the §A batch, #53, #54, and #55 from the §C batch,
-#82 (raised directly), and #84–#88 (the first five of the review batch) have shipped (see
-[done.md](done.md)).
+promoted from `feature-ideas.md`), and **#90–#93, the security findings of the 2026-08-21 review
+pass** (§F). #46 from the §A batch, #53, #54, and #55 from the §C batch, #82 (raised directly), and
+#84–#89 (the review batch's correctness findings, all of them) have shipped (see [done.md](done.md)).
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
 test → fix → move the finding's whole entry from this file to [done.md](done.md), prepending a
@@ -39,11 +38,11 @@ challenge seed), #50 (moving bricks), #62 (colourblind-safe brick markers), #63 
 selection), #64 (resume an interrupted run), and two power-up/ball-mechanics ideas, all promoted from
 [feature-ideas.md](feature-ideas.md) and keeping their numbers; that file still holds the proposals
 not yet promoted. #83 (per-level star ratings, split out of #46 — the two were originally one item)
-was raised directly rather than promoted from there. The defects are **#89–#93**, what is left of the
-ten (#84–#93) raised by a full-codebase review on 2026-08-21, grouped into §E (correctness, all in
-`index.html`) and §F (security and backend, mostly `functions/api/scores.js`); #84–#88 of that
-batch have already shipped (see [done.md](done.md) §I). New review findings go here too, keeping the
-shared numbering: the next free number is **#94**.
+was raised directly rather than promoted from there. The defects are **#90–#93**, what is left of the
+ten (#84–#93) raised by a full-codebase review on 2026-08-21 — the correctness half (§E, all in
+`index.html`) is fully shipped; what's left is §F (security and backend, mostly
+`functions/api/scores.js`). #84–#89 of that batch have already shipped (see [done.md](done.md) §I).
+New review findings go here too, keeping the shared numbering: the next free number is **#94**.
 
 ---
 
@@ -595,74 +594,11 @@ over either way).
 
 ---
 
-## E. Correctness — 2026-08-21 review findings
-
-Raised directly by a read of the whole codebase rather than promoted from
-[feature-ideas.md](feature-ideas.md), so unlike §A–§D these describe code that exists and is wrong
-today. All six were in [index.html](../html/index.html) and five of the six in the #44 boss layer,
-which is the newest and least-exercised part of the file — the test suite reaches `BOSSES`' data
-(arenas, ids, hit counts) but not its per-frame motion or its draw path. Ordered by severity; the
-first five of them, #84, #85, #86, #87, and #88, have shipped and their entries now live in
-[done.md](done.md) §I.
-
-Unlike the entries above, these **do** carry line anchors, since they point at real code: re-anchor
-them the same way [done.md](done.md)'s entries are re-anchored whenever `index.html` shifts.
-
-### 89. The profanity filter renames ordinary people (M)
-
-`isProfaneName()` ([5363-5369](../html/index.html#L5363-L5369)) matches every entry of
-`PROFANITY_LIST` ([5333-5342](../html/index.html#L5333-L5342)) as a **plain substring** of the
-normalised name, and `normalizeForProfanity()` ([5355-5362](../html/index.html#L5355-L5362)) first
-strips everything that isn't `a`-`z` — including the spaces and punctuation that would otherwise mark
-a word boundary. #77 chose that deliberately, to catch `asshole` from `ass` and `s e x` from `sex`.
-The cost was never written down: three-and-four-letter roots in a boundary-free substring match are
-the Scunthorpe problem in its textbook form.
-
-Held against the current list, all of these are silently replaced with `"Bisounours"`:
-
-| Name | Matches | Name | Matches |
-|---|---|---|---|
-| `Computer` | `pute` | `Cassandra`, `Bassist`, `Classic`, `Massive`, `Nasser` | `ass` |
-| `Hitchcock`, `Peacock` | `cock` | `Dickens` | `dick` |
-| `Essex`, `Sexton` | `sex` | `Analyst`, `Kanal` | `anal` |
-| `Arbiter` | `bite` | `Cumberland` | `cum` |
-| `Spicer` | `spic` | `Casse` (as in *casse-briques*) | `ass` |
-
-And because #77 made a match a **silent substitution** rather than a rejection — the right call for a
-real profanity, and exactly the wrong one here — the player is never told. They type their name, the
-board shows someone else's, and there is nothing on screen that explains it. On the world board that
-is permanent: #67's standing requirement is that `scores` is never reset.
-
-**Word-boundary matching is the fix, and it has to land in both copies at once.** The list is
-mirrored verbatim in [functions/api/scores.js](../functions/api/scores.js) (`PROFANITY_LIST`,
-`normalizeForProfanity`, `filterProfanity`) because `POST /api/scores` is public and reachable by
-`curl`; a fix on one side only would make the two boards judge the same name differently, which is
-precisely the trap CLAUDE.md flags for `NAME_MAX` and the preview bindings. The cheapest shape that
-keeps #77's evasion coverage: keep the fold (leetspeak and accents), but stop deleting non-letters
-outright — collapse them to a single separator instead, then match each list word with a
-`\b`-anchored regex plus an explicit suffix allowance (`ass|asses|asshole…`). That still catches
-`a55` and `s e x` (the separator collapses to nothing *between* letters of one word only if the
-whole string is one run) while leaving `Cassandra` alone. Whichever shape is chosen, the
-substitution should probably stop being silent as well — a short "that name can't go on the board"
-line reusing `#nameentry-error` (#76's field) costs two `STRINGS` keys and turns a mystery into a
-message.
-
-#### Tests
-
-- `#89a` — `Computer`, `Cassandra`, `Hitchcock`, `Dickens`, `Essex` and `Analyst` all survive
-  `isProfaneName()` unchanged.
-- `#89b` — the #77 cases still fail it: `a55`, `s e x`, `nègre`, and a plain profanity, plus a
-  suffixed root (`asshole`).
-- `#89c` — `PROFANITY_LIST` in `index.html` and in `functions/api/scores.js` are identical, asserted
-  structurally rather than by example (the suite already reads the game file as text, so it can read
-  the Worker the same way).
-
----
-
 ## F. Security and backend — 2026-08-21 review findings
 
-Same pass as §E, but in [functions/api/scores.js](../functions/api/scores.js) and the CI workflow
-rather than the game. None of these is a break of the endpoint's stated threat model — #67's own
+Same 2026-08-21 review pass as #84–#89 (the correctness half, all shipped — see [done.md](done.md)
+§I), but in [functions/api/scores.js](../functions/api/scores.js) and the CI workflow rather than the
+game. None of these is a break of the endpoint's stated threat model — #67's own
 write-up is explicit that a patched client can forge a score inside the plausibility envelope, and
 that raising the cost above `curl` is the whole goal. What is below is either an envelope that turns
 out not to bind, or an operational hazard on a database that #67 forbids resetting.

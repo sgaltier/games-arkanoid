@@ -12,6 +12,8 @@
   what must never come back.
 */
 
+const fs = require("fs");
+const path = require("path");
 const { boot, HTML, SCRIPT } = require("../dom-stub");
 
 // Empty a level the short way. Bypassing brickHit means the remainingBricks
@@ -3910,6 +3912,53 @@ module.exports = {
         a.ok(warnFill, "a shot still inside its telegraph window must draw at warning alpha (0.35)");
         const liveFill = log.find((e) => e.op === "fill" && e.globalAlpha === 1);
         a.not(liveFill, "a telegraphed shot must not also draw at full (live) alpha");
+      },
+    },
+    {
+      name: "#89a — the profanity filter leaves ordinary names containing a root as a substring alone",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.score = 10;
+        g.T.state.lives = 1;
+        ["Computer", "Cassandra", "Hitchcock", "Dickens", "Essex", "Analyst"].forEach((name) => {
+          g.loseBall();
+          g.el("nameentry-input").value = name;
+          g.el("btn-nameentry-submit").click(1);
+          a.eq(g.T.state.hofHighlight.name, name, `"${name}" must not be swapped for the fallback name`);
+        });
+      },
+    },
+    {
+      name: "#89b — the #77 evasions, and a suffixed root, still get caught after the word-boundary fix",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.score = 10;
+        g.T.state.lives = 1;
+        ["a55", "s e x", "nègre", "fuck", "asshole"].forEach((name) => {
+          g.loseBall();
+          g.el("nameentry-input").value = name;
+          g.el("btn-nameentry-submit").click(1);
+          a.eq(
+            g.T.state.hofHighlight.name, g.T.CONFIG.hallOfFame.fallbackName,
+            `"${name}" must still be swapped for the fallback name`
+          );
+        });
+      },
+    },
+    {
+      name: "#89c — PROFANITY_LIST is identical in index.html and functions/api/scores.js",
+      fn(a) {
+        const extractList = (text) => {
+          const m = text.match(/PROFANITY_LIST\s*=\s*\[([\s\S]*?)\];/);
+          if (!m) throw new Error("could not find PROFANITY_LIST");
+          return [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]);
+        };
+        const gameList = extractList(SCRIPT);
+        const workerList = extractList(
+          fs.readFileSync(path.join(__dirname, "..", "..", "functions", "api", "scores.js"), "utf8")
+        );
+        a.ok(gameList.length > 0, "sanity: the game's PROFANITY_LIST must not be empty");
+        a.eq(JSON.stringify(workerList), JSON.stringify(gameList), "the two lists must match word-for-word, in order");
       },
     },
   ],

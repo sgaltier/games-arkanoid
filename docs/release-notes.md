@@ -57,10 +57,47 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #86 | ✅ Fixed — 2026-08-21 |
 | #87 | ✅ Fixed — 2026-08-21 |
 | #88 | ✅ Fixed — 2026-08-21 |
+| #89 | ✅ Fixed — 2026-08-21 |
 
-76 of 81 fixed — #89–#93 are open, the rest of the ten findings a full-codebase review raised on
+77 of 81 fixed — #90–#93 are open, the rest of the ten findings a full-codebase review raised on
 2026-08-21. See [todo.md](todo.md) for those and for the feature ideas promoted alongside them, and
 [feature-ideas.md](feature-ideas.md) for proposals not yet promoted to it.
+
+---
+
+## 2026-08-21 — The profanity filter renamed ordinary people (#89)
+
+### Fixed
+
+**The hall-of-fame name filter no longer fires from inside an unrelated word.** `isProfaneName()`
+matched every root in `PROFANITY_LIST` as a plain substring of the normalised name, and
+`normalizeForProfanity()` stripped every space and punctuation mark before the check ran — which is
+what let `#77`'s spacing/leetspeak evasions (`s e x`, `a55`) work, but also meant any name that merely
+*contained* a three-or-four-letter root got silently renamed `"Bisounours"`: `Computer` (`pute`),
+`Cassandra` (`ass`), `Hitchcock` (`cock`), `Dickens` (`dick`), `Essex` (`sex`), `Analyst` (`anal`), and
+others, with nothing on screen explaining why. On the world board that substitution is permanent —
+`#67`'s standing requirement is that `scores` is never reset.
+
+Each root in `PROFANITY_LIST` now has to land on a letter boundary — string start/end, or any
+non-letter — on both sides, so it can only match a whole run of letters and never a substring
+straddling part of one word and part of another. `normalizeForProfanity()` still folds leetspeak and
+accents, but keeps spaces and punctuation instead of deleting them: they're the separators the
+boundary check relies on, and an optional run of them between a root's own letters is what keeps the
+`#77` evasions matching as a single word. The trade-off: symmetric boundaries drop the "for free"
+suffix/plural coverage a bare substring match had, so `asses`/`asshole` are now listed next to `ass`
+explicitly. The mirror in `functions/api/scores.js` got the identical change, since `POST /api/scores`
+is public and reachable directly, and the two lists must keep judging a name the same way.
+
+### Tests
+
+Three new cases in `regressions.js`, two confirmed failing first. `#89a` submits the six ordinary
+names above and asserts each lands on the board under its own name. `#89b` re-submits `#77`'s own
+evasions plus a suffixed root (`asshole`) and asserts all five still get swapped for the fallback name.
+`#89c` extracts both `PROFANITY_LIST` array literals as text and asserts they stay identical,
+word-for-word and in order.
+
+**Doc anchors across `done.md` and `todo.md` were re-anchored** by the net +10 lines this added to
+`index.html` (+17 to `functions/api/scores.js`), per the re-anchoring discipline both files describe.
 
 ---
 

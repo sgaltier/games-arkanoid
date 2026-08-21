@@ -126,12 +126,14 @@ function cleanName(raw) {
 // so the client-side check in index.html buys nothing here on its own. The
 // two lists must stay in sync or the local and global boards judge the same
 // name differently — same "restated in both places" trap the boss/preview-env
-// bindings already have (see CLAUDE.md).
+// bindings already have (see CLAUDE.md). #89: suffixed/plural forms are no
+// longer caught "for free" (see PROFANITY_RE below), so a handful — like
+// "asshole" off "ass" — are listed explicitly where it matters.
 const PROFANITY_LIST = [
   "fuck", "shit", "bitch", "cunt", "dick", "cock", "pussy", "whore", "slut",
-  "ass", "bastard", "rape", "nigger", "nigga", "faggot", "retard", "chink",
-  "spic", "kike", "gook", "tranny", "wetback", "sex", "porn", "anal",
-  "penis", "vagina", "boob", "cum",
+  "ass", "asses", "asshole", "bastard", "rape", "nigger", "nigga", "faggot",
+  "retard", "chink", "spic", "kike", "gook", "tranny", "wetback", "sex",
+  "porn", "anal", "penis", "vagina", "boob", "cum",
   // French.
   "merde", "putain", "pute", "salope", "connard", "connasse", "encule",
   "bite", "couille", "nique", "batard", "foutre", "branler", "pede",
@@ -148,21 +150,36 @@ const PROFANITY_CHAR_MAP = {
 // that can go on a permanent, never-reset, world-visible board.
 const PROFANITY_FALLBACK_NAME = "Bisounours";
 
+// Folds the usual filter evasions before matching: leetspeak look-alikes
+// ("a55" -> "ass") and French accented letters ("nègre" -> "negre") fold to
+// their plain equivalent. Unlike #77, anything left that isn't a-z (spaces,
+// punctuation) is kept rather than dropped — PROFANITY_RE below treats it as
+// a word boundary instead, so "s e x" still matches as one spaced-out root
+// but "ass" no longer fires from inside "Cassandra" (#89).
 function normalizeForProfanity(s) {
   let out = "";
   for (let i = 0; i < s.length; i++) {
     const ch = s[i].toLowerCase();
     out += PROFANITY_CHAR_MAP[ch] || ch;
   }
-  return out.replace(/[^a-z]/g, "");
+  return out;
 }
 
+// #89: each root has to land on a letter boundary (string start/end, or any
+// non-letter) on both sides, so it can only match a whole run of letters —
+// never a substring straddling part of one word and part of another. Filler
+// between the root's own letters ([^a-z]*) is still allowed, so an evasion
+// that spaces or leetspeaks a root apart ("s e x", "a55") still matches it as
+// a single word; what it can no longer do is fire from the middle of an
+// unrelated word ("Cassandra", "Hitchcock", "Analyst", ...).
+const PROFANITY_RE = new RegExp(
+  "(?:^|[^a-z])(?:" +
+    PROFANITY_LIST.map((w) => w.split("").join("[^a-z]*")).join("|") +
+  ")(?:$|[^a-z])"
+);
+
 function filterProfanity(name) {
-  const normalized = normalizeForProfanity(name);
-  for (const word of PROFANITY_LIST) {
-    if (normalized.includes(word)) return PROFANITY_FALLBACK_NAME;
-  }
-  return name;
+  return PROFANITY_RE.test(normalizeForProfanity(name)) ? PROFANITY_FALLBACK_NAME : name;
 }
 
 async function hashIp(secret, ip) {

@@ -5321,8 +5321,9 @@ canvas {
   }
 
   // #77: self-hosted profanity/slur list backing the name filter below —
-  // root words rather than an exhaustive list, since normalizeForProfanity()
-  // catches suffixes/plurals for free via substring matching. Covers both
+  // root words rather than an exhaustive list. #89: suffixed/plural forms are
+  // no longer caught "for free" (see PROFANITY_RE below), so a handful — like
+  // "asshole" off "ass" — are listed explicitly where it matters. Covers both
   // languages this game ships in (STRINGS has only "fr"/"en", but a name is
   // free text regardless of `lang`). Mirrored verbatim in
   // functions/api/scores.js, which enforces this independently for the
@@ -5332,19 +5333,20 @@ canvas {
   // boss/preview-env bindings already have (see CLAUDE.md).
   var PROFANITY_LIST = [
     "fuck", "shit", "bitch", "cunt", "dick", "cock", "pussy", "whore", "slut",
-    "ass", "bastard", "rape", "nigger", "nigga", "faggot", "retard", "chink",
-    "spic", "kike", "gook", "tranny", "wetback", "sex", "porn", "anal",
-    "penis", "vagina", "boob", "cum",
+    "ass", "asses", "asshole", "bastard", "rape", "nigger", "nigga", "faggot",
+    "retard", "chink", "spic", "kike", "gook", "tranny", "wetback", "sex",
+    "porn", "anal", "penis", "vagina", "boob", "cum",
     // French.
     "merde", "putain", "pute", "salope", "connard", "connasse", "encule",
     "bite", "couille", "nique", "batard", "foutre", "branler", "pede",
     "bougnoule", "negre", "youpin"
   ];
-  // Collapses the usual filter evasions before matching: leetspeak
-  // look-alikes ("a55" -> "ass") and French accented letters ("nègre" ->
-  // "negre") fold to their plain equivalent, then anything left that isn't
-  // a-z (spaces, punctuation — "s e x" -> "sex") is dropped outright, so
-  // spacing tricks can't split a word across the boundary.
+  // Folds the usual filter evasions before matching: leetspeak look-alikes
+  // ("a55" -> "ass") and French accented letters ("nègre" -> "negre") fold to
+  // their plain equivalent. Unlike #77, anything left that isn't a-z (spaces,
+  // punctuation) is kept rather than dropped — PROFANITY_RE below treats it as
+  // a word boundary instead, so "s e x" still matches as one spaced-out root
+  // but "ass" no longer fires from inside "Cassandra" (#89).
   var PROFANITY_CHAR_MAP = {
     "0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t",
     "@": "a", "$": "s", "+": "t", "|": "i",
@@ -5358,14 +5360,22 @@ canvas {
       var ch = s[i].toLowerCase();
       out += PROFANITY_CHAR_MAP[ch] || ch;
     }
-    return out.replace(/[^a-z]/g, "");
+    return out;
   }
+  // #89: each root has to land on a letter boundary (string start/end, or any
+  // non-letter) on both sides, so it can only match a whole run of letters —
+  // never a substring straddling part of one word and part of another. Filler
+  // between the root's own letters ([^a-z]*) is still allowed, so an evasion
+  // that spaces or leetspeaks a root apart ("s e x", "a55") still matches it
+  // as a single word; what it can no longer do is fire from the middle of an
+  // unrelated word ("Cassandra", "Hitchcock", "Analyst", ...).
+  var PROFANITY_RE = new RegExp(
+    "(?:^|[^a-z])(?:" +
+      PROFANITY_LIST.map(function(w) { return w.split("").join("[^a-z]*"); }).join("|") +
+    ")(?:$|[^a-z])"
+  );
   function isProfaneName(name) {
-    var normalized = normalizeForProfanity(name);
-    for (var i = 0; i < PROFANITY_LIST.length; i++) {
-      if (normalized.indexOf(PROFANITY_LIST[i]) !== -1) return true;
-    }
-    return false;
+    return PROFANITY_RE.test(normalizeForProfanity(name));
   }
 
   // Reads the name field and hands off to "halloffame" — but only once it
