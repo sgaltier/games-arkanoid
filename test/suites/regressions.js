@@ -3841,5 +3841,57 @@ module.exports = {
         a.eq(painted.shadowColor, def.glow, "the body was drawn with someone else's glow");
       },
     },
+    {
+      name: "#86a — a \"life\" boss hazard raises achStats.ballsLost and levelLosses by one, like loseLife()",
+      fn(a) {
+        const g = boot();
+        g.el("btn-start").click(1);
+        g.T.startLevel(89); // Leviathan — the only boss whose shot costs a life outright
+        g.key("Space");
+        const p = g.T.state.paddle;
+        const before = {
+          ballsLost: g.T.state.achStats.ballsLost,
+          levelLosses: g.T.state.achStats.levelLosses,
+        };
+        g.T.state.bossShots = [{
+          x: p.x + g.T.paddleWidth() / 2, y: p.y - 1, vx: 0, vy: 50,
+          kind: "drop", onPaddle: "life", r: 6, telegraph: 0, dur: 0, active: 0,
+        }];
+        g.frame();
+        a.eq(g.T.state.achStats.ballsLost, before.ballsLost + 1,
+          "a life hazard must count as a lost ball for achievements");
+        a.eq(g.T.state.achStats.levelLosses, before.levelLosses + 1,
+          "a life hazard must count toward this level's losses too");
+      },
+    },
+    {
+      name: "#86b — a boss beaten after a \"life\" hazard must not set achStats.flawlessBoss",
+      fn(a) {
+        const g = boot();
+        g.el("btn-start").click(1);
+        g.T.startLevel(89); // Leviathan, a single part — easiest boss to finish off
+        g.key("Space");
+        const p = g.T.state.paddle;
+        g.T.state.bossShots = [{
+          x: p.x + g.T.paddleWidth() / 2, y: p.y - 1, vx: 0, vy: 50,
+          kind: "drop", onPaddle: "life", r: 6, telegraph: 0, dur: 0, active: 0,
+        }];
+        g.frame();
+        a.gt(g.T.state.achStats.levelLosses, 0, "sanity: the hazard should have registered as a loss");
+
+        const part = g.T.state.boss.parts[0];
+        part.hp = 1;
+        const ball = g.T.state.balls[0];
+        ball.attached = false;
+        ball.x = part.x + part.w / 2;
+        ball.y = part.y + part.h + ball.r - 2;
+        ball.dx = 0;
+        ball.dy = -1;
+        ball.speed = 1;
+        g.frame();
+        a.ok(g.T.state.boss.dead, "sanity: that hit should have beaten Leviathan");
+        a.not(g.T.state.achStats.flawlessBoss, "a run that ate a life hazard is not flawless");
+      },
+    },
   ],
 };

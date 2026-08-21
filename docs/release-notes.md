@@ -54,10 +54,40 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #82 | ✅ Fixed — 2026-08-21 |
 | #84 | ✅ Fixed — 2026-08-21 |
 | #85 | ✅ Fixed — 2026-08-21 |
+| #86 | ✅ Fixed — 2026-08-21 |
 
-73 of 81 fixed — #86–#93 are open, the rest of the ten findings a full-codebase review raised on
+74 of 81 fixed — #87–#93 are open, the rest of the ten findings a full-codebase review raised on
 2026-08-21. See [todo.md](todo.md) for those and for the feature ideas promoted alongside them, and
 [feature-ideas.md](feature-ideas.md) for proposals not yet promoted to it.
+
+---
+
+## 2026-08-21 — A life lost to a boss hazard was invisible to the achievement roster (#86)
+
+### Fixed
+
+**A `"life"` boss hazard now counts as a lost life for achievements, not just for `state.lives`.**
+`applyBossHazard`'s `"life"` branch decremented `state.lives` directly and never touched
+`state.achStats`, while `loseLife()` — the only other thing that takes a life — increments
+`ballsLost` and `levelLosses` right at the top. Those two counters back four achievements:
+"Untouchable" (`ballsLost === 0`), "Flawless Victory" (`levelLosses === 0` at a boss kill), and
+"Clean Sheet"/"Iron Ten" via `cleanStreak`. Leviathan (level 90) is the only boss that fires this
+hazard, and it cost a whole life for free as far as the roster was concerned — including on
+"Untouchable", the hardest tier-4 entry.
+
+The fix increments both counters from the `"life"` branch itself and leaves `loseLife()` and the
+field names alone; the branch still calls `endGame(false)` directly rather than routing through
+`loseLife()`, since there is no ball for #71's `lifelost` beat to hold for.
+
+### Tests
+
+Two new cases in `regressions.js`, both watched failing first. `#86a` drives a Leviathan `"life"`
+shot into the paddle and asserts `achStats.ballsLost` and `achStats.levelLosses` each rise by
+exactly one. `#86b` takes the same hazard and then beats the boss for real, asserting
+`achStats.flawlessBoss` stays `false`.
+
+**Doc anchors across `done.md` and `todo.md` were re-anchored** by the +6 lines this added to
+`index.html`, per the re-anchoring discipline both files describe.
 
 ---
 

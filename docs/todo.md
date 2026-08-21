@@ -9,11 +9,11 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 16 open items — #47 (promoted from [feature-ideas.md](feature-ideas.md) §A), #50
+**Status:** 15 open items — #47 (promoted from [feature-ideas.md](feature-ideas.md) §A), #50
 (promoted from §B), #56–57 (promoted from §C), #62–64 (promoted from §D), #83 (raised directly, not
-promoted from `feature-ideas.md`), and **#86–#93, the correctness and security findings of the
+promoted from `feature-ideas.md`), and **#87–#93, the correctness and security findings of the
 2026-08-21 review pass** (§E and §F). #46 from the §A batch, #53, #54, and #55 from the §C batch,
-#82 (raised directly), and #84–#85 (the first two of the review batch) have shipped (see
+#82 (raised directly), and #84–#86 (the first three of the review batch) have shipped (see
 [done.md](done.md)).
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
@@ -39,9 +39,9 @@ challenge seed), #50 (moving bricks), #62 (colourblind-safe brick markers), #63 
 selection), #64 (resume an interrupted run), and two power-up/ball-mechanics ideas, all promoted from
 [feature-ideas.md](feature-ideas.md) and keeping their numbers; that file still holds the proposals
 not yet promoted. #83 (per-level star ratings, split out of #46 — the two were originally one item)
-was raised directly rather than promoted from there. The defects are **#86–#93**, what is left of the
+was raised directly rather than promoted from there. The defects are **#87–#93**, what is left of the
 ten (#84–#93) raised by a full-codebase review on 2026-08-21, grouped into §E (correctness, all in
-`index.html`) and §F (security and backend, mostly `functions/api/scores.js`); #84 and #85 of that
+`index.html`) and §F (security and backend, mostly `functions/api/scores.js`); #84–#86 of that
 batch have already shipped (see [done.md](done.md) §I). New review findings go here too, keeping the
 shared numbering: the next free number is **#94**.
 
@@ -602,50 +602,26 @@ Raised directly by a read of the whole codebase rather than promoted from
 today. All six were in [index.html](../html/index.html) and five of the six in the #44 boss layer,
 which is the newest and least-exercised part of the file — the test suite reaches `BOSSES`' data
 (arenas, ids, hit counts) but not its per-frame motion or its draw path. Ordered by severity; the
-first two of them, #84 and #85, have shipped and their entries now live in [done.md](done.md) §I.
+first three of them, #84, #85, and #86, have shipped and their entries now live in
+[done.md](done.md) §I.
 
 Unlike the entries above, these **do** carry line anchors, since they point at real code: re-anchor
 them the same way [done.md](done.md)'s entries are re-anchored whenever `index.html` shifts.
 
-### 86. A life lost to a boss hazard is invisible to the achievement roster (S/M)
-
-`applyBossHazard("life")` ([4706-4724](../html/index.html#L4706-L4724)) decrements `state.lives`
-directly and never touches `state.achStats`. `loseLife()`
-([5145-5168](../html/index.html#L5145-L5168)) — the only other thing that takes a life — increments
-`ballsLost` and `levelLosses` right at the top, and those two counters are what four achievements
-read: "Untouchable" (`won && ballsLost === 0`), "Flawless Victory"
-(`bossDefeated()`'s `levelLosses === 0`), and "Clean Sheet"/"Iron Ten" via `cleanStreak` in
-`checkLevelClear()`.
-
-Confirmed against the current file: one Leviathan beam takes `state.lives` from 3 to 2 while
-`achStats.ballsLost` and `achStats.levelLosses` both stay at `0`. So the one hazard in the game that
-costs a whole life is also the one that a "flawless" run is allowed to eat — including on level 90,
-whose boss is the only one that fires it, and including all the way to "Untouchable", the roster's
-hardest tier-4 entry.
-
-**Where the two counters belong is the decision to make, not whether to add them.** `ballsLost` is
-literally "balls lost" and no ball was lost here, but every predicate reading it means "lives spent",
-which is why `loseLife()` is where it lives; renaming the field is a larger change than this warrants
-and would orphan nothing (it is per-run and never persisted — see `freshAchStats()`), so the smaller
-fix is to increment both from `applyBossHazard`'s `"life"` branch and leave the names alone. Note
-this branch also calls `endGame(false)` directly when the life was the last one, bypassing #71's
-`lifelost` beat — deliberate (there is no ball to hold a beat for), but it means the fix cannot just
-be "route this through `loseLife()`".
-
 ### 87. Minions detonate on the paddle *line*, not on the paddle (S/M)
 
-`updateMinions()` ([4789-4794](../html/index.html#L4789-L4794)) tests `m.y + m.r >= state.paddle.y`
+`updateMinions()` ([4795-4800](../html/index.html#L4795-L4800)) tests `m.y + m.r >= state.paddle.y`
 and nothing else, so a minion reaching the paddle's height anywhere across the field applies
 `narrow` — confirmed with the paddle parked at `x = 400` and a minion crossing at `x = 5`. The
 paddle narrows regardless.
 
-`updateBossShots()` ([4744-4752](../html/index.html#L4744-L4752)) gets this right for the other
+`updateBossShots()` ([4750-4758](../html/index.html#L4750-L4758)) gets this right for the other
 hazard shape, testing both axes. The asymmetry is what makes this read as an oversight rather than a
 design choice: `spawnMinion()`'s own comment
-([4757-4760](../html/index.html#L4757-L4760)) calls a minion "a small enemy the ball can destroy in
+([4763-4766](../html/index.html#L4763-L4766)) calls a minion "a small enemy the ball can destroy in
 flight" whose reaching the paddle line "detonates it (narrow) rather than costing a life outright" —
 which describes the code, but the whole point of drawing minions as dodgeable objects that drift on
-their own `vx` ([4774-4780](../html/index.html#L4774-L4780)) is that dodging is a thing a player can
+their own `vx` ([4780-4786](../html/index.html#L4780-L4786)) is that dodging is a thing a player can
 do. Today it isn't: Hive's pairs, Phantom's explosives and Omega's third phase all land their
 `narrow` unconditionally, and the ball is the only counterplay.
 
@@ -657,8 +633,8 @@ paddle" branch (splice it, no effect, maybe a sound), not in a hit test that pre
 
 `spawnBossShot`'s `telegraph` ([4699](../html/index.html#L4699)) holds a hazard still before it
 starts moving, and `updateBossShots` honours it for every kind
-([4729](../html/index.html#L4729)). But `drawBossShots()` only *renders* the warning state inside
-its `kind === "beam"` branch ([5803-5807](../html/index.html#L5803-L5807)) — the `else` branch draws
+([4735](../html/index.html#L4735)). But `drawBossShots()` only *renders* the warning state inside
+its `kind === "beam"` branch ([5809-5813](../html/index.html#L5809-L5813)) — the `else` branch draws
 a plain red circle whatever `s.telegraph` holds.
 
 Aegis's beam is a beam, so it is fine. Leviathan's shot
@@ -674,9 +650,9 @@ across both hazard shapes.
 
 ### 89. The profanity filter renames ordinary people (M)
 
-`isProfaneName()` ([5350-5356](../html/index.html#L5350-L5356)) matches every entry of
-`PROFANITY_LIST` ([5320-5329](../html/index.html#L5320-L5329)) as a **plain substring** of the
-normalised name, and `normalizeForProfanity()` ([5342-5349](../html/index.html#L5342-L5349)) first
+`isProfaneName()` ([5356-5362](../html/index.html#L5356-L5362)) matches every entry of
+`PROFANITY_LIST` ([5326-5335](../html/index.html#L5326-L5335)) as a **plain substring** of the
+normalised name, and `normalizeForProfanity()` ([5348-5355](../html/index.html#L5348-L5355)) first
 strips everything that isn't `a`-`z` — including the spaces and punctuation that would otherwise mark
 a word boundary. #77 chose that deliberately, to catch `asshole` from `ass` and `s e x` from `sex`.
 The cost was never written down: three-and-four-letter roots in a boundary-free substring match are
@@ -713,10 +689,6 @@ message.
 
 #### Tests
 
-- `#86a` — a `"life"` boss hazard raises `achStats.ballsLost` and `achStats.levelLosses` by exactly
-  one, the same as `loseLife()`.
-- `#86b` — a boss beaten after taking a `"life"` hazard that fight does not set
-  `achStats.flawlessBoss`.
 - `#87a` — a minion crossing the paddle line far from the paddle applies no effect; one crossing
   over the paddle applies `narrow`.
 - `#88a` — a shot still inside its `telegraph` window draws in the warning treatment, not the live

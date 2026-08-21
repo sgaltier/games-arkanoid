@@ -4714,6 +4714,12 @@ canvas {
     } else if (kind === "life") {
       if (state.lives > 0) {
         state.lives -= 1;
+        // #86: this is the one hazard that costs a whole life without going
+        // through loseLife() (no ball to hold #71's beat for), so it has to
+        // touch the same two counters loseLife() does or a "flawless" run
+        // survives it for free.
+        state.achStats.ballsLost += 1;
+        state.achStats.levelLosses += 1;
         shakeScreen(CONFIG.impact.lifeLostShake);
         beep(120, 0.3, "sawtooth");
         updateHud();
