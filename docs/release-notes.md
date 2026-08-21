@@ -59,10 +59,40 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #88 | ✅ Fixed — 2026-08-21 |
 | #89 | ✅ Fixed — 2026-08-21 |
 | #90 | ✅ Fixed — 2026-08-21 |
+| #91 | ✅ Fixed — 2026-08-21 |
 
-78 of 81 fixed — #91–#93 are open, the rest of the ten findings a full-codebase review raised on
+79 of 81 fixed — #92–#93 are open, the rest of the ten findings a full-codebase review raised on
 2026-08-21. See [todo.md](todo.md) for those and for the feature ideas promoted alongside them, and
 [feature-ideas.md](feature-ideas.md) for proposals not yet promoted to it.
+
+---
+
+## 2026-08-21 — `submissions` grew without bound and wasn't counted until after the score landed (#91)
+
+### Fixed
+
+**The rate-limit log no longer grows forever, and a failed submission no longer skips it.**
+`submissions` existed purely to back a 10-minute rate-limit window — [schema.sql](../schema.sql)'s
+own comment says its rows "may be pruned freely" — but nothing ever pruned them, so on a database
+#67 forbids resetting the table grew without bound for data whose useful life is ten minutes.
+
+`onRequestPost` now opens its D1 `try` block with `DELETE FROM submissions WHERE created_at < ?`,
+bound to the start of the current rate window, so every request that already touches the table
+trims it back to real traffic — no cron, no second entry point.
+
+Separately, the `INSERT` into `submissions` ran *after* the `INSERT` into `scores`, so anything that
+failed between them — including the `UNIQUE`-constraint replay rejection the `catch` below expects —
+stored a score without it ever counting against the submitting IP's rate limit. The two inserts are
+now swapped: `submissions` is written first, so a rejected or replayed submission still costs the
+attacker a rate-limit slot.
+
+### Tests
+
+One new case in `regressions.js`, confirmed failing first (neither the prune statement nor the
+reordered inserts existed on the unfixed file). It reads `scores.js`'s source text — the same
+`require()`-can't-load-an-ES-module workaround `#90` used — confirms the `DELETE FROM submissions`
+statement exists, and asserts the `submissions` insert's source position precedes the `scores`
+insert's.
 
 ---
 

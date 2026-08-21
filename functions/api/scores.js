@@ -257,21 +257,33 @@ export async function onRequestPost({ request, env }) {
   const now = Date.now();
 
   try {
+    // #91: opportunistic prune. submissions rows are disposable past the rate
+    // window (schema.sql), so there is no cron or second entry point — every
+    // request that already touches the table trims it back to real traffic.
+    await env.DB
+      .prepare("DELETE FROM submissions WHERE created_at < ?")
+      .bind(now - RATE_WINDOW_MS)
+      .run();
+
     const recent = await env.DB
       .prepare("SELECT COUNT(*) AS n FROM submissions WHERE ip_hash = ? AND created_at > ?")
       .bind(ipHash, now - RATE_WINDOW_MS)
       .first();
     if (recent && recent.n >= RATE_MAX_SUBMISSIONS) return json({ error: "rate_limited" }, 429);
 
+    // #91: counted before the score is stored, so anything that fails between
+    // the two inserts — including the UNIQUE-constraint replay rejection below
+    // — still costs the submitting IP a rate-limit slot instead of skipping
+    // the limiter entirely.
+    await env.DB
+      .prepare("INSERT INTO submissions (ip_hash, created_at) VALUES (?, ?)")
+      .bind(ipHash, now)
+      .run();
     // The UNIQUE constraint on nonce is the replay defence: a token that has
     // already bought a score fails here instead of inserting a duplicate.
     await env.DB
       .prepare("INSERT INTO scores (name, score, nonce, created_at) VALUES (?, ?, ?, ?)")
       .bind(name, score, session.nonce, now)
-      .run();
-    await env.DB
-      .prepare("INSERT INTO submissions (ip_hash, created_at) VALUES (?, ?)")
-      .bind(ipHash, now)
       .run();
   } catch (e) {
     if (String(e && e.message).includes("UNIQUE")) return json({ error: "already_submitted" }, 409);

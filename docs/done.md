@@ -2698,8 +2698,8 @@ records the rename — earlier entries don't need touching.
 
 Raised by a read of the whole repository — `index.html`, `functions/api/scores.js`, the schema and
 the CI workflow — rather than by a `/code-review` pass over a diff, which is what §G was. Ten
-findings came out of it, #84–#93; #84–#89 (all of the correctness half) are below, and #90–#93
-(security and backend) are still open in [todo.md](todo.md) §F.
+findings came out of it, #84–#93; #84–#89 (all of the correctness half) and #90–#91 (the first two
+of the security/backend half) are below, and #92–#93 are still open in [todo.md](todo.md) §F.
 
 ### 84. ✅ FIXED — Gemini's split halves are indexed off by one (M)
 
@@ -3039,6 +3039,40 @@ either way the two constants' relationship deserves a comment, because "these tw
   `RATE_CHECK_MAX_AGE_MS` from `scores.js`'s source, confirms the rate check references the new cap,
   and asserts the cap doesn't exceed the token's redemption window and that the oldest redeemable
   token's rate-check threshold equals `ABSOLUTE_MAX_SCORE` exactly.
+
+### 91. ✅ FIXED — `submissions` is never pruned, and is written after the score it counts (M)
+
+> **Fixed 2026-08-21.** [functions/api/scores.js](../functions/api/scores.js)'s `onRequestPost`
+> ([259-291](../functions/api/scores.js#L259-L291)) now opens the same `try` block with
+> `DELETE FROM submissions WHERE created_at < ?`, bound to `now - RATE_WINDOW_MS` — no cron, no
+> second entry point, just every request that already touches the table trimming it back to real
+> traffic, the reasoning the write-up below asked for. The two inserts are also swapped: `submissions`
+> is written before `scores`, so a failure between them — the `UNIQUE`-constraint replay rejection on
+> `nonce` included — now costs the submitting IP a rate-limit slot instead of skipping the limiter
+> entirely.
+>
+> A new `#91` case in `regressions.js` reads `scores.js`'s source text the same way `#90`'s does
+> (no build step to `require()` an ES module through), confirms the `DELETE FROM submissions` prune
+> exists, and asserts the `submissions` insert's source position precedes the `scores` insert's.
+> Confirmed failing first (neither statement existed on the unfixed file).
+
+[schema.sql](../schema.sql) creates `submissions` with the note that its rows "may be pruned
+freely" — and nothing anywhere prunes them. Every accepted score appends a row that only the
+10-minute rate-limit window will ever read again, and `idx_submissions_window` grows with it. On a
+never-reset database (#67) that is unbounded growth against D1's row and storage limits, for data
+whose useful life is ten minutes.
+
+Second, smaller problem in the same block: the `INSERT` into `submissions` ran *after* the `INSERT`
+into `scores`. Anything that failed between them — and the `catch` below explicitly expects failures
+there, since that is where `already_submitted` is detected — stored a score without counting it
+against the submitting IP. The rate limiter is meant to be the backstop for the case where the token
+scheme is defeated, so it should be the thing that cannot be skipped.
+
+#### Tests
+
+- `#91` — confirms `onRequestPost` prunes expired `submissions` rows on every request (regex over the
+  source for the `DELETE FROM submissions WHERE created_at < ?` statement) and that the `submissions`
+  insert's source position precedes the `scores` insert's.
 
 ---
 

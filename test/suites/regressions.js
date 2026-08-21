@@ -4007,5 +4007,29 @@ module.exports = {
         );
       },
     },
+    {
+      name: "#91 — submissions is pruned opportunistically, and counted before scores is written",
+      fn(a) {
+        const src = fs.readFileSync(
+          path.join(__dirname, "..", "..", "functions", "api", "scores.js"), "utf8"
+        );
+        a.ok(
+          /DELETE FROM submissions WHERE created_at < \?/.test(src),
+          "the POST handler must prune expired submissions rows on every request, or #91 regresses"
+        );
+        const submissionsInsert = src.indexOf("INSERT INTO submissions");
+        const scoresInsert = src.indexOf("INSERT INTO scores");
+        a.ok(submissionsInsert !== -1, "sanity: submissions INSERT must exist");
+        a.ok(scoresInsert !== -1, "sanity: scores INSERT must exist");
+        // Before the fix, scores was written first: anything that failed
+        // between the two inserts (the UNIQUE-constraint replay rejection
+        // included) stored a score without it ever counting against the
+        // submitting IP's rate limit.
+        a.ok(
+          submissionsInsert < scoresInsert,
+          "the submissions insert must run before the scores insert, so a failed/replayed submission still costs a rate-limit slot"
+        );
+      },
+    },
   ],
 };

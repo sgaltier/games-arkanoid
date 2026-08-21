@@ -9,12 +9,12 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 11 open items — #47 (promoted from [feature-ideas.md](feature-ideas.md) §A), #50
+**Status:** 10 open items — #47 (promoted from [feature-ideas.md](feature-ideas.md) §A), #50
 (promoted from §B), #56–57 (promoted from §C), #62–64 (promoted from §D), #83 (raised directly, not
-promoted from `feature-ideas.md`), and **#91–#93, the remaining security findings of the 2026-08-21
+promoted from `feature-ideas.md`), and **#92–#93, the remaining security findings of the 2026-08-21
 review pass** (§F). #46 from the §A batch, #53, #54, and #55 from the §C batch, #82 (raised
-directly), #84–#89 (the review batch's correctness findings, all of them), and #90 (the first of the
-review batch's security findings) have shipped (see [done.md](done.md)).
+directly), #84–#89 (the review batch's correctness findings, all of them), and #90–#91 (the first two
+of the review batch's security findings) have shipped (see [done.md](done.md)).
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
 test → fix → move the finding's whole entry from this file to [done.md](done.md), prepending a
@@ -39,10 +39,10 @@ challenge seed), #50 (moving bricks), #62 (colourblind-safe brick markers), #63 
 selection), #64 (resume an interrupted run), and two power-up/ball-mechanics ideas, all promoted from
 [feature-ideas.md](feature-ideas.md) and keeping their numbers; that file still holds the proposals
 not yet promoted. #83 (per-level star ratings, split out of #46 — the two were originally one item)
-was raised directly rather than promoted from there. The defects are **#91–#93**, what is left of the
+was raised directly rather than promoted from there. The defects are **#92–#93**, what is left of the
 ten (#84–#93) raised by a full-codebase review on 2026-08-21 — the correctness half (§E, all in
 `index.html`) is fully shipped; what's left is §F (security and backend, mostly
-`functions/api/scores.js`). #84–#89 and #90 of that batch have already shipped (see
+`functions/api/scores.js`). #84–#89, #90, and #91 of that batch have already shipped (see
 [done.md](done.md) §I).
 New review findings go here too, keeping the shared numbering: the next free number is **#94**.
 
@@ -605,27 +605,6 @@ write-up is explicit that a patched client can forge a score inside the plausibi
 that raising the cost above `curl` is the whole goal. What is below is either an envelope that turns
 out not to bind, or an operational hazard on a database that #67 forbids resetting.
 
-### 91. `submissions` is never pruned, and is written after the score it counts (M)
-
-[schema.sql](../schema.sql) creates `submissions` with the note that its rows "may be pruned
-freely" — and nothing anywhere prunes them. Every accepted score appends a row that only the
-10-minute rate-limit window will ever read again, and `idx_submissions_window` grows with it. On a
-never-reset database (#67) that is unbounded growth against D1's row and storage limits, for data
-whose useful life is ten minutes.
-
-Second, smaller problem in the same block: the `INSERT` into `submissions` runs *after* the `INSERT`
-into `scores`. Anything that fails between them — and the `catch` below explicitly expects failures
-there, since that is where `already_submitted` is detected — stores a score without counting it
-against the submitting IP. The rate limiter is meant to be the backstop for the case where the token
-scheme is defeated, so it should be the thing that cannot be skipped.
-
-**Prune opportunistically rather than on a schedule.** A `DELETE FROM submissions WHERE created_at <
-?` with `now - RATE_WINDOW_MS`, run in the same request that already touches the table, keeps the
-table proportional to real traffic with no cron and no second entry point — the same "no extra
-moving parts" reasoning that put the rate limit in D1 rather than in a KV namespace. Swapping the
-two inserts (or moving the `submissions` write above the `scores` one) is a one-line reorder; note
-it makes a rejected replay cost the attacker a rate-limit slot, which is the intended direction.
-
 ### 92. Endpoint and CI hardening (S)
 
 Three small ones, none of them exploitable on their own, grouped because each is a two-line change:
@@ -650,10 +629,10 @@ Three small ones, none of them exploitable on their own, grouped because each is
 
 `functions/api/scores.js` still has no automated coverage against a real Worker runtime, a D1
 binding, or the network — that gap is unchanged, and #77's entry in [done.md](done.md) already notes
-it as policy (CLAUDE.md: "check `/api/scores` directly rather than trusting the UI"). #90 turned out
-to be reachable anyway, since it was pure arithmetic over module-level constants — see its entry in
-[done.md](done.md) for the regression test that shipped with it. #92 and #93 don't offer the same
-shortcut.
+it as policy (CLAUDE.md: "check `/api/scores` directly rather than trusting the UI"). #90 and #91
+turned out to be reachable anyway, as source-text checks over module-level constants and statement
+order respectively — see their entries in [done.md](done.md) for the regression tests that shipped
+with them. #92 and #93 don't offer the same shortcut.
 
 ### 93. Omega's phase-2 blink never actually teleports (S)
 
