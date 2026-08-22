@@ -4847,5 +4847,52 @@ module.exports = {
           "a fresh ball must be waiting, not the emptied field from the moment of loss");
       },
     },
+    {
+      name: "#103a — a ball at the game's own top speed still hits a boss part instead of passing through",
+      fn(a) {
+        const g = boot();
+        g.el("btn-start").click(1);
+        g.T.startLevel(9); // Sentinel — one part, spans y 90-120, always vulnerable
+        g.key("Space");
+        const part = g.T.state.boss.parts[0];
+        const ball = g.T.state.balls[0];
+        ball.attached = false;
+        // The finding's own numbers: speedCap x fast x difficulty.max gives
+        // ~51.7px in one frame at the dt clamp — more than the part's 30px
+        // height, even before the ball's own diameter is added on top.
+        ball.speed = 1568;
+        ball.x = g.T.GAME_W / 2; // well inside the part's 140px width
+        ball.y = 127.6; // the ball's top edge just below the part's bottom (120)
+        ball.dx = 0;
+        ball.dy = -1; // heading straight up into the part
+
+        g.frame(33); // the frame loop clamps dt at this
+
+        a.eq(part.hp, 11, "the part should have taken a hit instead of being passed through");
+      },
+    },
+    {
+      name: "#103b — a faded (non-solid) boss part is still passed through at any speed",
+      fn(a) {
+        const g = boot();
+        g.el("btn-start").click(1);
+        g.T.startLevel(9);
+        g.key("Space");
+        const part = g.T.state.boss.parts[0];
+        part.solid = false; // simulate a Phantom-style blink phase
+        const ball = g.T.state.balls[0];
+        ball.attached = false;
+        ball.speed = 1568;
+        ball.x = g.T.GAME_W / 2;
+        ball.y = 127.6;
+        ball.dx = 0;
+        ball.dy = -1;
+
+        g.frame(33);
+
+        a.eq(part.hp, 12, "a faded part must not be made solid by the anti-tunnel sweep");
+        a.lt(ball.y, 90, "the ball should have passed clean through, ending up above the part");
+      },
+    },
   ],
 };

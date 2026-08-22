@@ -9,15 +9,15 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 5 open items — the findings of the **second holistic review pass on 2026-08-22**, a read
+**Status:** 4 open items — the findings of the **second holistic review pass on 2026-08-22**, a read
 of the whole repository (`index.html`, `functions/api/scores.js`, the schema, the test harness, the
 docs), the same shape as the passes that produced #84–#93 and #95–#101. They are grouped into §L
 (correctness, all in `index.html`) and §M (security and backend). Every one was reproduced against
 the current file — through the test harness for the game-side findings — before being written up;
 the reproduction is quoted in each entry. Everything from earlier passes has shipped: #95–#101 (the
-first 2026-08-22 pass) live in [done.md](done.md) §J/§K, #102 (the first of this second pass) in §L,
-#84–#93 in §I, and every directly-requested feature so far in §H. #47, #50, #56, and #63 sit
-unshipped in [feature-ideas.md](feature-ideas.md); #62 was discarded outright rather than fixed.
+first 2026-08-22 pass) live in [done.md](done.md) §J/§K, #102–#103 (the first two of this second
+pass) in §L, #84–#93 in §I, and every directly-requested feature so far in §H. #47, #50, #56, and #63
+sit unshipped in [feature-ideas.md](feature-ideas.md); #62 was discarded outright rather than fixed.
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
 test → fix → move the finding's whole entry from this file to [done.md](done.md), prepending a
@@ -35,43 +35,6 @@ shared numbering: the next free number is **#108**.
 Raised by the 2026-08-22 second holistic pass using Fable. All are in [index.html](../html/index.html); none is
 caught by the current suite.
 
-### 103. At top speed the ball passes through a boss part without hitting it (M)
-
-#98 gave `updateBalls()` an anti-tunnel sweep — but its probe loop samples **`state.bricks` only**
-([5365-5377](../html/index.html#L5365-L5377)), and #38's swept check covers only the paddle
-([5310-5317](../html/index.html#L5310-L5317)). Boss parts get neither: `hitTestBossPart()`
-([4793-4806](../html/index.html#L4793-L4806)) is consulted once, at the ball's post-move position
-([5411-5415](../html/index.html#L5411-L5415)). The numbers are #98's own — `speedCap` 2.8
-([1537](../html/index.html#L1537)) × `fast` 1.4 ([1558](../html/index.html#L1558)) ×
-`difficulty.max` 1.6 ([1595](../html/index.html#L1595)) at the 33 ms `dt` clamp
-([6363](../html/index.html#L6363)) is ~51 px in one step — and a boss body is 28-34 px tall
-(Sentinel [1818](../html/index.html#L1818), Omega's third phase
-[2168-2169](../html/index.html#L2168-L2169)), a ~44 px window including the ball's diameter.
-Both stacking conditions are reachable on a boss level: arena cover bricks roll drops like any
-brick, and the ramp climbs on every top-wall bounce. Reproduced through the harness on Sentinel:
-
-```
-before: hp 12, ball bottom just below the part (y 127.6), part spans y 90-120
-after one 33ms frame: hp 12, ball.y 76.8, dy still -1   -> TUNNELLED THROUGH
-```
-
-It bites hardest on exactly the fights where the part is the only thing left to hit — a
-straight-through vertical ball that should have landed a hit instead sails to the top wall, and on
-Phantom/Omega's blink phases it reads as the blink stealing a hit it shouldn't.
-
-**Cheapest correct shape: teach #98's existing sweep about boss parts.** The sweep already samples
-the path at sub-brick intervals; letting each probe also test `hitTestBossPart(probe)` (solid parts
-only, exactly the gate the post-move check uses) and stop at the first sample that overlaps either a
-brick or a part reuses everything in place. The `v > BRICK_H / 2` guard stays valid — every part is
-taller than a brick, so a step too short to skip a brick cannot skip a part either.
-
-#### Tests
-
-- `#103a` — a ball at `speedCap × fast × difficulty.max` crossing a boss part in one 33 ms frame
-  registers the hit (hp drops, ball bounces) instead of passing through.
-- `#103b` — a faded (non-solid) Phantom-style part is still passed through at any speed — the sweep
-  must not make the blink solid.
-
 ### 104. `isScoreEntry` uses global `isFinite`, so null/boolean/string scores pass both board validators (S)
 
 `isScoreEntry` ([2640](../html/index.html#L2640)) is #96's single predicate for "a row a board can
@@ -88,8 +51,8 @@ HOF_KEY = [{name:"Ghost",score:null},{name:"Bool",score:true},{name:"Str",score:
 ```
 
 The board then renders "null"/"true" in the score column
-([5777](../html/index.html#L5777)), and `rankIn()`'s `score > list[i].score` comparisons
-([5583-5588](../html/index.html#L5583-L5588)) run on coerced values. This is precisely the class of
+([5790](../html/index.html#L5790)), and `rankIn()`'s `score > list[i].score` comparisons
+([5596-5601](../html/index.html#L5596-L5601)) run on coerced values. This is precisely the class of
 wrong-shape data #96 exists to keep out — a truncated or version-skewed API response, or foreign
 JSON under `HOF_KEY` — surviving the check that was written to reject it. The fix is one word:
 `Number.isFinite`, which coerces nothing. (Arguably `Number.isInteger`, matching the server's own
@@ -109,9 +72,9 @@ negative `levelIndex` (a manual edit, a bit of foreign JSON, a future format cha
 `restoreFromResume()` then calls `themeFor(state.levelIndex)`
 ([2826](../html/index.html#L2826)): JS's `%` keeps the sign, so `themeFor(-5)` indexes
 `THEMES[-3]` ([2207-2209](../html/index.html#L2207-L2209)) and returns `undefined`. The first
-frame's `drawBackground()` → `skyFor()` ([6001-6008](../html/index.html#L6001-L6008)) then throws
+frame's `drawBackground()` → `skyFor()` ([6014-6021](../html/index.html#L6014-L6021)) then throws
 reading `theme.top`, and since `requestAnimationFrame(frame)` is queued at the *end* of `frame()`
-([6437](../html/index.html#L6437)), the loop never re-arms — a dead canvas, exactly what the
+([6450](../html/index.html#L6450)), the loop never re-arms — a dead canvas, exactly what the
 "corrupt snapshot degrades to an ordinary boot" rule ([2795-2798](../html/index.html#L2795-L2798))
 exists to prevent. Reproduced through the harness:
 
@@ -133,9 +96,9 @@ failing returns `null` — the ordinary-boot fallback that already exists.
 
 ### 106. `state.hofHighlight` is never cleared, so old submissions stay highlighted forever (S)
 
-`submitHallOfFameName()` sets `state.hofHighlight` ([5739](../html/index.html#L5739)) so
+`submitHallOfFameName()` sets `state.hofHighlight` ([5752](../html/index.html#L5752)) so
 `renderHallOfFame()` can pick out "the entry just submitted"
-([5768-5773](../html/index.html#L5768-L5773)) — but nothing ever resets it
+([5781-5786](../html/index.html#L5781-L5786)) — but nothing ever resets it
 ([3015](../html/index.html#L3015) is its only other mention, and `newGame()` doesn't touch it). For
 the rest of the session, every later view of the board — opened from the start screen
 ([3823-3827](../html/index.html#L3823-L3827)), or after a later run that didn't qualify — still
@@ -162,7 +125,7 @@ Raised by the same pass. In [functions/api/scores.js](../functions/api/scores.js
 #100 strips control characters, bidi *overrides* and zero-width characters from hall-of-fame names —
 the class `U+0000–U+001F, U+007F, U+200B–U+200F, U+202A–U+202E` in `cleanName()`
 ([functions/api/scores.js:131-140](../functions/api/scores.js#L131-L140)) and its mirror
-`cleanHofName()` ([5706-5711](../html/index.html#L5706-L5711)) — on the stated goal that a name
+`cleanHofName()` ([5719-5724](../html/index.html#L5719-L5724)) — on the stated goal that a name
 "cannot be used to visually reorder or hide characters on a permanent, world-visible board". The
 range misses the characters that still can:
 

@@ -74,16 +74,43 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #100 | ✅ Fixed — 2026-08-22 |
 | #101 | ✅ Fixed — 2026-08-22 |
 | #102 | ✅ Fixed — 2026-08-22 |
+| #103 | ✅ Fixed — 2026-08-22 |
 
-92 of 97 fixed. The full-codebase review raised on 2026-08-21 is done, ten for ten, #64 (resume an
+93 of 97 fixed. The full-codebase review raised on 2026-08-21 is done, ten for ten, #64 (resume an
 interrupted run) has shipped alongside it, and #57 (laser-vs-bad-drop counterplay) closes out the §C
 power-up batch. #83 (per-level star ratings) is the other half of what was originally #46, and #94
 puts that rating on screen at the moment it's earned, not just later in level select. A second
 holistic review on 2026-08-22 raised seven more (#95–#101), all now fixed. Another pass later the
 same day raised six more (#102–#107); #102 (a stale resume snapshot no longer rewinds a run past a
-level clear or a life lost) is the first of those to ship. `todo.md` is back down to the remaining
-five, plus the feature ideas still there and the proposals in [feature-ideas.md](feature-ideas.md)
-not yet promoted to it.
+level clear or a life lost) and #103 (the anti-tunnel sweep now also catches boss parts) are the
+first two of those to ship. `todo.md` is back down to the remaining four, plus the feature ideas
+still there and the proposals in [feature-ideas.md](feature-ideas.md) not yet promoted to it.
+
+---
+
+## 2026-08-22 — At the game's own top speed the ball no longer passes through a boss part (#103)
+
+### Fixed
+
+#98's anti-tunnel sweep only ever probed `state.bricks`, and the post-move boss-part check
+(`hitTestBossPart()`) was consulted once, at the ball's final resting position — so a ball crossing a
+boss part in a single frame at the game's own top speed (`speedCap × fast × difficulty.max`, ~51.7 px
+in one 33 ms frame against a 28-34 px tall part) sailed clean through without ever registering a hit.
+It bit hardest exactly where the part was the only thing left to hit, and on Phantom/Omega's blink
+phases read as the blink stealing a hit it shouldn't have.
+
+Each sweep probe now also tests `hitTestBossPart(probe)`, stopping the sweep at the first sample that
+overlaps either a brick or a part — its existing `solid` gate means a faded (Phantom-style) part still
+can't stop it. Fixing that exposed a second, latent bug: the boss-part fallback ran *after* the sweep
+block unconditionally reset the ball back to its un-swept final position, which was harmless before
+(nothing had ever rewound the ball onto a part) but now silently discarded the very rewind the new
+probe relied on. That reset is now conditional on the boss-part check also missing.
+
+### Tests
+
+Two new cases in `regressions.js`. `#103a` reproduces the write-up's own numbers on Sentinel — the
+part's hp was untouched and the ball had sailed through to y 75.9, confirmed failing first. `#103b`
+pins that a `solid: false` part still can't be hit by the sweep at any speed.
 
 ---
 

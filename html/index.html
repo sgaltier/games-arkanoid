@@ -5358,9 +5358,9 @@ canvas {
       // against the first sample that overlaps anything instead of only the
       // last one. finalX/finalY is the post-move (and post-paddle) position
       // the ball keeps regardless — the sweep only matters when it turns up a
-      // brick to resolve against; on a miss, or a fireball ball that only
-      // burned through what it found without bouncing, it's the final
-      // position that stands.
+      // brick or boss part to resolve against; on a miss, or a fireball ball
+      // that only burned through what it found without bouncing, it's the
+      // final position that stands.
       var finalX = ball.x, finalY = ball.y;
       if (v > BRICK_H / 2) {
         var sweepSteps = Math.ceil(v / (BRICK_H / 2));
@@ -5372,6 +5372,12 @@ canvas {
           for (var k = 0; k < state.bricks.length; k++) {
             if (state.bricks[k].alive && circleRectCollide(probe, state.bricks[k])) { overlapsAny = true; break; }
           }
+          // #103: every boss part is taller than a brick, so a step too short
+          // to skip a brick cannot skip a part either — the same probe just
+          // has to test it too. hitTestBossPart() already gates on `solid`,
+          // so a faded (Phantom-style) part is skipped here exactly as the
+          // post-move check below skips it.
+          if (!overlapsAny && hitTestBossPart(probe)) overlapsAny = true;
           if (overlapsAny) { ball.x = sx; ball.y = sy; break; }
         }
       }
@@ -5403,15 +5409,22 @@ canvas {
         resolveBrickCollision(ball, hitBrick);
         brickHit(hitBrick);
       } else {
-        ball.x = finalX; ball.y = finalY;
         // #44: checked only when no ordinary brick was hit this frame — a rare
         // corner case where an arena cover brick and the boss overlap resolves
         // in the brick's favour, which is an acceptable simplification since
         // the two are never meant to occupy the same space (see bossArena).
+        // #103: checked at the ball's current position rather than resetting
+        // to finalX/finalY first — if the sweep above rewound the ball onto a
+        // part, resetting past it here would undo the very thing the sweep
+        // was for. On an ordinary (unswept, or swept-and-missed) frame the
+        // current position already equals finalX/finalY, so this changes
+        // nothing there.
         var bossPart = hitTestBossPart(ball);
         if (bossPart) {
           resolveBrickCollision(ball, bossPart);
           bossPartHit(bossPart);
+        } else {
+          ball.x = finalX; ball.y = finalY;
         }
       }
 
