@@ -4530,5 +4530,79 @@ module.exports = {
           "neither board can be cracked, so the run should end without a detour through nameentry");
       },
     },
+    {
+      name: "#98a — a ball at the game's own top speed still hits an isolated brick it would otherwise step clean over",
+      fn(a) {
+        const g = boot().start();
+        const ball = g.T.state.balls[0];
+        ball.attached = false;
+        // The finding's own numbers: speedCap x fast x difficulty.max gives
+        // 1568 px/s; frame()'s dt clamp of 0.033 steps that 51.7px in one
+        // frame — more than a 20px-tall brick, even before the ball's own
+        // diameter is added on top.
+        ball.speed = 1568;
+        ball.x = 200;
+        ball.y = 100;
+        ball.dx = 0;
+        ball.dy = -1; // heading straight up into the brick
+        const brick = { x: 190, y: 66, w: 20, h: 20, type: "1", hp: 1, alive: true, regenLeft: 0, regenTimer: 0 };
+        g.T.state.bricks = [brick];
+        g.T.state.remainingBricks = 100;
+
+        g.frame(33); // the frame loop clamps dt at this
+
+        a.not(brick.alive, "the brick should have been destroyed instead of stepped clean over");
+      },
+    },
+    {
+      name: "#98b — the resolved bounce matches the crossing, not an ejection through the far side",
+      fn(a) {
+        const g = boot().start();
+        const ball = g.T.state.balls[0];
+        ball.attached = false;
+        ball.speed = 1568;
+        ball.x = 200;
+        ball.y = 100;
+        ball.dx = 0;
+        ball.dy = -1; // approaching from below
+        const brick = { x: 190, y: 66, w: 20, h: 20, type: "1", hp: 1, alive: true, regenLeft: 0, regenTimer: 0 };
+        g.T.state.bricks = [brick];
+        g.T.state.remainingBricks = 100;
+
+        g.frame(33);
+
+        a.gt(ball.dy, 0,
+          "a ball approaching from below should end up heading back down, not still travelling up through the brick");
+        a.gte(ball.y, brick.y + brick.h,
+          "the resolved position should be below the brick it struck, not past it on the far side");
+      },
+    },
+    {
+      name: "#98c — an ordinary-speed frame still resolves against the least-penetrating of two overlapping bricks",
+      fn(a) {
+        // Same notch as #10, reached by an actual (slow) frame of movement
+        // instead of sitting there already at speed 0 — the #98 guard must
+        // leave a step this small (well under half a brick's height) on the
+        // original single-position check, not have the new sweep second-guess
+        // which brick was really struck.
+        const g = boot().start();
+        const brick0 = { x: 100, y: 100, w: 40, h: 20, type: "1", hp: 1, alive: true };
+        const brick1 = { x: 140, y: 120, w: 40, h: 20, type: "1", hp: 1, alive: true };
+        g.T.state.bricks = [brick0, brick1];
+        g.T.state.remainingBricks = 100;
+        const b = g.T.state.balls[0];
+        b.attached = false;
+        b.dx = 0;
+        b.dy = 1;
+        b.speed = 100; // v = 100 * 0.033 = 3.3px, well under the sweep guard
+        b.x = 138;
+        b.y = 119 - b.speed * 0.033;
+        g.frame(33);
+        a.not(brick1.alive,
+          "the ball penetrates brick1 more shallowly, so that is the face it actually struck");
+        a.ok(brick0.alive,
+          "array order (brick0 first) must not override which brick was really hit");
+      },
+    },
   ],
 };

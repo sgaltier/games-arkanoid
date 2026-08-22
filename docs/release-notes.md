@@ -69,14 +69,45 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #95 | ✅ Fixed — 2026-08-22 |
 | #96 | ✅ Fixed — 2026-08-22 |
 | #97 | ✅ Fixed — 2026-08-22 |
+| #98 | ✅ Fixed — 2026-08-22 |
 
-87 of 91 fixed. The full-codebase review raised on 2026-08-21 is done, ten for ten, #64 (resume an
+88 of 91 fixed. The full-codebase review raised on 2026-08-21 is done, ten for ten, #64 (resume an
 interrupted run) has shipped alongside it, and #57 (laser-vs-bad-drop counterplay) closes out the §C
 power-up batch. #83 (per-level star ratings) is the other half of what was originally #46, and #94
 puts that rating on screen at the moment it's earned, not just later in level select. A second
-holistic review on 2026-08-22 raised seven more (#95–#101); #95, #96, and #97 are fixed and the
-remaining four are open in [todo.md](todo.md), alongside the feature ideas still there and the
+holistic review on 2026-08-22 raised seven more (#95–#101); #95, #96, #97, and #98 are fixed and the
+remaining three are open in [todo.md](todo.md), alongside the feature ideas still there and the
 proposals in [feature-ideas.md](feature-ideas.md) not yet promoted to it.
+
+---
+
+## 2026-08-22 — A ball at the game's own top speed no longer tunnels through a brick (#98)
+
+### Fixed
+
+The paddle got a swept collision check when #38 shipped, because a fast-enough ball can cross more
+than the paddle's own thickness in a single frame. Bricks never got the same treatment: the brick
+loop only ever tested the ball's position *after* that frame's move, so a ball travelling fast enough
+could step clean over an isolated brick without the game ever noticing it was there. The numbers
+were the game's own worst case — top speed cap, the `fast` power-up, and the mid-level difficulty
+ramp maxed out, the exact stalemate `CONFIG.difficulty` exists to prevent — combining to 1568 px/s, or
+51.7 px in one 33 ms frame against a brick 20 px tall.
+
+`updateBalls()` now keeps where the ball started the frame alongside where it ended up, and once a
+single step covers more than half a brick's height, samples the straight line between the two at
+sub-brick intervals, rewinding to the first sample that overlaps any alive brick. Every existing
+collision rule — the least-penetration pick between two overlapping bricks, the fireball pass-through,
+the boss-part fallback — runs unchanged from there; it just now runs against an earlier point on the
+same path instead of only the last one. An ordinary frame, well under that threshold, never pays for
+the extra sampling at all.
+
+### Tests
+
+Three new cases in `regressions.js` (`#98a`–`#98c`). `#98a`/`#98b` reproduce the finding's own numbers
+— an isolated brick, a ball at top speed heading straight into it — and were confirmed failing first
+(the brick survived and the ball kept travelling through it); after the fix the brick is destroyed and
+the ball bounces back the way the crossing implies. `#98c` reruns an existing overlapping-bricks corner
+case at ordinary speed, to pin that the new sweep never runs on a frame that doesn't need it.
 
 ---
 

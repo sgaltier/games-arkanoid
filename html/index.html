@@ -5263,7 +5263,7 @@ canvas {
         ball.dy = Math.sin(newAngle);
       }
 
-      var prevY = ball.y;
+      var prevX = ball.x, prevY = ball.y;
       var v = ball.speed * mult * state.difficultyMult * dt;
       ball.x += ball.dx * v;
       ball.y += ball.dy * v;
@@ -5327,6 +5327,33 @@ canvas {
         }
       }
 
+      // #98: at the game's own top speed (speedCap x fast x difficulty.max) a
+      // ball can cross more than half a brick's height in one frame, so the
+      // post-move check below would find it already past an isolated brick
+      // with nothing left to overlap. Below that, nothing can be missed and
+      // the sweep is skipped; above it, sample the straight path from where
+      // this frame started at sub-brick intervals, testing the pick below
+      // against the first sample that overlaps anything instead of only the
+      // last one. finalX/finalY is the post-move (and post-paddle) position
+      // the ball keeps regardless — the sweep only matters when it turns up a
+      // brick to resolve against; on a miss, or a fireball ball that only
+      // burned through what it found without bouncing, it's the final
+      // position that stands.
+      var finalX = ball.x, finalY = ball.y;
+      if (v > BRICK_H / 2) {
+        var sweepSteps = Math.ceil(v / (BRICK_H / 2));
+        for (var step = 1; step <= sweepSteps; step++) {
+          var sx = prevX + (finalX - prevX) * (step / sweepSteps);
+          var sy = prevY + (finalY - prevY) * (step / sweepSteps);
+          var probe = { x: sx, y: sy, r: ball.r };
+          var overlapsAny = false;
+          for (var k = 0; k < state.bricks.length; k++) {
+            if (state.bricks[k].alive && circleRectCollide(probe, state.bricks[k])) { overlapsAny = true; break; }
+          }
+          if (overlapsAny) { ball.x = sx; ball.y = sy; break; }
+        }
+      }
+
       // bricks — a ball can overlap two adjacent bricks at once near a corner;
       // resolve against whichever it penetrates least, not just the first
       // match in array order (bricks are stored top-row-first). #53: a
@@ -5354,6 +5381,7 @@ canvas {
         resolveBrickCollision(ball, hitBrick);
         brickHit(hitBrick);
       } else {
+        ball.x = finalX; ball.y = finalY;
         // #44: checked only when no ordinary brick was hit this frame — a rare
         // corner case where an arena cover brick and the boss overlap resolves
         // in the brick's favour, which is an acceptable simplification since

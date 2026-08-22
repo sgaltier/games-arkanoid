@@ -9,13 +9,13 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 4 open items — **#98–#101, what is left of the correctness and security/backend findings
-of the 2026-08-22 holistic review pass** (§J and §K); #95, #96, and #97 from that pass have shipped.
-#47, #50, #56, and #63 — previously promoted here from
+**Status:** 3 open items — **#99–#101, what is left of the correctness and security/backend findings
+of the 2026-08-22 holistic review pass** (§J and §K); #95, #96, #97, and #98 from that pass have
+shipped. #47, #50, #56, and #63 — previously promoted here from
 [feature-ideas.md](feature-ideas.md) — have been moved back there as unshipped proposals; see that
 file for their write-ups. #46 from the old §A batch, #53, #54, #55, and #57 from the old §C batch,
 #82 (raised directly), #83 (raised directly), #84–#93 (the full 2026-08-21 review pass), #64
-(promoted from the old §D), #94 (raised directly), #95, #96, and #97 have shipped (see
+(promoted from the old §D), #94 (raised directly), #95, #96, #97, and #98 have shipped (see
 [done.md](done.md)).
 #62 (promoted from the old §D) was discarded outright rather than fixed.
 
@@ -42,10 +42,10 @@ overlay) — see [done.md](done.md). #47 (daily challenge seed), #50 (moving bri
 spin), and #63 (difficulty selection) sit unshipped in [feature-ideas.md](feature-ideas.md). The ten
 findings raised by the 2026-08-21 review (#84–#93) are all shipped — see [done.md](done.md) §I.
 
-Open below are four of the seven findings of a **holistic review on 2026-08-22** — a read of the whole
+Open below are three of the seven findings of a **holistic review on 2026-08-22** — a read of the whole
 repository (`index.html`, `functions/api/scores.js`, the schema, the docs), the same shape as the
 pass that produced #84–#93. They are grouped into §J (correctness, all in `index.html`) and §K
-(security and backend, `functions/api/scores.js`); #95, #96, and #97 have shipped — see
+(security and backend, `functions/api/scores.js`); #95, #96, #97, and #98 have shipped — see
 [done.md](done.md) §J, which is where the rest land as they follow. Every one was reproduced against
 the current file through the test harness before being written up; the reproduction is quoted in
 each entry. New
@@ -55,64 +55,15 @@ review findings go here too, keeping the shared numbering: the next free number 
 
 ## J. Correctness
 
-Raised by the 2026-08-22 holistic pass. Both are in [index.html](../html/index.html); neither is
-caught by the current suite. #95, #96, and #97, the other three, have shipped — see
-[done.md](done.md) §J.
-
-### 98. At the game's own top speed the ball passes through a brick without hitting it (M)
-
-The paddle got a swept check in #38 ([5288-5295](../html/index.html#L5288-L5295)) precisely because a
-fast ball can step further in one frame than the paddle is thick. Bricks never got one: the brick loop
-([5338-5352](../html/index.html#L5338-L5352)) tests `circleRectCollide()`
-([5206-5211](../html/index.html#L5206-L5211)) at the ball's **post-move** position only, so a brick
-the ball stepped clean over is never considered.
-
-The numbers are the game's own, and the comment at [1140-1149](../html/index.html#L1140-L1149) already
-quotes the key one. `baseBallSpeed` 250 × `progression.speedCap` 2.8
-([1537](../html/index.html#L1537)) × `effects.fast.mult` 1.4 ([1558](../html/index.html#L1558)) ×
-`difficulty.max` 1.6 ([1595](../html/index.html#L1595)) = 1568 px/s; `frame()` clamps `dt` at 0.033
-([6270](../html/index.html#L6270)), giving **51.7 px in one step** against a brick 20 px tall — 34 px
-including the ball's own diameter. Reproduced directly: an isolated brick spanning y 66-86, a ball at
-y 100 heading up at that speed, one 33 ms frame:
-
-```
-before: ball.y 100    brick alive
-after : ball.y 48.3   brick alive   -> TUNNELLED THROUGH
-```
-
-Note the comment at [1145-1149](../html/index.html#L1145-L1149) explicitly retires level speed as a
-correctness constraint on the grounds that "a swept paddle check in updateBalls() now catches the
-crossing directly instead" — true for the paddle, and this finding is what the same reasoning implies
-for bricks.
-
-It bites hardest exactly where it matters least to notice and most to play: the last brick or two of a
-late level, with the mid-level ramp maxed and a `fast` pickup caught — which is the stalemate
-`CONFIG.difficulty` exists to prevent. 33 ms frames are not hypothetical on a phone.
-
-**Cheapest correct shape is a swept test only when the step warrants it.** Below roughly half the
-brick's smaller dimension nothing can be missed, so a guard (`v > BRICK_H / 2`) keeps the ordinary
-frame on today's single-position test and pays for the sweep only on the rare long step. Sampling the
-segment `prev → new` at sub-brick intervals and running the existing least-penetration pick at the
-first sample that overlaps reuses `circleRectCollide()`/`brickPenetration()`/`resolveBrickCollision()`
-unchanged, which matters — the fireball branch ([5343-5346](../html/index.html#L5343-L5346)) and the
-boss fallback ([5356-5366](../html/index.html#L5356-L5366)) both hang off this loop and must keep
-behaving as they do.
-
-#### Tests
-
-- `#98a` — a ball at `speedCap × fast × difficulty.max` crossing an isolated brick in one 33 ms frame
-  destroys it instead of passing through.
-- `#98b` — the resolved bounce is the one the crossing implies (a ball coming up from below ends up
-  below the brick heading down), not an ejection through the far side.
-- `#98c` — an ordinary-speed frame still resolves against the least-penetrating of two overlapping
-  bricks, unchanged (a guard against the sweep replacing the corner-case pick).
+Raised by the 2026-08-22 holistic pass. It's in [index.html](../html/index.html); not caught by the
+current suite. #95, #96, #97, and #98, the other four, have shipped — see [done.md](done.md) §J.
 
 ### 99. Aegis's beam renders its narrow effect on the wrong scale (S)
 
 `applyBossHazard("narrow5")` ([4947-4949](../html/index.html#L4947-L4949)) is the one place a width
 effect is created with a duration other than its `CONFIG.effects` one — `remaining: 5` rather than
 `CONFIG.effects.narrow.duration` (8). `renderEffectBars()`
-([5878-5882](../html/index.html#L5878-L5882)) recovers which power-up is behind `state.widthEffect`
+([5906-5910](../html/index.html#L5906-L5910)) recovers which power-up is behind `state.widthEffect`
 from the sign of its `mult` and divides by the table's duration, so the bar opens at
 `5 / 8 = 62.5 %` and drains from there. The one hazard in the game with its own duration is the one
 the bar cannot describe.
@@ -120,7 +71,7 @@ the bar cannot describe.
 Cosmetic — nothing reads the bar — but it is the kind of drift the `mult`-sign trick was always going
 to produce, and the fix removes the trick rather than patching around it: give the effect object its
 own `duration` field at creation (`{ mult, remaining, duration }`) and have `updateEffectBar()`
-([5865-5875](../html/index.html#L5865-L5875)) read `effect.duration` instead of being handed one by
+([5893-5903](../html/index.html#L5893-L5903)) read `effect.duration` instead of being handed one by
 its caller. That also drops the `we &&`/`se &&` argument gymnastics at the two call sites, and means a
 future hazard with its own timing cannot reintroduce this.
 
@@ -166,7 +117,7 @@ than carry separately:
   is an XSS vector — `escapeHtml()` covers rendering — but the board is permanent and world-visible,
   which is the argument the profanity filter (#77/#89) was accepted on. A `U+200B-U+200F`/`U+202A-U+202E`
   strip and a code-point-aware truncation are a couple of lines, and must be mirrored in
-  `index.html`'s `submitHallOfFameName()` ([5630](../html/index.html#L5630)) the way the profanity
+  `index.html`'s `submitHallOfFameName()` ([5658](../html/index.html#L5658)) the way the profanity
   list already is (`#89c` guards that pairing).
 
 #### Tests
@@ -179,9 +130,9 @@ than carry separately:
 
 ### 101. The HUD advertises a best score a jumped run can never earn (S)
 
-`maybeSaveBest()` ([5436-5445](../html/index.html#L5436-L5445)) refuses to promote a jumped run's
+`maybeSaveBest()` ([5464-5473](../html/index.html#L5464-L5473)) refuses to promote a jumped run's
 score — that is #69's rule, and #72 added the end-screen disclosure that says so. But `updateHud()`
-([5823-5824](../html/index.html#L5823-L5824)) shows `Math.max(state.best, state.score)`
+([5851-5852](../html/index.html#L5851-L5852)) shows `Math.max(state.best, state.score)`
 unconditionally, so throughout a jumped run the "Meilleur" cell climbs with the live score and then
 silently snaps back to the real best when the run ends.
 
