@@ -4339,5 +4339,54 @@ module.exports = {
         a.not("blokrush-resume" in g2.store, "endGame() should clear any saved snapshot");
       },
     },
+    {
+      name: "#95a — a run interrupted on the level-clear screen never counts that level a second time",
+      fn(a) {
+        const g = boot().start();
+        clearBricks(g);
+        g.frame();
+        a.eq(g.T.state.phase, "levelclear");
+        a.eq(g.T.state.achStats.levelsCleared, 1);
+        a.eq(g.T.state.achStats.cleanStreak, 1);
+
+        g.fireWin("pagehide"); // the tab goes away on "Niveau clair !"
+
+        // Whether that leaves a snapshot at all is the fix's business; what
+        // must never happen is the cleared level being re-run through
+        // checkLevelClear()'s verdict on the way back.
+        const g2 = boot({ storage: g.store });
+        if (g2.T.state.phase === "paused") {
+          g2.el("btn-resume").click(1);
+          g2.frame();
+        }
+        a.lte(g2.T.state.achStats.levelsCleared, 1,
+          "resuming from the level-clear screen must not count the same clear twice");
+        a.lte(g2.T.state.achStats.cleanStreak, 1,
+          "nor extend the clean streak Iron Ten is judged on");
+      },
+    },
+    {
+      name: "#95b — nor does it hand out the milestone extra life twice",
+      fn(a) {
+        const g = boot().start();
+        g.T.startLevel(9); // level 10 — (levelIndex + 1) % extraLifeEvery === 0
+        g.key("Space");
+        const before = g.T.state.lives;
+        clearBricks(g);
+        g.frame();
+        a.eq(g.T.state.phase, "levelclear");
+        a.eq(g.T.state.lives, before + 1, "clearing level 10 should award the milestone life once");
+
+        g.fireWin("pagehide");
+
+        const g2 = boot({ storage: g.store });
+        if (g2.T.state.phase === "paused") {
+          g2.el("btn-resume").click(1);
+          g2.frame();
+        }
+        a.lte(g2.T.state.lives, before + 1,
+          "closing the tab on the level-clear screen must not be worth a free life");
+      },
+    },
   ],
 };

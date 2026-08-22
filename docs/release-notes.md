@@ -66,13 +66,43 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #57 | ✅ Fixed — 2026-08-21 |
 | #83 | ✅ Fixed — 2026-08-21 |
 | #94 | ✅ Fixed — 2026-08-21 |
+| #95 | ✅ Fixed — 2026-08-22 |
 
-84 of 84 fixed — the full-codebase review raised on 2026-08-21 is done, ten for ten, #64 (resume an
+85 of 91 fixed. The full-codebase review raised on 2026-08-21 is done, ten for ten, #64 (resume an
 interrupted run) has shipped alongside it, and #57 (laser-vs-bad-drop counterplay) closes out the §C
 power-up batch. #83 (per-level star ratings) is the other half of what was originally #46, and #94
-puts that rating on screen at the moment it's earned, not just later in level select. See
-[todo.md](todo.md) for the feature ideas still open, and [feature-ideas.md](feature-ideas.md) for
-proposals not yet promoted to it.
+puts that rating on screen at the moment it's earned, not just later in level select. A second
+holistic review on 2026-08-22 raised seven more (#95–#101); #95 is fixed and the remaining six are
+open in [todo.md](todo.md), alongside the feature ideas still there and the proposals in
+[feature-ideas.md](feature-ideas.md) not yet promoted to it.
+
+---
+
+## 2026-08-22 — A run interrupted on the level-clear screen no longer counts the level twice (#95)
+
+### Fixed
+
+#64's snapshot was taken from any phase with a live run behind it, and that set included
+`levelclear` — so closing the tab on "Niveau clair !" saved a run whose field was already empty.
+A snapshot carries no phase and always resumes into play, so coming back re-ran the level's whole
+clear verdict for a level already cleared: `levelsCleared` (which "Warm Cabinet" counts) and
+`cleanStreak` (which "Iron Ten" counts) each went up a second time, and on every tenth level the
+milestone extra life was handed out twice. The score was never affected — nothing in that block adds
+points — so this was an achievement-and-lives bug rather than a scoring one, but a free life for
+closing a tab is still a real leak.
+
+The set is now two sets: `RUN_PHASES` keeps `levelclear` and keeps answering the question it was
+written for (a level jump out of a live run preserves its score and lives), while a separate
+`SNAPSHOT_PHASES` — the same list without `levelclear` — is what decides when a snapshot is taken.
+Losing the level-clear screen to a closed tab costs nothing, since the level is already recorded;
+replaying it cost correctness.
+
+### Tests
+
+Two new cases in `regressions.js` (`#95a`, `#95b`), both confirmed failing first against the unfixed
+code (`2 !<= 1` clears counted, `5 !<= 4` lives). Each drives the real gesture — clear the level,
+fire `pagehide`, boot from the resulting storage — and asserts the clear is never counted, and the
+milestone life never awarded, a second time.
 
 ---
 

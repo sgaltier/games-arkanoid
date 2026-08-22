@@ -3360,7 +3360,7 @@ canvas {
   // saves whatever's live directly rather than relying on autoPause() having
   // already run.
   window.addEventListener("pagehide", function () {
-    if (RUN_PHASES[state.phase]) saveResume();
+    if (SNAPSHOT_PHASES[state.phase]) saveResume();
   });
 
   canvas.addEventListener("mousemove", function (e) {
@@ -3475,6 +3475,18 @@ canvas {
   // run, the board opened on demand (#43) — has no run behind it, and jumping
   // from there has to begin one the way newGame() does.
   var RUN_PHASES = { ready: true, playing: true, paused: true, levelclear: true };
+
+  // #95: the subset of the above that #64's snapshot is taken from. Same list
+  // minus "levelclear", and the two are deliberately separate sets rather than
+  // one: a snapshot carries no phase (see RESUME_FIELDS) and always resumes
+  // into "playing", so one taken while the level-clear overlay is up restores
+  // an already-emptied field and the next frame runs checkLevelClear()'s whole
+  // verdict a second time for the same level — levelsCleared, cleanStreak, and
+  // on every tenth level the milestone life, all awarded twice for closing the
+  // tab on "Niveau clair !". Losing that screen to a closed tab costs the
+  // player nothing (the level is already recorded by recordLevelClear());
+  // replaying it costs correctness.
+  var SNAPSHOT_PHASES = { ready: true, playing: true, paused: true };
 
   function openLevelJump() {
     if (state.phase === "leveljump") return;
@@ -3624,14 +3636,14 @@ canvas {
     }
   }
   function setPhase(p) {
-    // #64: snapshot a live run the instant it's paused — from any RUN_PHASES
-    // phase, which is every path that actually has a run behind it (manual
-    // pause, autoPause() on visibilitychange/blur, openLevelJump()'s "paused"
-    // jumpReturn). Checked against the *outgoing* phase, before it's
-    // overwritten below — which is also what keeps the boot-restore path (see
-    // module init, near the bottom of the file) from re-saving over the
-    // snapshot it just loaded: "start" isn't a RUN_PHASE.
-    if (p === "paused" && RUN_PHASES[state.phase]) saveResume();
+    // #64: snapshot a live run the instant it's paused — from any
+    // SNAPSHOT_PHASES phase, which is every path that actually has a resumable
+    // run behind it (manual pause, autoPause() on visibilitychange/blur,
+    // openLevelJump()'s "paused" jumpReturn). Checked against the *outgoing*
+    // phase, before it's overwritten below — which is also what keeps the
+    // boot-restore path (see module init, near the bottom of the file) from
+    // re-saving over the snapshot it just loaded: "start" isn't one.
+    if (p === "paused" && SNAPSHOT_PHASES[state.phase]) saveResume();
     state.phase = p;
     renderDynamicText();
     renderPauseButton();

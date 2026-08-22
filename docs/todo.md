@@ -9,13 +9,14 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 7 open items — **#95–#101, the correctness and security/backend findings of the
-2026-08-22 holistic review pass** (§J and §K). #47, #50, #56, and #63 — previously promoted here from
+**Status:** 6 open items — **#96–#101, what is left of the correctness and security/backend findings
+of the 2026-08-22 holistic review pass** (§J and §K); #95 from that pass has shipped. #47, #50, #56,
+and #63 — previously promoted here from
 [feature-ideas.md](feature-ideas.md) — have been moved back there as unshipped proposals; see that
 file for their write-ups. #46 from the old §A batch, #53, #54, #55, and #57 from the old §C batch,
 #82 (raised directly), #83 (raised directly), #84–#93 (the full 2026-08-21 review pass), #64
-(promoted from the old §D), and #94 (raised directly) have shipped (see [done.md](done.md)). #62
-(promoted from the old §D) was discarded outright rather than fixed.
+(promoted from the old §D), #94 (raised directly), and #95 have shipped (see [done.md](done.md)).
+#62 (promoted from the old §D) was discarded outright rather than fixed.
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
 test → fix → move the finding's whole entry from this file to [done.md](done.md), prepending a
@@ -40,68 +41,21 @@ overlay) — see [done.md](done.md). #47 (daily challenge seed), #50 (moving bri
 spin), and #63 (difficulty selection) sit unshipped in [feature-ideas.md](feature-ideas.md). The ten
 findings raised by the 2026-08-21 review (#84–#93) are all shipped — see [done.md](done.md) §I.
 
-Open below are the seven findings of a **holistic review on 2026-08-22** — a read of the whole
+Open below are six of the seven findings of a **holistic review on 2026-08-22** — a read of the whole
 repository (`index.html`, `functions/api/scores.js`, the schema, the docs), the same shape as the
 pass that produced #84–#93. They are grouped into §J (correctness, all in `index.html`) and §K
-(security and backend, `functions/api/scores.js`). Every one was reproduced against the current file
-through the test harness before being written up; the reproduction is quoted in each entry. New
+(security and backend, `functions/api/scores.js`); the seventh, #95, has shipped — see
+[done.md](done.md) §J, which is where the rest land as they follow. Every one was reproduced against
+the current file through the test harness before being written up; the reproduction is quoted in
+each entry. New
 review findings go here too, keeping the shared numbering: the next free number is **#102**.
 
 ---
 
 ## J. Correctness
 
-Raised by the 2026-08-22 holistic pass. All five are in [index.html](../html/index.html); none of
-them is caught by the current suite.
-
-### 95. Resuming a run saved on the level-clear screen awards that level a second time (M)
-
-`RUN_PHASES` ([3477](../html/index.html#L3477)) counts `levelclear` as a phase with a live run behind
-it — correctly, since a level jump out of it should keep the run's score and lives. The `pagehide`
-handler ([3362-3364](../html/index.html#L3362-L3364)) therefore snapshots a run whose level has
-**already been cleared**: `state.remainingBricks === 0` (or `state.boss.dead`), all bricks down, the
-levelclear overlay up.
-
-The snapshot does not carry `state.phase` — `RESUME_FIELDS` ([2768-2774](../html/index.html#L2768-L2774))
-deliberately omits it and the boot path ([6319-6323](../html/index.html#L6319-L6323)) always lands on
-`"paused"` instead. So resuming re-enters `"playing"` with a cleared field, and the next frame's
-`checkLevelClear()` ([5412-5462](../html/index.html#L5412-L5462)) runs the level's whole verdict a
-second time for the same level.
-
-Reproduced against the current file (clear level 1, fire `pagehide`, boot from the resulting store,
-click resume, one frame):
-
-```
-g1: levelsCleared 1  cleanStreak 1
-g2: levelsCleared 2  cleanStreak 2
-```
-
-and on a milestone level (level 10, where `(levelIndex + 1) % extraLifeEvery === 0`) the same gesture
-hands out the milestone life twice — `lives 4` before the snapshot, `lives 5` after resuming. The
-level-clear fanfare replays too, and `recordLevelClear()` re-rates the level (harmless on its own,
-since stars only ever rise).
-
-`state.score` is *not* double-counted — nothing in that block adds points — so this is an achievement
-and lives bug, not a scoring one. But `levelsCleared` feeds "Warm Cabinet", `cleanStreak` feeds "Iron
-Ten", and a free life every time the tab is closed on the level-clear screen of level 10, 20, 30 … is
-a real economy leak. It is easy to hit by accident: closing the tab on "Niveau clair !" is exactly the
-interruption #64 exists to survive.
-
-**Two candidate shapes, and they are not equivalent.** Either persist the outgoing phase in the
-snapshot and restore `levelclear` (which then needs its own resume path, since `btn-resume` leads to
-`"playing"`), or — smaller, and probably right — do not snapshot from `levelclear` at all: drop it
-from the set `pagehide` and `setPhase()`'s save guard ([3634](../html/index.html#L3634)) consult,
-keeping `RUN_PHASES` itself intact for the level-jump/preserve-run question it also answers. Losing a
-level-clear screen to a closed tab costs the player nothing — the level is already recorded by
-`recordLevelClear()` — whereas replaying it costs correctness. Note the two uses of `RUN_PHASES` have
-drifted apart in meaning and this finding is the consequence; whichever shape is picked, they should
-end up as two named sets rather than one.
-
-#### Tests
-
-- `#95a` — a snapshot taken (via `pagehide`) while the levelclear overlay is up does not raise
-  `achStats.levelsCleared`/`cleanStreak` a second time when the run is resumed.
-- `#95b` — the same gesture on a milestone level (level 10) does not award the extra life twice.
+Raised by the 2026-08-22 holistic pass. All four are in [index.html](../html/index.html); none of
+them is caught by the current suite. #95, the fifth, has shipped — see [done.md](done.md) §J.
 
 ### 96. A malformed `/api/scores` response poisons the board and breaks every later render (M)
 
@@ -127,9 +81,9 @@ The throw lands inside `fetchGlobalBoard()`'s `.then`, past `apiFetch()`'s `.cat
 as the "no global board" signal every other network failure collapses to, and, worse,
 `state.globalScores` is left holding the bad array. From then on `activeBoard()`
 ([2902-2904](../html/index.html#L2902-L2904)) hands it to everything downstream:
-`renderHallOfFame()` ([5629-5654](../html/index.html#L5629-L5654)) throws on every call, which takes
-`applyLanguage()` ([3752](../html/index.html#L3752)) with it — **the language toggle stops working** —
-and `rankIn()` ([5498-5503](../html/index.html#L5498-L5503)) throws at the end of the run.
+`renderHallOfFame()` ([5641-5666](../html/index.html#L5641-L5666)) throws on every call, which takes
+`applyLanguage()` ([3764](../html/index.html#L3764)) with it — **the language toggle stops working** —
+and `rankIn()` ([5510-5515](../html/index.html#L5510-L5515)) throws at the end of the run.
 
 The server does validate what it stores, so this is defence in depth rather than a live exploit. It
 is worth having anyway for the same reason `loadHallOfFame()` guards `localStorage`: a response can
@@ -155,12 +109,12 @@ reads the same array.
 
 ### 97. Once the world board is full of higher scores, nothing is ever written to the local board again (M)
 
-`endGame()` ([5464-5485](../html/index.html#L5464-L5485)) decides whether to prompt for a name with
-`qualifiesForHallOfFame()` ([5510-5512](../html/index.html#L5510-L5512)), which ranks against
-`activeBoard()` ([5507-5509](../html/index.html#L5507-L5509)) — the **world** board whenever the API
+`endGame()` ([5476-5497](../html/index.html#L5476-L5497)) decides whether to prompt for a name with
+`qualifiesForHallOfFame()` ([5522-5524](../html/index.html#L5522-L5524)), which ranks against
+`activeBoard()` ([5519-5521](../html/index.html#L5519-L5521)) — the **world** board whenever the API
 answered. The name prompt is the only route to `insertHallOfFameEntry()`
-([5519-5527](../html/index.html#L5519-L5527)), via `submitHallOfFameName()`
-([5593-5622](../html/index.html#L5593-L5622)). So a score that does not crack the world top ten never
+([5531-5539](../html/index.html#L5531-L5539)), via `submitHallOfFameName()`
+([5605-5634](../html/index.html#L5605-L5634)). So a score that does not crack the world top ten never
 reaches the local board either — even when the local board is empty.
 
 Reproduced with a world board of ten scores near 1,000,000 and a 5,000-point run:
@@ -185,7 +139,7 @@ The smallest correct shape is for `endGame()` to prompt when the score qualifies
 (`rankIn(activeBoard(), s) !== -1 || rankIn(state.hallOfFame, s) !== -1`), leaving
 `submitHallOfFameName()` and `submitGlobalScore()` unchanged — both already handle "made one board
 but not the other" correctly, including `state.hofHighlight`'s fallback
-([5613](../html/index.html#L5613)) for exactly this case. Worth deciding deliberately how the
+([5625](../html/index.html#L5625)) for exactly this case. Worth deciding deliberately how the
 `nameentry` eyebrow reads when a run makes only the local board: "Nouveau record !" over a run that
 did not make the world top ten is defensible (it *is* a device record) but should be a choice, not an
 accident.
@@ -200,17 +154,17 @@ accident.
 
 ### 98. At the game's own top speed the ball passes through a brick without hitting it (M)
 
-The paddle got a swept check in #38 ([5253-5260](../html/index.html#L5253-L5260)) precisely because a
+The paddle got a swept check in #38 ([5265-5272](../html/index.html#L5265-L5272)) precisely because a
 fast ball can step further in one frame than the paddle is thick. Bricks never got one: the brick loop
-([5303-5317](../html/index.html#L5303-L5317)) tests `circleRectCollide()`
-([5171-5176](../html/index.html#L5171-L5176)) at the ball's **post-move** position only, so a brick
+([5315-5329](../html/index.html#L5315-L5329)) tests `circleRectCollide()`
+([5183-5188](../html/index.html#L5183-L5188)) at the ball's **post-move** position only, so a brick
 the ball stepped clean over is never considered.
 
 The numbers are the game's own, and the comment at [1140-1149](../html/index.html#L1140-L1149) already
 quotes the key one. `baseBallSpeed` 250 × `progression.speedCap` 2.8
 ([1537](../html/index.html#L1537)) × `effects.fast.mult` 1.4 ([1558](../html/index.html#L1558)) ×
 `difficulty.max` 1.6 ([1595](../html/index.html#L1595)) = 1568 px/s; `frame()` clamps `dt` at 0.033
-([6235](../html/index.html#L6235)), giving **51.7 px in one step** against a brick 20 px tall — 34 px
+([6247](../html/index.html#L6247)), giving **51.7 px in one step** against a brick 20 px tall — 34 px
 including the ball's own diameter. Reproduced directly: an isolated brick spanning y 66-86, a ball at
 y 100 heading up at that speed, one 33 ms frame:
 
@@ -233,8 +187,8 @@ brick's smaller dimension nothing can be missed, so a guard (`v > BRICK_H / 2`) 
 frame on today's single-position test and pays for the sweep only on the rare long step. Sampling the
 segment `prev → new` at sub-brick intervals and running the existing least-penetration pick at the
 first sample that overlaps reuses `circleRectCollide()`/`brickPenetration()`/`resolveBrickCollision()`
-unchanged, which matters — the fireball branch ([5308-5311](../html/index.html#L5308-L5311)) and the
-boss fallback ([5321-5331](../html/index.html#L5321-L5331)) both hang off this loop and must keep
+unchanged, which matters — the fireball branch ([5320-5323](../html/index.html#L5320-L5323)) and the
+boss fallback ([5333-5343](../html/index.html#L5333-L5343)) both hang off this loop and must keep
 behaving as they do.
 
 #### Tests
@@ -248,10 +202,10 @@ behaving as they do.
 
 ### 99. Aegis's beam renders its narrow effect on the wrong scale (S)
 
-`applyBossHazard("narrow5")` ([4912-4914](../html/index.html#L4912-L4914)) is the one place a width
+`applyBossHazard("narrow5")` ([4924-4926](../html/index.html#L4924-L4926)) is the one place a width
 effect is created with a duration other than its `CONFIG.effects` one — `remaining: 5` rather than
 `CONFIG.effects.narrow.duration` (8). `renderEffectBars()`
-([5843-5847](../html/index.html#L5843-L5847)) recovers which power-up is behind `state.widthEffect`
+([5855-5859](../html/index.html#L5855-L5859)) recovers which power-up is behind `state.widthEffect`
 from the sign of its `mult` and divides by the table's duration, so the bar opens at
 `5 / 8 = 62.5 %` and drains from there. The one hazard in the game with its own duration is the one
 the bar cannot describe.
@@ -259,7 +213,7 @@ the bar cannot describe.
 Cosmetic — nothing reads the bar — but it is the kind of drift the `mult`-sign trick was always going
 to produce, and the fix removes the trick rather than patching around it: give the effect object its
 own `duration` field at creation (`{ mult, remaining, duration }`) and have `updateEffectBar()`
-([5830-5840](../html/index.html#L5830-L5840)) read `effect.duration` instead of being handed one by
+([5842-5852](../html/index.html#L5842-L5852)) read `effect.duration` instead of being handed one by
 its caller. That also drops the `we &&`/`se &&` argument gymnastics at the two call sites, and means a
 future hazard with its own timing cannot reintroduce this.
 
@@ -305,7 +259,7 @@ than carry separately:
   is an XSS vector — `escapeHtml()` covers rendering — but the board is permanent and world-visible,
   which is the argument the profanity filter (#77/#89) was accepted on. A `U+200B-U+200F`/`U+202A-U+202E`
   strip and a code-point-aware truncation are a couple of lines, and must be mirrored in
-  `index.html`'s `submitHallOfFameName()` ([5595](../html/index.html#L5595)) the way the profanity
+  `index.html`'s `submitHallOfFameName()` ([5607](../html/index.html#L5607)) the way the profanity
   list already is (`#89c` guards that pairing).
 
 #### Tests
@@ -318,9 +272,9 @@ than carry separately:
 
 ### 101. The HUD advertises a best score a jumped run can never earn (S)
 
-`maybeSaveBest()` ([5401-5410](../html/index.html#L5401-L5410)) refuses to promote a jumped run's
+`maybeSaveBest()` ([5413-5422](../html/index.html#L5413-L5422)) refuses to promote a jumped run's
 score — that is #69's rule, and #72 added the end-screen disclosure that says so. But `updateHud()`
-([5788-5789](../html/index.html#L5788-L5789)) shows `Math.max(state.best, state.score)`
+([5800-5801](../html/index.html#L5800-L5801)) shows `Math.max(state.best, state.score)`
 unconditionally, so throughout a jumped run the "Meilleur" cell climbs with the live score and then
 silently snaps back to the real best when the run ends.
 
