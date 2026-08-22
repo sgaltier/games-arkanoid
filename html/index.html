@@ -2637,7 +2637,7 @@ canvas {
   // to an empty board rather than throwing.
   // #96: the one predicate for "a row a board can render". Shared with
   // sanitizeBoard() below, the other boundary a board arrives from.
-  function isScoreEntry(e) { return !!e && typeof e.name === "string" && isFinite(e.score); }
+  function isScoreEntry(e) { return !!e && typeof e.name === "string" && Number.isFinite(e.score); }
   function loadHallOfFame() {
     var raw = storageGet(HOF_KEY);
     if (!raw) return [];

@@ -75,16 +75,40 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #101 | ✅ Fixed — 2026-08-22 |
 | #102 | ✅ Fixed — 2026-08-22 |
 | #103 | ✅ Fixed — 2026-08-22 |
+| #104 | ✅ Fixed — 2026-08-22 |
 
-93 of 97 fixed. The full-codebase review raised on 2026-08-21 is done, ten for ten, #64 (resume an
+94 of 97 fixed. The full-codebase review raised on 2026-08-21 is done, ten for ten, #64 (resume an
 interrupted run) has shipped alongside it, and #57 (laser-vs-bad-drop counterplay) closes out the §C
 power-up batch. #83 (per-level star ratings) is the other half of what was originally #46, and #94
 puts that rating on screen at the moment it's earned, not just later in level select. A second
 holistic review on 2026-08-22 raised seven more (#95–#101), all now fixed. Another pass later the
 same day raised six more (#102–#107); #102 (a stale resume snapshot no longer rewinds a run past a
-level clear or a life lost) and #103 (the anti-tunnel sweep now also catches boss parts) are the
-first two of those to ship. `todo.md` is back down to the remaining four, plus the feature ideas
+level clear or a life lost), #103 (the anti-tunnel sweep now also catches boss parts), and #104 (both
+hall-of-fame board validators now reject a null/boolean/string score instead of coercing it) are the
+first three of those to ship. `todo.md` is back down to the remaining three, plus the feature ideas
 still there and the proposals in [feature-ideas.md](feature-ideas.md) not yet promoted to it.
+
+---
+
+## 2026-08-22 — A null/boolean/string score can no longer sneak onto either hall-of-fame board (#104)
+
+### Fixed
+
+#96's `isScoreEntry()` is the one predicate both board boundaries share — `loadHallOfFame()` reading
+`HOF_KEY`, `sanitizeBoard()` reading `/api/scores` — but it checked `isFinite(e.score)` using the
+**global**, coercing `isFinite`, not `Number.isFinite`. `isFinite(null)`, `isFinite(true)`, and
+`isFinite("250")` are all `true`, so a `null` score, a boolean score, or a numeric string all passed
+the check meant to keep wrong-shape data off the board — then rendered literally ("null", "true") in
+the score column and fed `rankIn()`'s ordering comparisons as coerced values.
+
+`isScoreEntry()` now checks `Number.isFinite(e.score)`, which coerces nothing.
+
+### Tests
+
+Two new cases in `regressions.js`. `#104a` reproduces the write-up's own `HOF_KEY` payload — three
+bad rows alongside one real one — confirmed failing first (all four survived). `#104b` covers the
+`/api/scores` boundary through `sanitizeBoard()`, including the null-vs-`[]` case: a response with
+nothing renderable left must still degrade to the local board, not read as an empty world board.
 
 ---
 

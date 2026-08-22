@@ -9,13 +9,13 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 4 open items — the findings of the **second holistic review pass on 2026-08-22**, a read
+**Status:** 3 open items — the findings of the **second holistic review pass on 2026-08-22**, a read
 of the whole repository (`index.html`, `functions/api/scores.js`, the schema, the test harness, the
 docs), the same shape as the passes that produced #84–#93 and #95–#101. They are grouped into §L
 (correctness, all in `index.html`) and §M (security and backend). Every one was reproduced against
 the current file — through the test harness for the game-side findings — before being written up;
 the reproduction is quoted in each entry. Everything from earlier passes has shipped: #95–#101 (the
-first 2026-08-22 pass) live in [done.md](done.md) §J/§K, #102–#103 (the first two of this second
+first 2026-08-22 pass) live in [done.md](done.md) §J/§K, #102–#104 (the first three of this second
 pass) in §L, #84–#93 in §I, and every directly-requested feature so far in §H. #47, #50, #56, and #63
 sit unshipped in [feature-ideas.md](feature-ideas.md); #62 was discarded outright rather than fixed.
 
@@ -34,35 +34,6 @@ shared numbering: the next free number is **#108**.
 
 Raised by the 2026-08-22 second holistic pass using Fable. All are in [index.html](../html/index.html); none is
 caught by the current suite.
-
-### 104. `isScoreEntry` uses global `isFinite`, so null/boolean/string scores pass both board validators (S)
-
-`isScoreEntry` ([2640](../html/index.html#L2640)) is #96's single predicate for "a row a board can
-render", shared by `loadHallOfFame()` ([2641-2653](../html/index.html#L2641-L2653)) and
-`sanitizeBoard()` ([2876-2883](../html/index.html#L2876-L2883)) — but it checks `isFinite(e.score)`,
-and the **global** `isFinite` coerces: `isFinite(null)`, `isFinite(true)`, and `isFinite("250")` are
-all `true`. Reproduced through the harness at both boundaries:
-
-```
-HOF_KEY = [{name:"Ghost",score:null},{name:"Bool",score:true},{name:"Str",score:"250"}]
-  -> state.hallOfFame keeps all three
-/api/scores -> {scores:[{name:"Api",score:null}]}
-  -> state.globalScores = [{"name":"Api","score":null}]
-```
-
-The board then renders "null"/"true" in the score column
-([5790](../html/index.html#L5790)), and `rankIn()`'s `score > list[i].score` comparisons
-([5596-5601](../html/index.html#L5596-L5601)) run on coerced values. This is precisely the class of
-wrong-shape data #96 exists to keep out — a truncated or version-skewed API response, or foreign
-JSON under `HOF_KEY` — surviving the check that was written to reject it. The fix is one word:
-`Number.isFinite`, which coerces nothing. (Arguably `Number.isInteger`, matching the server's own
-`bad_score` check, but finite is the property rendering and ranking actually need.)
-
-#### Tests
-
-- `#104a` — `HOF_KEY` rows with `score: null` / `true` / `"250"` are dropped by `loadHallOfFame()`.
-- `#104b` — an API response row with a non-number score is dropped by `sanitizeBoard()` (and a
-  response that is *only* such rows degrades to the local board, per #96's null-vs-[] rule).
 
 ### 105. A corrupt resume snapshot with an out-of-range `levelIndex` kills the game at boot (S)
 

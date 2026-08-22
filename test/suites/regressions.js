@@ -4894,5 +4894,39 @@ module.exports = {
         a.lt(ball.y, 90, "the ball should have passed clean through, ending up above the part");
       },
     },
+    {
+      name: "#104a — HOF_KEY rows with score: null / true / \"250\" are dropped by loadHallOfFame()",
+      fn(a) {
+        const g = boot({
+          storage: {
+            "blokrush-hall-of-fame": JSON.stringify([
+              { name: "Real", score: 500 },
+              { name: "Ghost", score: null },
+              { name: "Bool", score: true },
+              { name: "Str", score: "250" },
+            ]),
+          },
+        });
+        a.eq(JSON.stringify(g.T.state.hallOfFame), JSON.stringify([{ name: "Real", score: 500 }]),
+          "global isFinite coerces null/boolean/string scores instead of rejecting them");
+      },
+    },
+    {
+      name: "#104b — an API response row with a non-number score is dropped by sanitizeBoard()",
+      fn: async (a) => {
+        const g = boot({ api: () => ({ scores: [{ name: "Real", score: 500 }, { name: "Api", score: null }], token: "tok-104b" }) });
+        await g.settle();
+        a.eq(JSON.stringify(g.T.state.globalScores), JSON.stringify([{ name: "Real", score: 500 }]),
+          "a non-number score must not survive sanitizeBoard()");
+
+        const g2 = boot({
+          storage: { "blokrush-hall-of-fame": JSON.stringify([{ name: "Loc", score: 90 }]) },
+          api: () => ({ scores: [{ name: "Api", score: null }], token: "tok-104b2" }),
+        });
+        await g2.settle();
+        a.eq(g2.T.state.globalScores, null,
+          "a response with nothing renderable in it must degrade to the local board, not an empty world board");
+      },
+    },
   ],
 };

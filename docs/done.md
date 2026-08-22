@@ -9,7 +9,7 @@ from `todo.md` to here, so numbering is shared across both files and never reuse
 Each entry keeps its original write-up (category, effort estimate, the bug as found) with a
 `> **Fixed <date>.**` note prepended describing what shipped — a historical record, not a live TODO.
 
-**Status:** 72 fixed — everything raised so far, review findings and promoted features alike. See
+**Status:** 73 fixed — everything raised so far, review findings and promoted features alike. See
 [todo.md](todo.md).
 
 **Line references below are re-anchored after each round of fixes** — they are only valid against the
@@ -4076,6 +4076,42 @@ taller than a brick, so a step too short to skip a brick cannot skip a part eith
   registers the hit (hp drops, ball bounces) instead of passing through.
 - `#103b` — a faded (non-solid) Phantom-style part is still passed through at any speed — the sweep
   must not make the blink solid.
+
+### 104. ✅ FIXED — `isScoreEntry` uses global `isFinite`, so null/boolean/string scores pass both board validators (S)
+> **Fixed 2026-08-22.** `isScoreEntry` ([2640](../html/index.html#L2640)) now checks
+> `Number.isFinite(e.score)` instead of the coercing global `isFinite`. Two tests in
+> `regressions.js`: `#104a` reproduces the write-up's own `HOF_KEY` payload and was confirmed failing
+> first — `null`/`true`/`"250"` all survived into `state.hallOfFame` alongside the one real row.
+> `#104b` covers the `/api/scores` boundary through `sanitizeBoard()`, including the null-vs-`[]`
+> case: a response with nothing renderable left must still degrade to the local board rather than
+> read as an empty world board.
+
+`isScoreEntry` ([2640](../html/index.html#L2640)) is #96's single predicate for "a row a board can
+render", shared by `loadHallOfFame()` ([2641-2653](../html/index.html#L2641-L2653)) and
+`sanitizeBoard()` ([2876-2883](../html/index.html#L2876-L2883)) — but it checks `isFinite(e.score)`,
+and the **global** `isFinite` coerces: `isFinite(null)`, `isFinite(true)`, and `isFinite("250")` are
+all `true`. Reproduced through the harness at both boundaries:
+
+```
+HOF_KEY = [{name:"Ghost",score:null},{name:"Bool",score:true},{name:"Str",score:"250"}]
+  -> state.hallOfFame keeps all three
+/api/scores -> {scores:[{name:"Api",score:null}]}
+  -> state.globalScores = [{"name":"Api","score":null}]
+```
+
+The board then renders "null"/"true" in the score column
+([5790](../html/index.html#L5790)), and `rankIn()`'s `score > list[i].score` comparisons
+([5596-5601](../html/index.html#L5596-L5601)) run on coerced values. This is precisely the class of
+wrong-shape data #96 exists to keep out — a truncated or version-skewed API response, or foreign
+JSON under `HOF_KEY` — surviving the check that was written to reject it. The fix is one word:
+`Number.isFinite`, which coerces nothing. (Arguably `Number.isInteger`, matching the server's own
+`bad_score` check, but finite is the property rendering and ranking actually need.)
+
+#### Tests
+
+- `#104a` — `HOF_KEY` rows with `score: null` / `true` / `"250"` are dropped by `loadHallOfFame()`.
+- `#104b` — an API response row with a non-number score is dropped by `sanitizeBoard()` (and a
+  response that is *only* such rows degrades to the local board, per #96's null-vs-[] rule).
 
 ---
 
