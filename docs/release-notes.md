@@ -70,14 +70,41 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #96 | ✅ Fixed — 2026-08-22 |
 | #97 | ✅ Fixed — 2026-08-22 |
 | #98 | ✅ Fixed — 2026-08-22 |
+| #99 | ✅ Fixed — 2026-08-22 |
 
-88 of 91 fixed. The full-codebase review raised on 2026-08-21 is done, ten for ten, #64 (resume an
+89 of 91 fixed. The full-codebase review raised on 2026-08-21 is done, ten for ten, #64 (resume an
 interrupted run) has shipped alongside it, and #57 (laser-vs-bad-drop counterplay) closes out the §C
 power-up batch. #83 (per-level star ratings) is the other half of what was originally #46, and #94
 puts that rating on screen at the moment it's earned, not just later in level select. A second
-holistic review on 2026-08-22 raised seven more (#95–#101); #95, #96, #97, and #98 are fixed and the
-remaining three are open in [todo.md](todo.md), alongside the feature ideas still there and the
+holistic review on 2026-08-22 raised seven more (#95–#101); #95, #96, #97, #98, and #99 are fixed and
+the remaining two are open in [todo.md](todo.md), alongside the feature ideas still there and the
 proposals in [feature-ideas.md](feature-ideas.md) not yet promoted to it.
+
+---
+
+## 2026-08-22 — Aegis's narrow beam now drains its effect bar against its own duration (#99)
+
+### Fixed
+
+Every width/speed power-up timer recovered which one was active from the sign of `state.widthEffect`/
+`speedEffect`'s `mult`, then divided its `remaining` time by that power-up's `CONFIG.effects` duration
+to fill the bar — a trick that assumed only `CONFIG.effects` ever set a duration. `applyBossHazard`'s
+`"narrow5"` boss hazard broke that assumption: it built a `widthEffect` with `remaining: 5`, a duration
+the table doesn't have (`CONFIG.effects.narrow.duration` is 8), so the bar opened at `5 / 8 = 62.5%`
+and drained from there — the one hazard in the game with its own timing was the one the bar couldn't
+describe.
+
+Every effect object now carries its own `duration` alongside `remaining`, set wherever it's created,
+and `updateEffectBar()` reads that field directly instead of being handed one by its caller —
+`renderEffectBars()` still picks the colour and name from the sign of `mult`, just not the duration.
+`applyBossHazard("narrow5")` needed one line: `duration: 5` next to `remaining: 5`.
+
+### Tests
+
+Two new cases in `regressions.js`. `#99a` builds a `widthEffect` with `narrow5`'s exact shape and
+confirms the bar opens full and reads half at half that duration — failing first against the old
+table lookup (62.5%/31.25%). `#99b` reruns widen/narrow/slow/fast through `applyPowerup()` and checks
+each still fills full against its own `CONFIG.effects` duration, unchanged.
 
 ---
 

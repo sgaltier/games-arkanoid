@@ -4578,6 +4578,52 @@ module.exports = {
       },
     },
     {
+      name: "#99a — a width effect created with a non-table duration renders proportionally to its own duration",
+      fn(a) {
+        const g = boot().start();
+        const widthFill = g.el("bar-width-fill");
+        // Mirrors applyBossHazard("narrow5"): a duration (5s) that doesn't
+        // match CONFIG.effects.narrow.duration (8s).
+        g.T.state.widthEffect = { mult: g.T.CONFIG.effects.narrow.mult, remaining: 5, duration: 5 };
+        g.frame();
+        const full = parseFloat(widthFill.style.width);
+        a.near(full, 100, 1, "a freshly-applied effect should start at a full bar regardless of its duration");
+
+        g.T.state.widthEffect.remaining = 2.5;
+        g.frame();
+        const half = parseFloat(widthFill.style.width);
+        a.near(half, 50, 1, "the bar should drain against the effect's own duration, not the table's");
+      },
+    },
+    {
+      name: "#99b — widen/narrow/slow/fast still render with their CONFIG.effects durations and colours",
+      fn(a) {
+        const g = boot().start();
+        const widthFill = g.el("bar-width-fill");
+        const speedFill = g.el("bar-speed-fill");
+
+        g.T.applyPowerup({ type: "widen" });
+        a.near(parseFloat(widthFill.style.width), 100, 1);
+        a.eq(g.T.state.widthEffect.duration, g.T.CONFIG.effects.widen.duration);
+        a.eq(widthFill.style.background, "#9dff1e");
+
+        g.T.applyPowerup({ type: "narrow" });
+        a.near(parseFloat(widthFill.style.width), 100, 1);
+        a.eq(g.T.state.widthEffect.duration, g.T.CONFIG.effects.narrow.duration);
+        a.eq(widthFill.style.background, "#ff3b3b");
+
+        g.T.applyPowerup({ type: "slow" });
+        a.near(parseFloat(speedFill.style.width), 100, 1);
+        a.eq(g.T.state.speedEffect.duration, g.T.CONFIG.effects.slow.duration);
+        a.eq(speedFill.style.background, "#2de2e6");
+
+        g.T.applyPowerup({ type: "fast" });
+        a.near(parseFloat(speedFill.style.width), 100, 1);
+        a.eq(g.T.state.speedEffect.duration, g.T.CONFIG.effects.fast.duration);
+        a.eq(speedFill.style.background, "#ff7a3b");
+      },
+    },
+    {
       name: "#98c — an ordinary-speed frame still resolves against the least-penetrating of two overlapping bricks",
       fn(a) {
         // Same notch as #10, reached by an actual (slow) frame of movement

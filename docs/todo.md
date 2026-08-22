@@ -9,13 +9,13 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 3 open items — **#99–#101, what is left of the correctness and security/backend findings
-of the 2026-08-22 holistic review pass** (§J and §K); #95, #96, #97, and #98 from that pass have
+**Status:** 2 open items — **#100–#101, what is left of the security/backend findings of the
+2026-08-22 holistic review pass** (§K); #95, #96, #97, #98, and #99 from that pass have
 shipped. #47, #50, #56, and #63 — previously promoted here from
 [feature-ideas.md](feature-ideas.md) — have been moved back there as unshipped proposals; see that
 file for their write-ups. #46 from the old §A batch, #53, #54, #55, and #57 from the old §C batch,
 #82 (raised directly), #83 (raised directly), #84–#93 (the full 2026-08-21 review pass), #64
-(promoted from the old §D), #94 (raised directly), #95, #96, #97, and #98 have shipped (see
+(promoted from the old §D), #94 (raised directly), #95, #96, #97, #98, and #99 have shipped (see
 [done.md](done.md)).
 #62 (promoted from the old §D) was discarded outright rather than fixed.
 
@@ -42,44 +42,16 @@ overlay) — see [done.md](done.md). #47 (daily challenge seed), #50 (moving bri
 spin), and #63 (difficulty selection) sit unshipped in [feature-ideas.md](feature-ideas.md). The ten
 findings raised by the 2026-08-21 review (#84–#93) are all shipped — see [done.md](done.md) §I.
 
-Open below are three of the seven findings of a **holistic review on 2026-08-22** — a read of the whole
+Open below are two of the seven findings of a **holistic review on 2026-08-22** — a read of the whole
 repository (`index.html`, `functions/api/scores.js`, the schema, the docs), the same shape as the
-pass that produced #84–#93. They are grouped into §J (correctness, all in `index.html`) and §K
-(security and backend, `functions/api/scores.js`); #95, #96, #97, and #98 have shipped — see
-[done.md](done.md) §J, which is where the rest land as they follow. Every one was reproduced against
-the current file through the test harness before being written up; the reproduction is quoted in
-each entry. New
+pass that produced #84–#93. They are grouped into §K (security and backend,
+`functions/api/scores.js`); #95, #96, #97, #98, and #99 (correctness, all in `index.html`) have
+shipped — see [done.md](done.md) §J, which is where the rest land as they follow. Every one was
+reproduced against the current file through the test harness before being written up; the
+reproduction is quoted in each entry. New
 review findings go here too, keeping the shared numbering: the next free number is **#102**.
 
 ---
-
-## J. Correctness
-
-Raised by the 2026-08-22 holistic pass. It's in [index.html](../html/index.html); not caught by the
-current suite. #95, #96, #97, and #98, the other four, have shipped — see [done.md](done.md) §J.
-
-### 99. Aegis's beam renders its narrow effect on the wrong scale (S)
-
-`applyBossHazard("narrow5")` ([4947-4949](../html/index.html#L4947-L4949)) is the one place a width
-effect is created with a duration other than its `CONFIG.effects` one — `remaining: 5` rather than
-`CONFIG.effects.narrow.duration` (8). `renderEffectBars()`
-([5906-5910](../html/index.html#L5906-L5910)) recovers which power-up is behind `state.widthEffect`
-from the sign of its `mult` and divides by the table's duration, so the bar opens at
-`5 / 8 = 62.5 %` and drains from there. The one hazard in the game with its own duration is the one
-the bar cannot describe.
-
-Cosmetic — nothing reads the bar — but it is the kind of drift the `mult`-sign trick was always going
-to produce, and the fix removes the trick rather than patching around it: give the effect object its
-own `duration` field at creation (`{ mult, remaining, duration }`) and have `updateEffectBar()`
-([5893-5903](../html/index.html#L5893-L5903)) read `effect.duration` instead of being handed one by
-its caller. That also drops the `we &&`/`se &&` argument gymnastics at the two call sites, and means a
-future hazard with its own timing cannot reintroduce this.
-
-#### Tests
-
-- `#99a` — a width effect created with a non-table duration renders a full bar at the instant it is
-  applied, and drains proportionally to its own duration.
-- `#99b` — widen/narrow/slow/fast still render with their `CONFIG.effects` durations and colours.
 
 ## K. Security and backend
 

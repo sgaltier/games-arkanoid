@@ -3789,6 +3789,44 @@ behaving as they did.
 - `#98c` — an ordinary-speed frame still resolves against the least-penetrating of two overlapping
   bricks, unchanged (a guard against the sweep replacing the corner-case pick).
 
+### 99. ✅ FIXED — Aegis's beam renders its narrow effect on the wrong scale (S)
+
+> **Fixed 2026-08-22.** Removed the `mult`-sign trick rather than patching around it, as the write-up
+> below proposed: every `widthEffect`/`speedEffect` — and, for the same consistency, the four
+> single-cause effects (sticky, laser, fireball, magnet) — now carries its own `duration` field
+> alongside `remaining`, set wherever the effect is created
+> ([4590-4620](../html/index.html#L4590-L4620) in `applyPowerup()`,
+> [4944-4949](../html/index.html#L4944-L4949) in `applyBossHazard()`). `updateEffectBar()`
+> ([5902-5912](../html/index.html#L5902-L5912)) now reads `effect.duration` directly instead of being
+> handed one by its caller, and `renderEffectBars()` ([5914-5933](../html/index.html#L5914-L5933)) lost
+> the duration half of the `we &&`/`se &&` argument gymnastics — it still picks the colour/name by the
+> sign of `mult`, just not the duration anymore. `applyBossHazard("narrow5")`
+> ([4947-4949](../html/index.html#L4947-L4949)) now sets `duration: 5` next to `remaining: 5`, so the
+> bar it drives opens full and drains against its own 5s window instead of the table's 8.
+>
+> Two tests in `regressions.js`. `#99a` constructs a `widthEffect` with a 5s duration directly (the
+> same shape `narrow5` produces) and checks the bar opens at 100% and reads 50% at half that duration
+> — confirmed failing first (it read 62.5%/31.25% against the table's 8s duration). `#99b` reruns
+> widen/narrow/slow/fast through `applyPowerup()` and checks each still opens at 100% against its own
+> `CONFIG.effects` duration, with its existing colour.
+
+`applyBossHazard("narrow5")` was the one place a width effect was created with a duration other than
+its `CONFIG.effects` one — `remaining: 5` rather than `CONFIG.effects.narrow.duration` (8).
+`updateEffectBar()` recovered which power-up was behind `state.widthEffect` from the sign of its
+`mult`, but divided by the table's duration regardless of which hazard actually produced the effect,
+so the bar opened at `5 / 8 = 62.5%` and drained from there. The one hazard in the game with its own
+duration was the one the bar couldn't describe.
+
+Cosmetic — nothing read the bar — but it was the kind of drift the `mult`-sign trick was always going
+to produce, which is why the fix removed the trick rather than patching around it, and means a future
+hazard with its own timing cannot reintroduce this.
+
+#### Tests
+
+- `#99a` — a width effect created with a non-table duration renders a full bar at the instant it is
+  applied, and drains proportionally to its own duration.
+- `#99b` — widen/narrow/slow/fast still render with their `CONFIG.effects` durations and colours.
+
 ---
 
 ## Verification

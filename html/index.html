@@ -4588,34 +4588,34 @@ canvas {
   function applyPowerup(p) {
     if (!p.good) state.achStats.levelBadPickups += 1; // #65: "Discerning"
     if (p.type === "widen") {
-      state.widthEffect = { mult: CONFIG.effects.widen.mult, remaining: CONFIG.effects.widen.duration };
+      state.widthEffect = { mult: CONFIG.effects.widen.mult, remaining: CONFIG.effects.widen.duration, duration: CONFIG.effects.widen.duration };
       beep(880, 0.12, "triangle");
     } else if (p.type === "narrow") {
-      state.widthEffect = { mult: CONFIG.effects.narrow.mult, remaining: CONFIG.effects.narrow.duration };
+      state.widthEffect = { mult: CONFIG.effects.narrow.mult, remaining: CONFIG.effects.narrow.duration, duration: CONFIG.effects.narrow.duration };
       beep(180, 0.15, "sawtooth");
     } else if (p.type === "slow") {
-      state.speedEffect = { mult: CONFIG.effects.slow.mult, remaining: CONFIG.effects.slow.duration };
+      state.speedEffect = { mult: CONFIG.effects.slow.mult, remaining: CONFIG.effects.slow.duration, duration: CONFIG.effects.slow.duration };
       beep(520, 0.12, "sine");
     } else if (p.type === "fast") {
-      state.speedEffect = { mult: CONFIG.effects.fast.mult, remaining: CONFIG.effects.fast.duration };
+      state.speedEffect = { mult: CONFIG.effects.fast.mult, remaining: CONFIG.effects.fast.duration, duration: CONFIG.effects.fast.duration };
       beep(140, 0.15, "sawtooth");
     } else if (p.type === "life") {
       state.lives = Math.min(state.maxLives, state.lives + 1);
       beep(1040, 0.18, "triangle");
     } else if (p.type === "sticky") {
-      state.stickyEffect = { remaining: CONFIG.effects.sticky.duration };
+      state.stickyEffect = { remaining: CONFIG.effects.sticky.duration, duration: CONFIG.effects.sticky.duration };
       beep(320, 0.1, "sine");
     } else if (p.type === "laser") {
-      state.laserEffect = { remaining: CONFIG.effects.laser.duration };
+      state.laserEffect = { remaining: CONFIG.effects.laser.duration, duration: CONFIG.effects.laser.duration };
       beep(900, 0.1, "square");
     } else if (p.type === "fireball") {
-      state.fireballEffect = { remaining: CONFIG.effects.fireball.duration };
+      state.fireballEffect = { remaining: CONFIG.effects.fireball.duration, duration: CONFIG.effects.fireball.duration };
       beep(760, 0.14, "sawtooth");
     } else if (p.type === "shield") {
       state.shieldEffect = true;
       beep(220, 0.12, "sine");
     } else if (p.type === "magnet") {
-      state.magnetEffect = { remaining: CONFIG.effects.magnet.duration };
+      state.magnetEffect = { remaining: CONFIG.effects.magnet.duration, duration: CONFIG.effects.magnet.duration };
       beep(500, 0.1, "triangle");
     } else if (p.type === "multi") {
       beep(660, 0.12, "square");
@@ -4942,10 +4942,10 @@ canvas {
   function applyBossHazard(kind) {
     state.combo = 0;
     if (kind === "narrow") {
-      state.widthEffect = { mult: CONFIG.effects.narrow.mult, remaining: CONFIG.effects.narrow.duration };
+      state.widthEffect = { mult: CONFIG.effects.narrow.mult, remaining: CONFIG.effects.narrow.duration, duration: CONFIG.effects.narrow.duration };
       beep(180, 0.15, "sawtooth");
     } else if (kind === "narrow5") {
-      state.widthEffect = { mult: CONFIG.effects.narrow.mult, remaining: 5 };
+      state.widthEffect = { mult: CONFIG.effects.narrow.mult, remaining: 5, duration: 5 };
       beep(180, 0.18, "sawtooth");
     } else if (kind === "life") {
       if (state.lives > 0) {
@@ -5893,18 +5893,20 @@ canvas {
   var barMagnetFill = document.getElementById("bar-magnet-fill");
   var barMagnetLabel = document.getElementById("bar-magnet-label");
 
-  // `effect` is the {remaining} object (or null); `duration`/`color`/`name`
+  // `effect` is the {remaining, duration} object (or null); `color`/`name`
   // describe whichever specific powerup is currently behind it. #78: `name`
   // is the power-up's whole name, not a letter — it's the on-bar text, and
   // also the bar's `title` as a fallback for whatever the ellipsis clips.
-  function updateEffectBar(barEl, fillEl, labelEl, effect, duration, color, name) {
+  // #99: `duration` comes from the effect object itself, not a table lookup by
+  // the caller, so a hazard with its own timing (Aegis's `narrow5`) still drains correctly.
+  function updateEffectBar(barEl, fillEl, labelEl, effect, color, name) {
     if (!effect) {
       if (!barEl.hidden) barEl.hidden = true;
       return;
     }
     if (barEl.hidden) barEl.hidden = false;
     fillEl.style.background = color;
-    fillEl.style.width = (Math.max(0, effect.remaining) / duration * 100) + "%";
+    fillEl.style.width = (Math.max(0, effect.remaining) / effect.duration * 100) + "%";
     if (labelEl.textContent !== name) labelEl.textContent = name;
     if (barEl.getAttribute("title") !== name) barEl.setAttribute("title", name);
   }
@@ -5912,24 +5914,22 @@ canvas {
   function renderEffectBars() {
     var we = state.widthEffect;
     updateEffectBar(barWidth, barWidthFill, barWidthLabel, we,
-      we && (we.mult > 1 ? CONFIG.effects.widen.duration : CONFIG.effects.narrow.duration),
       we && (we.mult > 1 ? "#9dff1e" : "#ff3b3b"),
       we && (we.mult > 1 ? t("powerup.widen") : t("powerup.narrow")));
 
     var se = state.speedEffect;
     updateEffectBar(barSpeed, barSpeedFill, barSpeedLabel, se,
-      se && (se.mult > 1 ? CONFIG.effects.fast.duration : CONFIG.effects.slow.duration),
       se && (se.mult > 1 ? "#ff7a3b" : "#2de2e6"),
       se && (se.mult > 1 ? t("powerup.fast") : t("powerup.slow")));
 
     updateEffectBar(barSticky, barStickyFill, barStickyLabel, state.stickyEffect,
-      CONFIG.effects.sticky.duration, "#c3cee0", t("powerup.sticky"));
+      "#c3cee0", t("powerup.sticky"));
     updateEffectBar(barLaser, barLaserFill, barLaserLabel, state.laserEffect,
-      CONFIG.effects.laser.duration, "#ffe600", t("powerup.laser"));
+      "#ffe600", t("powerup.laser"));
     updateEffectBar(barFireball, barFireballFill, barFireballLabel, state.fireballEffect,
-      CONFIG.effects.fireball.duration, "#ff6a00", t("powerup.fireball"));
+      "#ff6a00", t("powerup.fireball"));
     updateEffectBar(barMagnet, barMagnetFill, barMagnetLabel, state.magnetEffect,
-      CONFIG.effects.magnet.duration, "#b866ff", t("powerup.magnet"));
+      "#b866ff", t("powerup.magnet"));
   }
   renderEffectBars();
 
