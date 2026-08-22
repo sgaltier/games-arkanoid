@@ -76,17 +76,44 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #102 | ✅ Fixed — 2026-08-22 |
 | #103 | ✅ Fixed — 2026-08-22 |
 | #104 | ✅ Fixed — 2026-08-22 |
+| #105 | ✅ Fixed — 2026-08-22 |
 
-94 of 97 fixed. The full-codebase review raised on 2026-08-21 is done, ten for ten, #64 (resume an
+95 of 98 fixed. The full-codebase review raised on 2026-08-21 is done, ten for ten, #64 (resume an
 interrupted run) has shipped alongside it, and #57 (laser-vs-bad-drop counterplay) closes out the §C
 power-up batch. #83 (per-level star ratings) is the other half of what was originally #46, and #94
 puts that rating on screen at the moment it's earned, not just later in level select. A second
 holistic review on 2026-08-22 raised seven more (#95–#101), all now fixed. Another pass later the
 same day raised six more (#102–#107); #102 (a stale resume snapshot no longer rewinds a run past a
-level clear or a life lost), #103 (the anti-tunnel sweep now also catches boss parts), and #104 (both
-hall-of-fame board validators now reject a null/boolean/string score instead of coercing it) are the
-first three of those to ship. `todo.md` is back down to the remaining three, plus the feature ideas
+level clear or a life lost), #103 (the anti-tunnel sweep now also catches boss parts), #104 (both
+hall-of-fame board validators now reject a null/boolean/string score instead of coercing it), and
+#105 (a corrupt resume snapshot's `levelIndex` is now range-checked, not just shape-checked) are the
+first four of those to ship. `todo.md` is back down to the remaining two, plus the feature ideas
 still there and the proposals in [feature-ideas.md](feature-ideas.md) not yet promoted to it.
+
+---
+
+## 2026-08-22 — A corrupt resume snapshot with an out-of-range levelIndex no longer kills the game at boot (#105)
+
+### Fixed
+
+`loadResume()`'s shape checks confirmed `levelIndex` was an integer, but never that it was in range.
+A negative value (a manual edit, foreign JSON, a future format change) passed straight through, and
+`restoreFromResume()`'s `themeFor(state.levelIndex)` used it to index `THEMES` with JS's
+sign-preserving `%` — indexing past the front of the array and returning `undefined`. The first
+frame's `drawBackground()` → `skyFor()` then threw reading `theme.top`, and since
+`requestAnimationFrame(frame)` is queued at the *end* of `frame()`, the loop never re-armed: a dead
+canvas at boot, exactly what the "corrupt snapshot degrades to an ordinary boot" rule exists to
+prevent.
+
+`loadResume()` now also rejects a `levelIndex` outside `[0, CONFIG.progression.totalLevels)`, and
+(since they feed the same boot path) a `lives`/`score` that isn't a finite, non-negative number —
+falling back to the existing "nothing to resume" `null`.
+
+### Tests
+
+Two new cases in `regressions.js`. `#105a` reproduces the write-up's own negative and overflowing
+`levelIndex` snapshots — the unfixed code threw booting from either — and confirms both now boot to
+the start screen without throwing. `#105b` confirms a well-formed snapshot still restores unchanged.
 
 ---
 

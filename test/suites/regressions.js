@@ -4928,5 +4928,36 @@ module.exports = {
           "a response with nothing renderable in it must degrade to the local board, not an empty world board");
       },
     },
+    {
+      name: "#105a — a resume snapshot with an out-of-range levelIndex boots to the start screen instead of throwing",
+      fn(a) {
+        const g = boot().start();
+        g.key("KeyP"); // pause -> snapshot saved
+        const snap = JSON.parse(g.store["blokrush-resume"]);
+
+        snap.levelIndex = -5;
+        const g2 = boot({ storage: { "blokrush-resume": JSON.stringify(snap) } });
+        a.eq(g2.T.state.phase, "start", "a negative levelIndex must not restore");
+
+        snap.levelIndex = 999;
+        a.doesNotThrow(() => boot({ storage: { "blokrush-resume": JSON.stringify(snap) } }),
+          "an overflowing levelIndex must not throw indexing THEMES");
+        const g3 = boot({ storage: { "blokrush-resume": JSON.stringify(snap) } });
+        a.eq(g3.T.state.phase, "start", "an overflowing levelIndex must not restore");
+      },
+    },
+    {
+      name: "#105b — a well-formed resume snapshot still restores, unchanged",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.score = 500;
+        g.key("KeyP");
+        a.eq(g.T.state.phase, "paused");
+
+        const g2 = boot({ storage: g.store });
+        a.eq(g2.T.state.phase, "paused", "a well-formed snapshot must still restore");
+        a.eq(g2.T.state.score, 500);
+      },
+    },
   ],
 };

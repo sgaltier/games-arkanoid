@@ -9,13 +9,13 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 3 open items — the findings of the **second holistic review pass on 2026-08-22**, a read
+**Status:** 2 open items — the findings of the **second holistic review pass on 2026-08-22**, a read
 of the whole repository (`index.html`, `functions/api/scores.js`, the schema, the test harness, the
 docs), the same shape as the passes that produced #84–#93 and #95–#101. They are grouped into §L
 (correctness, all in `index.html`) and §M (security and backend). Every one was reproduced against
 the current file — through the test harness for the game-side findings — before being written up;
 the reproduction is quoted in each entry. Everything from earlier passes has shipped: #95–#101 (the
-first 2026-08-22 pass) live in [done.md](done.md) §J/§K, #102–#104 (the first three of this second
+first 2026-08-22 pass) live in [done.md](done.md) §J/§K, #102–#105 (the first four of this second
 pass) in §L, #84–#93 in §I, and every directly-requested feature so far in §H. #47, #50, #56, and #63
 sit unshipped in [feature-ideas.md](feature-ideas.md); #62 was discarded outright rather than fixed.
 
@@ -35,44 +35,14 @@ shared numbering: the next free number is **#108**.
 Raised by the 2026-08-22 second holistic pass using Fable. All are in [index.html](../html/index.html); none is
 caught by the current suite.
 
-### 105. A corrupt resume snapshot with an out-of-range `levelIndex` kills the game at boot (S)
-
-`loadResume()` ([2799-2814](../html/index.html#L2799-L2814)) checks shapes —
-`Number.isInteger(snap.levelIndex)`, the arrays, the paddle — but no ranges. A snapshot with a
-negative `levelIndex` (a manual edit, a bit of foreign JSON, a future format change) passes, and
-`restoreFromResume()` then calls `themeFor(state.levelIndex)`
-([2826](../html/index.html#L2826)): JS's `%` keeps the sign, so `themeFor(-5)` indexes
-`THEMES[-3]` ([2207-2209](../html/index.html#L2207-L2209)) and returns `undefined`. The first
-frame's `drawBackground()` → `skyFor()` ([6014-6021](../html/index.html#L6014-L6021)) then throws
-reading `theme.top`, and since `requestAnimationFrame(frame)` is queued at the *end* of `frame()`
-([6450](../html/index.html#L6450)), the loop never re-arms — a dead canvas, exactly what the
-"corrupt snapshot degrades to an ordinary boot" rule ([2795-2798](../html/index.html#L2795-L2798))
-exists to prevent. Reproduced through the harness:
-
-```
-RESUME_KEY = {"levelIndex":-5, "bricks":[], "balls":[], "paddle":{...}}
-boot -> TypeError: Cannot read properties of undefined (reading 'top')
-```
-
-**Fix: bound the fields whose range the game indexes with.** `levelIndex` must sit in
-`[0, CONFIG.progression.totalLevels)`; while there, `lives`/`score` deserve the same treatment
-(`Number.isFinite`, non-negative) since they feed the HUD and `endGame()` arithmetic. Anything
-failing returns `null` — the ordinary-boot fallback that already exists.
-
-#### Tests
-
-- `#105a` — a snapshot with `levelIndex: -5` (and one with `levelIndex: 999`) boots to the start
-  screen instead of restoring — and the boot frame does not throw.
-- `#105b` — a well-formed snapshot still restores, unchanged (guard against over-tightening).
-
 ### 106. `state.hofHighlight` is never cleared, so old submissions stay highlighted forever (S)
 
-`submitHallOfFameName()` sets `state.hofHighlight` ([5752](../html/index.html#L5752)) so
+`submitHallOfFameName()` sets `state.hofHighlight` ([5764](../html/index.html#L5764)) so
 `renderHallOfFame()` can pick out "the entry just submitted"
-([5781-5786](../html/index.html#L5781-L5786)) — but nothing ever resets it
-([3015](../html/index.html#L3015) is its only other mention, and `newGame()` doesn't touch it). For
+([5793-5798](../html/index.html#L5793-L5798)) — but nothing ever resets it
+([3027](../html/index.html#L3027) is its only other mention, and `newGame()` doesn't touch it). For
 the rest of the session, every later view of the board — opened from the start screen
-([3823-3827](../html/index.html#L3823-L3827)), or after a later run that didn't qualify — still
+([3835-3839](../html/index.html#L3835-L3839)), or after a later run that didn't qualify — still
 highlights that old row as if it had just been entered. The highlight also matches by value, so
 after the world board refreshes, *someone else's* row with the same name and score would light up.
 Cosmetic, but it makes the one visual affordance meaning "this is the result you just got" say
@@ -96,7 +66,7 @@ Raised by the same pass. In [functions/api/scores.js](../functions/api/scores.js
 #100 strips control characters, bidi *overrides* and zero-width characters from hall-of-fame names —
 the class `U+0000–U+001F, U+007F, U+200B–U+200F, U+202A–U+202E` in `cleanName()`
 ([functions/api/scores.js:131-140](../functions/api/scores.js#L131-L140)) and its mirror
-`cleanHofName()` ([5719-5724](../html/index.html#L5719-L5724)) — on the stated goal that a name
+`cleanHofName()` ([5731-5736](../html/index.html#L5731-L5736)) — on the stated goal that a name
 "cannot be used to visually reorder or hide characters on a permanent, world-visible board". The
 range misses the characters that still can:
 

@@ -2806,6 +2806,18 @@ canvas {
           !Array.isArray(snap.balls) || !snap.paddle) {
         return null;
       }
+      // #105: shape checks alone let an out-of-range levelIndex through, and
+      // restoreFromResume()'s themeFor(state.levelIndex) indexes THEMES with
+      // it unchecked — a negative or overflowing value throws on the first
+      // frame instead of degrading to an ordinary boot. lives/score get the
+      // same treatment since they feed the HUD and endGame() arithmetic.
+      if (snap.levelIndex < 0 || snap.levelIndex >= CONFIG.progression.totalLevels) {
+        return null;
+      }
+      if (!Number.isFinite(snap.lives) || snap.lives < 0 ||
+          !Number.isFinite(snap.score) || snap.score < 0) {
+        return null;
+      }
       return snap;
     } catch (e) {
       return null;
