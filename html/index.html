@@ -5724,14 +5724,15 @@ canvas {
     return out;
   }
 
-  // #100: strips control characters, bidi overrides, and zero-width
-  // characters the same way functions/api/scores.js's cleanName() does (must
-  // stay mirrored, the way PROFANITY_LIST already is) — a name typed or
-  // pasted here must not be able to visually reorder or hide characters on a
-  // permanent, world-visible board.
+  // #100/#107: strips control and other invisible/reordering characters —
+  // Unicode categories Cc/Cf, not an enumerated range (#107: one kept missing
+  // newer invisibles like the bidi isolates) — the same way
+  // functions/api/scores.js's cleanName() does (must stay mirrored, the way
+  // PROFANITY_LIST already is): a name typed or pasted here must not be able
+  // to visually reorder or hide characters on a permanent, world-visible board.
   function cleanHofName(raw) {
     var stripped = (raw || "")
-      .replace(/[\u0000-\u001f\u007f\u200b-\u200f\u202a-\u202e]/g, "")
+      .replace(/[\p{Cc}\p{Cf}]/gu, "")
       .trim();
     return truncateByCodePoint(stripped, CONFIG.hallOfFame.nameMax);
   }

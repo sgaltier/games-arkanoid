@@ -4978,5 +4978,42 @@ module.exports = {
           "a fresh run has submitted nothing, so no row should still be highlighted");
       },
     },
+    {
+      name: "#107a — a name containing a bidi isolate and a BOM submitted through cleanHofName() lands on the local board without them",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.score = 10;
+        g.T.state.lives = 1;
+        g.loseBall();
+        // U+2067 RLI (a bidi isolate, not caught by #100's old override-only
+        // range) and U+FEFF (a zero-width BOM) sandwiched between letters —
+        // both invisible on render, either could reorder or hide characters.
+        g.el("nameentry-input").value = "A⁧B﻿C";
+        g.el("btn-nameentry-submit").click(1);
+        a.eq(
+          g.T.state.hallOfFame[0].name, "ABC",
+          "cleanHofName() must strip bidi isolates and BOM, not just the legacy override range"
+        );
+      },
+    },
+    {
+      name: "#107b — cleanName()'s and cleanHofName()'s strip patterns are identical in scores.js and index.html",
+      fn(a) {
+        const workerSrc = fs.readFileSync(
+          path.join(__dirname, "..", "..", "functions", "api", "scores.js"), "utf8"
+        );
+        const extractStrip = (src, fnName) => {
+          const fnMatch = src.match(new RegExp(`function ${fnName}\\([\\s\\S]*?\\n  \\}`));
+          if (!fnMatch) throw new Error(`could not find ${fnName}()`);
+          const stripMatch = fnMatch[0].match(/\.replace\((\/.*?\/[a-z]*), ""\)/);
+          if (!stripMatch) throw new Error(`could not find the strip pattern in ${fnName}()`);
+          return stripMatch[1];
+        };
+        const workerPattern = extractStrip(workerSrc, "cleanName");
+        const gamePattern = extractStrip(SCRIPT, "cleanHofName");
+        a.ok(/\\p\{Cc\}/.test(workerPattern), "sanity: scores.js's pattern must strip the Cc category");
+        a.eq(gamePattern, workerPattern, "the two strip patterns must be identical, the way PROFANITY_LIST already is (#89c)");
+      },
+    },
   ],
 };

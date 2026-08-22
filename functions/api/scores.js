@@ -122,16 +122,17 @@ async function readToken(secret, token) {
 
 // Names are world-visible from this change onward, so the server enforces the
 // limits rather than trusting the input element's maxlength. Control
-// characters, bidi overrides, and zero-width characters (#100) are stripped
-// outright; the client escapes on render, but a name that can never contain
-// them is one less thing depending on that — and one that cannot be used to
-// visually reorder or hide characters on a permanent, world-visible board.
-// Must stay mirrored in index.html's submitHallOfFameName() (#100), the way
-// PROFANITY_LIST already is (#89c).
+// characters and other invisible/reordering characters — Unicode categories
+// Cc/Cf (#100, widened by #107 past a range that missed newer invisibles like
+// the bidi isolates) — are stripped outright; the client escapes on render,
+// but a name that can never contain them is one less thing depending on that,
+// and cannot reorder/hide text on a permanent, world-visible board. Mirrored
+// in index.html's cleanHofName() (#100/#107), the way PROFANITY_LIST already
+// is (#89c).
 function cleanName(raw) {
   if (typeof raw !== "string") return null;
   const stripped = raw
-    .replace(/[\u0000-\u001f\u007f\u200b-\u200f\u202a-\u202e]/g, "")
+    .replace(/[\p{Cc}\p{Cf}]/gu, "")
     .trim();
   // Array.from splits on code points rather than UTF-16 units, so slicing to
   // NAME_MAX cannot cut a surrogate pair in half the way a plain .slice() could.

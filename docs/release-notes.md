@@ -78,19 +78,46 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #104 | ✅ Fixed — 2026-08-22 |
 | #105 | ✅ Fixed — 2026-08-22 |
 | #106 | ✅ Fixed — 2026-08-22 |
+| #107 | ✅ Fixed — 2026-08-22 |
 
-96 of 98 fixed. The full-codebase review raised on 2026-08-21 is done, ten for ten, #64 (resume an
+97 of 98 fixed. The full-codebase review raised on 2026-08-21 is done, ten for ten, #64 (resume an
 interrupted run) has shipped alongside it, and #57 (laser-vs-bad-drop counterplay) closes out the §C
 power-up batch. #83 (per-level star ratings) is the other half of what was originally #46, and #94
 puts that rating on screen at the moment it's earned, not just later in level select. A second
 holistic review on 2026-08-22 raised seven more (#95–#101), all now fixed. Another pass later the
-same day raised six more (#102–#107); #102 (a stale resume snapshot no longer rewinds a run past a
-level clear or a life lost), #103 (the anti-tunnel sweep now also catches boss parts), #104 (both
-hall-of-fame board validators now reject a null/boolean/string score instead of coercing it), #105
-(a corrupt resume snapshot's `levelIndex` is now range-checked, not just shape-checked), and #106
-(the hall-of-fame highlight is cleared at the start of every new run) are the first five of those to
-ship. `todo.md` is back down to the remaining one, plus the feature ideas still there and the
-proposals in [feature-ideas.md](feature-ideas.md) not yet promoted to it.
+same day raised six more (#102–#107), all now fixed too: #102 (a stale resume snapshot no longer
+rewinds a run past a level clear or a life lost), #103 (the anti-tunnel sweep now also catches boss
+parts), #104 (both hall-of-fame board validators now reject a null/boolean/string score instead of
+coercing it), #105 (a corrupt resume snapshot's `levelIndex` is now range-checked, not just
+shape-checked), #106 (the hall-of-fame highlight is cleared at the start of every new run), and #107
+(`cleanName()`/`cleanHofName()` now strip a Unicode category instead of an enumerated range, so bidi
+isolates and other newer invisibles can no longer survive into a hall-of-fame name). `todo.md` is
+back down to zero open items, plus the feature ideas still there and the proposals in
+[feature-ideas.md](feature-ideas.md) not yet promoted to it.
+
+---
+
+## 2026-08-22 — Bidi isolates and other invisible characters can no longer survive into a hall-of-fame name (#107)
+
+### Fixed
+
+`cleanName()`/`cleanHofName()` stripped a blocklist of individual code-point ranges — control
+characters, the bidi *override* range, and a handful of zero-width characters (#100) — on the stated
+goal that a name "cannot be used to visually reorder or hide characters on a permanent, world-visible
+board". The range missed the characters that still can: the bidi *isolates* (U+2066–U+2069), the
+newer mechanism that superseded the overrides the strip already caught, plus other invisible padding
+like U+FEFF, U+00AD, and U+061C.
+
+Both functions now strip anything in Unicode categories Cc/Cf (`/[\p{Cc}\p{Cf}]/gu`) instead —
+covering the same ground the blocklist tried to enumerate, and every invisible/reordering character
+in these categories with it, without needing another entry added by hand next time one turns up.
+
+### Tests
+
+Two new cases in `regressions.js`. `#107a` submits a name containing a bidi isolate and a BOM through
+`cleanHofName()`, confirming both are gone from the stored name — confirmed failing first (both
+survived the old range). `#107b` asserts the strip patterns in `index.html` and
+`functions/api/scores.js` stay identical, the way `#89c` already does for `PROFANITY_LIST`.
 
 ---
 
