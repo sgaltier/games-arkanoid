@@ -4464,5 +4464,71 @@ module.exports = {
         a.ok(g.T.state.achStats.onWorldBoard, "landing on the world board should still be detected");
       },
     },
+    {
+      name: "#97a — a run that would still make an empty local board is offered the name prompt " +
+        "despite a world board full of higher scores",
+      async fn(a) {
+        const world = [];
+        for (let i = 0; i < 10; i++) world.push({ name: "W" + i, score: 1000000 - i });
+        const g = boot({ api: () => ({ scores: world, token: "tok-97a" }) }).start();
+        await g.settle();
+        a.eq(g.T.state.globalScores.length, 10, "the world board should be full");
+        g.T.state.score = 5000;
+        g.T.state.lives = 1;
+        g.loseBall();
+        a.eq(g.T.state.phase, "nameentry",
+          "the local board is still empty, so the run should still be offered a name prompt");
+        g.el("nameentry-input").value = "Loc";
+        g.el("btn-nameentry-submit").click(1);
+        a.eq(g.T.state.hallOfFame[0].name, "Loc");
+        a.eq(g.T.state.hallOfFame[0].score, 5000);
+      },
+    },
+    {
+      name: "#97b — that entry is written to the device board and shows there next boot with the API down",
+      async fn(a) {
+        const world = [];
+        for (let i = 0; i < 10; i++) world.push({ name: "W" + i, score: 1000000 - i });
+        const g = boot({ api: () => ({ scores: world, token: "tok-97b" }) }).start();
+        await g.settle();
+        g.T.state.score = 5000;
+        g.T.state.lives = 1;
+        g.loseBall();
+        a.eq(g.T.state.phase, "nameentry", "the run must actually reach the name prompt to write anything");
+        g.el("nameentry-input").value = "Loc";
+        g.el("btn-nameentry-submit").click(1);
+        await g.settle();
+        const stored = JSON.parse(g.store["blokrush-hall-of-fame"]);
+        a.eq(stored[0].name, "Loc", "the entry must be written to the device board, not just state");
+        a.eq(stored[0].score, 5000);
+
+        const g2 = boot({ storage: g.store }); // no api: the next boot is offline
+        await g2.settle();
+        g2.el("btn-view-hof").click(1);
+        a.includes(g2.el("hof-list").innerHTML, "Loc",
+          "the device board must not be permanently empty just because the world board was once full");
+      },
+    },
+    {
+      name: "#97c — a run that qualifies for neither board still goes straight to gameover",
+      async fn(a) {
+        const world = [];
+        const local = [];
+        for (let i = 0; i < 10; i++) {
+          world.push({ name: "W" + i, score: 1000000 - i });
+          local.push({ name: "L" + i, score: 900000 - i });
+        }
+        const g = boot({
+          storage: { "blokrush-hall-of-fame": JSON.stringify(local) },
+          api: () => ({ scores: world, token: "tok-97c" }),
+        }).start();
+        await g.settle();
+        g.T.state.score = 5000;
+        g.T.state.lives = 1;
+        g.loseBall();
+        a.eq(g.T.state.phase, "gameover",
+          "neither board can be cracked, so the run should end without a detour through nameentry");
+      },
+    },
   ],
 };

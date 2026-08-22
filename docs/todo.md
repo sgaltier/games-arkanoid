@@ -9,13 +9,13 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 5 open items — **#97–#101, what is left of the correctness and security/backend findings
-of the 2026-08-22 holistic review pass** (§J and §K); #95 and #96 from that pass have shipped. #47,
-#50, #56, and #63 — previously promoted here from
+**Status:** 4 open items — **#98–#101, what is left of the correctness and security/backend findings
+of the 2026-08-22 holistic review pass** (§J and §K); #95, #96, and #97 from that pass have shipped.
+#47, #50, #56, and #63 — previously promoted here from
 [feature-ideas.md](feature-ideas.md) — have been moved back there as unshipped proposals; see that
 file for their write-ups. #46 from the old §A batch, #53, #54, #55, and #57 from the old §C batch,
 #82 (raised directly), #83 (raised directly), #84–#93 (the full 2026-08-21 review pass), #64
-(promoted from the old §D), #94 (raised directly), #95, and #96 have shipped (see
+(promoted from the old §D), #94 (raised directly), #95, #96, and #97 have shipped (see
 [done.md](done.md)).
 #62 (promoted from the old §D) was discarded outright rather than fixed.
 
@@ -42,10 +42,10 @@ overlay) — see [done.md](done.md). #47 (daily challenge seed), #50 (moving bri
 spin), and #63 (difficulty selection) sit unshipped in [feature-ideas.md](feature-ideas.md). The ten
 findings raised by the 2026-08-21 review (#84–#93) are all shipped — see [done.md](done.md) §I.
 
-Open below are six of the seven findings of a **holistic review on 2026-08-22** — a read of the whole
+Open below are four of the seven findings of a **holistic review on 2026-08-22** — a read of the whole
 repository (`index.html`, `functions/api/scores.js`, the schema, the docs), the same shape as the
 pass that produced #84–#93. They are grouped into §J (correctness, all in `index.html`) and §K
-(security and backend, `functions/api/scores.js`); the seventh, #95, has shipped — see
+(security and backend, `functions/api/scores.js`); #95, #96, and #97 have shipped — see
 [done.md](done.md) §J, which is where the rest land as they follow. Every one was reproduced against
 the current file through the test harness before being written up; the reproduction is quoted in
 each entry. New
@@ -55,54 +55,9 @@ review findings go here too, keeping the shared numbering: the next free number 
 
 ## J. Correctness
 
-Raised by the 2026-08-22 holistic pass. All three are in [index.html](../html/index.html); none of
-them is caught by the current suite. #95 and #96, the other two, have shipped — see
+Raised by the 2026-08-22 holistic pass. Both are in [index.html](../html/index.html); neither is
+caught by the current suite. #95, #96, and #97, the other three, have shipped — see
 [done.md](done.md) §J.
-
-### 97. Once the world board is full of higher scores, nothing is ever written to the local board again (M)
-
-`endGame()` ([5499-5520](../html/index.html#L5499-L5520)) decides whether to prompt for a name with
-`qualifiesForHallOfFame()` ([5545-5547](../html/index.html#L5545-L5547)), which ranks against
-`activeBoard()` ([5542-5544](../html/index.html#L5542-L5544)) — the **world** board whenever the API
-answered. The name prompt is the only route to `insertHallOfFameEntry()`
-([5554-5562](../html/index.html#L5554-L5562)), via `submitHallOfFameName()`
-([5628-5657](../html/index.html#L5628-L5657)). So a score that does not crack the world top ten never
-reaches the local board either — even when the local board is empty.
-
-Reproduced with a world board of ten scores near 1,000,000 and a 5,000-point run:
-
-```
-phase after the run:   gameover      (no name prompt)
-local board after run: []
-blokrush-hall-of-fame: undefined      (never written)
-```
-
-The comment on `insertHallOfFameEntry()` already anticipates the *other* direction — "A score can
-also fail to make the world top 10 while still deserving a place on this device's board, so rank -1
-here is not the same question endGame() asked" — but the code never gets far enough to ask the local
-question, because `endGame()` short-circuits first. The consequence is that an online player's device
-board stays permanently empty, and the fallback board they are shown the first time they play offline
-(or from `file://`, or with the API down) has nothing in it. That is precisely the board the
-architecture keeps around so the game means something with no network.
-
-**Two questions, asked in the wrong order.** "Should I prompt for a name?" is a world-board question;
-"does this belong on this device's board?" is a local one, and today only the first is ever asked.
-The smallest correct shape is for `endGame()` to prompt when the score qualifies on **either** board
-(`rankIn(activeBoard(), s) !== -1 || rankIn(state.hallOfFame, s) !== -1`), leaving
-`submitHallOfFameName()` and `submitGlobalScore()` unchanged — both already handle "made one board
-but not the other" correctly, including `state.hofHighlight`'s fallback
-([5648](../html/index.html#L5648)) for exactly this case. Worth deciding deliberately how the
-`nameentry` eyebrow reads when a run makes only the local board: "Nouveau record !" over a run that
-did not make the world top ten is defensible (it *is* a device record) but should be a choice, not an
-accident.
-
-#### Tests
-
-- `#97a` — with a full world board of higher scores, a run that would still make an empty local board
-  is offered the name prompt and lands on `state.hallOfFame`.
-- `#97b` — that run's entry is written to `blokrush-hall-of-fame` and shows on the device board when
-  the API is unreachable on the next boot.
-- `#97c` — a run that qualifies for neither board still goes straight to victory/gameover.
 
 ### 98. At the game's own top speed the ball passes through a brick without hitting it (M)
 

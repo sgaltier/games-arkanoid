@@ -68,14 +68,43 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #94 | ✅ Fixed — 2026-08-21 |
 | #95 | ✅ Fixed — 2026-08-22 |
 | #96 | ✅ Fixed — 2026-08-22 |
+| #97 | ✅ Fixed — 2026-08-22 |
 
-86 of 91 fixed. The full-codebase review raised on 2026-08-21 is done, ten for ten, #64 (resume an
+87 of 91 fixed. The full-codebase review raised on 2026-08-21 is done, ten for ten, #64 (resume an
 interrupted run) has shipped alongside it, and #57 (laser-vs-bad-drop counterplay) closes out the §C
 power-up batch. #83 (per-level star ratings) is the other half of what was originally #46, and #94
 puts that rating on screen at the moment it's earned, not just later in level select. A second
-holistic review on 2026-08-22 raised seven more (#95–#101); #95 and #96 are fixed and the remaining
-five are open in [todo.md](todo.md), alongside the feature ideas still there and the proposals in
-[feature-ideas.md](feature-ideas.md) not yet promoted to it.
+holistic review on 2026-08-22 raised seven more (#95–#101); #95, #96, and #97 are fixed and the
+remaining four are open in [todo.md](todo.md), alongside the feature ideas still there and the
+proposals in [feature-ideas.md](feature-ideas.md) not yet promoted to it.
+
+---
+
+## 2026-08-22 — A world board full of higher scores no longer locks the local board out (#97)
+
+### Fixed
+
+`qualifiesForHallOfFame()` decided whether to prompt for a name by ranking a run's score against
+`activeBoard()` — the world board whenever the API answered. So a score that never cracked the world
+top ten never reached the local board either, even on a device whose local board was still empty:
+"should I prompt for a name?" and "does this belong on this device's board?" are two different
+questions, and only the first was ever asked. Once the world board settled at ten scores in the
+low-to-mid six figures — not a hypothetical late in a 100-level campaign with saturating brick value —
+an online player's device board could never receive its first entry, including the one they'd fall
+back to the moment they played offline, from `file://`, or with the API down.
+
+The fix asks both questions: a run now gets the name prompt when it qualifies for **either** board.
+`submitHallOfFameName()` and `insertHallOfFameEntry()` needed no changes — they already handled
+"made one board but not the other" correctly, down to the highlight fallback on the hall-of-fame
+screen; the only gap was ever reaching them for a local-only qualifier.
+
+### Tests
+
+Three new cases in `regressions.js` (`#97a`–`#97c`), the first two confirmed failing first against
+the unfixed code: a run that would still make an empty local board is offered the prompt despite a
+full, higher world board (`#97a`), and that entry actually lands in `blokrush-hall-of-fame` and shows
+on the device board on a later, offline boot (`#97b`). `#97c` pins the unaffected case — a run that
+cracks neither board still goes straight to gameover.
 
 ---
 

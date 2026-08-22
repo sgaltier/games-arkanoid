@@ -5542,8 +5542,15 @@ canvas {
   function hallOfFameRank(score) {
     return rankIn(activeBoard(), score);
   }
+  // #97: "should I prompt for a name?" and "does this belong on this
+  // device's board?" are two different questions, and this must ask both —
+  // otherwise a world board full of higher scores makes the local board's
+  // qualification unreachable, and it stays empty forever, including for
+  // the offline/file:// fallback that board exists for. Checking
+  // state.hallOfFame here (rather than only activeBoard()) is what makes
+  // that reachable again even once the world board is out of reach.
   function qualifiesForHallOfFame(score) {
-    return score > 0 && hallOfFameRank(score) !== -1;
+    return score > 0 && (hallOfFameRank(score) !== -1 || rankIn(state.hallOfFame, score) !== -1);
   }
 
   // Always against state.hallOfFame, never activeBoard(): splicing into the

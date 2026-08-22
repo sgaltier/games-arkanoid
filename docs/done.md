@@ -238,7 +238,7 @@ state.
 >   thing ~16 ms later via `draw()` [6056-6075](../html/index.html#L6056-L6075), and the HUD's own
 >   one-time init call [5637](../html/index.html#L5637) already covers the pre-play text.
 > - `updateBalls` [5083](../html/index.html#L5083) now declares only the `dt` parameter it uses; the
->   call site [6196](../html/index.html#L6196) no longer passes the unused `now`.
+>   call site [6329](../html/index.html#L6329) no longer passes the unused `now`.
 
 - `state.paddle.w` was assigned in `updatePaddle` but never read — every draw/collision path called
   `paddleWidth()` instead.
@@ -2434,7 +2434,7 @@ them is the correct forgiving-but-not-free reading of "one-shot."
 > `updateEffects()` ([4536-4539](../html/index.html#L4536-L4539)), cleared per life in
 > `resetPaddleAndBall()` ([3115](../html/index.html#L3115)) — with its own `.effect-bar` slot
 > ([1048-1051](../html/index.html#L1048-L1051), wired into `renderEffectBars()`
-> [5896-5897](../html/index.html#L5896-L5897)) since, unlike #54's shield, it decays by time and has
+> [5903-5904](../html/index.html#L5903-L5904)) since, unlike #54's shield, it decays by time and has
 > something to shrink. The bend itself is a new block at the top of `updateBalls()`'s per-ball loop
 > ([5249-5264](../html/index.html#L5249-L5264)), gated on `ball.dy > 0` so it only ever touches a
 > falling ball: convert the current `dx`/`dy` to an angle with `Math.atan2`, compute the angle toward
@@ -3667,6 +3667,61 @@ reads the same array.
   "an empty world board" rather than "no world board".
 - `#96d` — the submit response gets the same treatment: a junk row in it is dropped, the run's own
   row survives, and "World Class" is still awarded off the sanitized board.
+
+### 97. ✅ FIXED — Once the world board is full of higher scores, nothing is ever written to the local board again (M)
+
+> **Fixed 2026-08-22.** The one-line fix the write-up asked for: `qualifiesForHallOfFame()`
+> ([5552-5554](../html/index.html#L5552-L5554)) now also checks `rankIn(state.hallOfFame, score)`,
+> not just `hallOfFameRank(score)` (which ranks against `activeBoard()`, the world board whenever it
+> answered). `endGame()` ([5499-5520](../html/index.html#L5499-L5520)),
+> `submitHallOfFameName()` ([5635-5664](../html/index.html#L5635-L5664)) and
+> `insertHallOfFameEntry()` ([5561-5569](../html/index.html#L5561-L5569)) are all unchanged, as the
+> write-up anticipated — they already handled "made one board but not the other" correctly, including
+> `state.hofHighlight`'s fallback for exactly this case; the only thing missing was ever getting asked
+> the local question at all.
+>
+> The `nameentry` eyebrow ("Nouveau record !") was left reading the same for a local-only qualifying
+> run — defensible, since it *is* a device record, and the write-up flagged it as a judgment call
+> rather than part of the fix.
+>
+> Three tests in `regressions.js`, `#97a`/`#97b` confirmed failing first against the unfixed code
+> (`#97c` passed either way, since it only pins the case that already worked). `#97a` reproduces the
+> write-up's exact scenario — a world board full of ten higher scores, a run that would still make an
+> empty local board — and checks the run is offered the name prompt and lands on `state.hallOfFame`.
+> `#97b` carries that entry through a second `boot()` with the API down and confirms it renders on the
+> device board, the concrete case the finding was written for: an online player's local board staying
+> permanently empty. `#97c` pins the unaffected case — a run that cracks neither board still goes
+> straight to gameover.
+
+`endGame()` ([5499-5520](../html/index.html#L5499-L5520)) decided whether to prompt for a name with
+`qualifiesForHallOfFame()`, which ranked only against `activeBoard()` — the **world** board whenever
+the API answered. The name prompt was the only route to `insertHallOfFameEntry()`, via
+`submitHallOfFameName()`. So a score that did not crack the world top ten never reached the local
+board either — even when the local board was empty.
+
+Reproduced with a world board of ten scores near 1,000,000 and a 5,000-point run:
+
+```
+phase after the run:   gameover      (no name prompt)
+local board after run: []
+blokrush-hall-of-fame: undefined      (never written)
+```
+
+The comment on `insertHallOfFameEntry()` already anticipated the *other* direction — "A score can
+also fail to make the world top 10 while still deserving a place on this device's board, so rank -1
+here is not the same question endGame() asked" — but the code never got far enough to ask the local
+question, because `endGame()` short-circuited first. The consequence was that an online player's
+device board stayed permanently empty, and the fallback board they'd be shown the first time they
+played offline (or from `file://`, or with the API down) had nothing in it — precisely the board the
+architecture keeps around so the game means something with no network.
+
+#### Tests
+
+- `#97a` — with a full world board of higher scores, a run that would still make an empty local board
+  is offered the name prompt and lands on `state.hallOfFame`.
+- `#97b` — that run's entry is written to `blokrush-hall-of-fame` and shows on the device board when
+  the API is unreachable on the next boot.
+- `#97c` — a run that qualifies for neither board still goes straight to victory/gameover.
 
 ---
 
