@@ -73,14 +73,50 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #99 | ✅ Fixed — 2026-08-22 |
 | #100 | ✅ Fixed — 2026-08-22 |
 | #101 | ✅ Fixed — 2026-08-22 |
+| #102 | ✅ Fixed — 2026-08-22 |
 
-91 of 91 fixed. The full-codebase review raised on 2026-08-21 is done, ten for ten, #64 (resume an
+92 of 97 fixed. The full-codebase review raised on 2026-08-21 is done, ten for ten, #64 (resume an
 interrupted run) has shipped alongside it, and #57 (laser-vs-bad-drop counterplay) closes out the §C
 power-up batch. #83 (per-level star ratings) is the other half of what was originally #46, and #94
 puts that rating on screen at the moment it's earned, not just later in level select. A second
-holistic review on 2026-08-22 raised seven more (#95–#101), all now fixed; `todo.md` is back down to
-the feature ideas still there and the proposals in [feature-ideas.md](feature-ideas.md) not yet
-promoted to it.
+holistic review on 2026-08-22 raised seven more (#95–#101), all now fixed. Another pass later the
+same day raised six more (#102–#107); #102 (a stale resume snapshot no longer rewinds a run past a
+level clear or a life lost) is the first of those to ship. `todo.md` is back down to the remaining
+five, plus the feature ideas still there and the proposals in [feature-ideas.md](feature-ideas.md)
+not yet promoted to it.
+
+---
+
+## 2026-08-22 — A stale resume snapshot no longer rewinds a run past a level clear or a life lost (#102)
+
+### Fixed
+
+#64's snapshot is only ever cleared by `newGame()`/`endGame()`, never by resuming out of a pause — a
+deliberate crash-recovery property, but it meant a snapshot could outlive the run it described. Pause
+mid-level, resume, clear the level (or lose the last ball), then close the tab on the level-clear
+screen (or during the life-lost beat): `pagehide` fired from a phase `SNAPSHOT_PHASES` didn't cover
+(#95 had dropped `levelclear` for a different reason, and `lifelost` was never in it), so nothing new
+got saved — and the *old* pre-pause snapshot was still sitting in storage. The next boot restored
+that stale snapshot instead of nothing: back into the middle of the level just cleared, with the
+score and lives of the earlier pause. On the last life, the same staleness doubled as a narrow undo
+for losing — closing the tab during the beat rewound to the pause instead of ending the run.
+
+A snapshot now carries the phase it should restore onto, not just data. `levelclear` and `lifelost`
+are back in `SNAPSHOT_PHASES`, and a new `RESUME_TARGET_PHASE` map decides what each phase actually
+restores onto: `ready`/`playing`/`paused` still land on the pause screen exactly as before,
+`levelclear` restores directly onto its own overlay (so the resumed run re-enters through
+`btn-next`, never through `checkLevelClear()` — #95's guarantee stays intact), and `lifelost` isn't
+restored onto at all, since its countdown was never part of the snapshot: boot resolves it
+immediately instead, the same ended/not-ended branch `finishLifeLost()` would have taken.
+
+### Tests
+
+Five new cases in `regressions.js` (`#102a`–`#102e`), four confirmed failing first against the
+unfixed code (`#102c`, the ordinary crash-recovery case, was never broken). `#102a`/`#102b` drive
+the exact gesture — pause, resume, clear the level, `pagehide` — and check the stored snapshot no
+longer describes the pre-pause state, and that booting from it lands on the level-clear screen with
+the post-clear score. `#102d`/`#102e` do the same for the life-lost beat, on the last life and on an
+earlier one.
 
 ---
 

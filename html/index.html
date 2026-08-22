@@ -2783,8 +2783,11 @@ canvas {
   function resumeReplacer(key, value) { return value === Infinity ? "__Infinity__" : value; }
   function resumeReviver(key, value) { return value === "__Infinity__" ? Infinity : value; }
 
-  function saveResume() {
-    var snap = { paddle: { x: state.paddle.x, baseW: state.paddle.baseW } };
+  // #102: resumePhase is which phase/overlay the snapshot should restore onto
+  // at boot — see RESUME_TARGET_PHASE — which is not necessarily the phase
+  // state was actually in when the snapshot was taken.
+  function saveResume(resumePhase) {
+    var snap = { resumePhase: resumePhase, paddle: { x: state.paddle.x, baseW: state.paddle.baseW } };
     for (var i = 0; i < RESUME_FIELDS.length; i++) snap[RESUME_FIELDS[i]] = state[RESUME_FIELDS[i]];
     storageSet(RESUME_KEY, JSON.stringify(snap, resumeReplacer));
   }
@@ -3383,7 +3386,7 @@ canvas {
   // saves whatever's live directly rather than relying on autoPause() having
   // already run.
   window.addEventListener("pagehide", function () {
-    if (SNAPSHOT_PHASES[state.phase]) saveResume();
+    if (SNAPSHOT_PHASES[state.phase]) saveResume(RESUME_TARGET_PHASE[state.phase]);
   });
 
   canvas.addEventListener("mousemove", function (e) {
@@ -3499,17 +3502,36 @@ canvas {
   // from there has to begin one the way newGame() does.
   var RUN_PHASES = { ready: true, playing: true, paused: true, levelclear: true };
 
-  // #95: the subset of the above that #64's snapshot is taken from. Same list
-  // minus "levelclear", and the two are deliberately separate sets rather than
-  // one: a snapshot carries no phase (see RESUME_FIELDS) and always resumes
-  // into "playing", so one taken while the level-clear overlay is up restores
-  // an already-emptied field and the next frame runs checkLevelClear()'s whole
-  // verdict a second time for the same level — levelsCleared, cleanStreak, and
-  // on every tenth level the milestone life, all awarded twice for closing the
-  // tab on "Niveau clair !". Losing that screen to a closed tab costs the
-  // player nothing (the level is already recorded by recordLevelClear());
-  // replaying it costs correctness.
-  var SNAPSHOT_PHASES = { ready: true, playing: true, paused: true };
+  // #95/#102: the subset of the above that #64's snapshot is taken from — now
+  // the same set as RUN_PHASES, plus "lifelost" (which RUN_PHASES has no use
+  // for). #95 originally dropped "levelclear" here because a snapshot carried
+  // no phase and always resumed into "playing", so restoring one taken on the
+  // level-clear overlay replayed checkLevelClear()'s whole verdict a second
+  // time — levelsCleared, cleanStreak, and on every tenth level the milestone
+  // life, all awarded twice. #102 found that "losing that screen to a closed
+  // tab costs the player nothing" only held when there was no snapshot at
+  // all: an earlier pause leaves one standing regardless — it's cleared only
+  // by newGame()/endGame(), never by resuming — so closing the tab on
+  // level-clear after that pause restored the *stale, pre-clear* snapshot
+  // instead of nothing. RESUME_TARGET_PHASE below is the actual fix: a
+  // snapshot now carries the phase it should restore onto, so a level-clear
+  // one restores onto its own overlay rather than into "playing" — #95's
+  // guarantee stays intact because that never touches checkLevelClear() again.
+  var SNAPSHOT_PHASES = { ready: true, playing: true, paused: true, levelclear: true, lifelost: true };
+
+  // #102: which phase a snapshot taken during each SNAPSHOT_PHASES phase
+  // should restore onto at boot. Anything still mid-play (including "paused"
+  // itself) lands back on the pause screen, exactly as before #102.
+  // "levelclear" restores onto its own overlay — btn-next's handler only
+  // reads state.levelIndex, not how the screen was reached, so this replays
+  // nothing. "lifelost" has no snapshot-worthy state of its own (its
+  // countdown isn't part of RESUME_FIELDS), so nothing ever restores *onto*
+  // it — see the boot-time handling near the bottom of the file, which
+  // resolves it immediately instead, the way finishLifeLost() would have.
+  var RESUME_TARGET_PHASE = {
+    ready: "paused", playing: "paused", paused: "paused",
+    levelclear: "levelclear", lifelost: "lifelost"
+  };
 
   function openLevelJump() {
     if (state.phase === "leveljump") return;
@@ -3666,7 +3688,7 @@ canvas {
     // phase, before it's overwritten below — which is also what keeps the
     // boot-restore path (see module init, near the bottom of the file) from
     // re-saving over the snapshot it just loaded: "start" isn't one.
-    if (p === "paused" && SNAPSHOT_PHASES[state.phase]) saveResume();
+    if (p === "paused" && SNAPSHOT_PHASES[state.phase]) saveResume(p);
     state.phase = p;
     renderDynamicText();
     renderPauseButton();
@@ -6417,16 +6439,33 @@ canvas {
 
   applyLanguage(state.lang);
   // #64: a saved snapshot means a run was mid-flight when the tab went away —
-  // land straight back on the pause screen it would have shown instead of
-  // "start", reusing overlay-pause/btn-resume verbatim. Deliberately skips the
-  // boot-time fetchGlobalBoard() below: that call also refreshes
-  // state.sessionToken (see fetchGlobalBoard), which would re-date the run
-  // from now instead of leaving the restored, server-signed token as it was.
+  // land straight back on whatever screen it would have shown instead of
+  // "start". #102: that's not always overlay-pause/btn-resume any more — see
+  // RESUME_TARGET_PHASE — but the same reasoning applies regardless of which
+  // phase it restores onto: this deliberately skips the boot-time
+  // fetchGlobalBoard() below, which also refreshes state.sessionToken (see
+  // fetchGlobalBoard), and would re-date the run from now instead of leaving
+  // the restored, server-signed token as it was.
   var resumed = loadResume();
   if (resumed) {
     restoreFromResume(resumed);
     state.resumedFromSave = true;
-    setPhase("paused");
+    if (resumed.resumePhase === "lifelost") {
+      // #102: the beat's own countdown isn't part of the snapshot (see
+      // RESUME_FIELDS) — finish it immediately rather than stranding the game
+      // in a phase with no overlay and no timer left to run it down. lives was
+      // already decremented before the beat started (see loseLife()), so it
+      // alone decides the same ended/not-ended branch finishLifeLost() would
+      // have taken.
+      if (state.lives <= 0) {
+        endGame(false);
+      } else {
+        resetPaddleAndBall();
+        setPhase("paused");
+      }
+    } else {
+      setPhase(resumed.resumePhase || "paused"); // older snapshots carry no resumePhase at all
+    }
   } else {
     // The start overlay is already showing in the static markup, but routing
     // through setPhase() here (rather than leaving it purely to markup, or

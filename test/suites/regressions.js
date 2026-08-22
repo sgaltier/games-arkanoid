@@ -4754,5 +4754,98 @@ module.exports = {
           "the #15 behaviour this must not regress: the best cell tracks the live score once it's ahead");
       },
     },
+    {
+      name: "#102a — pausing mid-level and clearing it before the tab closes leaves no stale pre-pause snapshot",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.score = 500;
+        g.key("KeyP"); // pause -> snapshot saved at score 500
+        a.ok(g.store["blokrush-resume"], "pausing should have saved a snapshot");
+        g.el("btn-resume").click(1); // resume -> playing
+        g.T.state.score = 1200;
+        clearBricks(g);
+        g.frame();
+        a.eq(g.T.state.phase, "levelclear");
+
+        g.fireWin("pagehide"); // the tab closes on the level-clear screen
+
+        const raw = g.store["blokrush-resume"];
+        const snap = raw ? JSON.parse(raw) : null;
+        a.ok(!snap || snap.score !== 500,
+          "the stored snapshot must not describe the pre-pause state (score 500)");
+      },
+    },
+    {
+      name: "#102b — booting from that snapshot continues at or after the clear, never rewound into it",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.score = 500;
+        g.key("KeyP");
+        g.el("btn-resume").click(1);
+        g.T.state.score = 1200;
+        clearBricks(g);
+        g.frame();
+        a.eq(g.T.state.phase, "levelclear");
+        g.fireWin("pagehide");
+
+        const g2 = boot({ storage: g.store });
+        a.eq(g2.T.state.phase, "levelclear",
+          "must restore onto the level-clear screen, not rewind onto an earlier pause");
+        a.eq(g2.T.state.score, 1200, "score must reflect the clear, never the earlier pause's 500");
+      },
+    },
+    {
+      name: "#102c — killing the tab from \"playing\" with no pagehide still restores the most recent pause",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.score = 500;
+        g.key("KeyP"); // pause -> snapshot saved
+        a.eq(g.T.state.phase, "paused");
+        g.el("btn-resume").click(1);
+        g.T.state.score = 1200; // play continues after resume, with no further pagehide (simulated crash)
+
+        const g2 = boot({ storage: g.store });
+        a.eq(g2.T.state.phase, "paused", "crash recovery must still restore the pause screen");
+        a.eq(g2.T.state.score, 500, "restores the last actual pause, not the score at the moment of the crash");
+      },
+    },
+    {
+      name: "#102d — closing the tab during the life-lost beat on the last life still ends the run, not rewinds",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.lives = 1;
+        g.T.state.score = 500;
+        g.T.state.balls.length = 0;
+        g.frame();
+        a.eq(g.T.state.phase, "lifelost");
+        a.eq(g.T.state.lives, 0);
+
+        g.fireWin("pagehide");
+
+        const g2 = boot({ storage: g.store });
+        a.ok(g2.T.state.phase === "gameover" || g2.T.state.phase === "nameentry",
+          "the last life must still end the run rather than land back on an earlier pause");
+      },
+    },
+    {
+      name: "#102e — closing the tab during the life-lost beat on a non-final life resumes with a fresh ball",
+      fn(a) {
+        const g = boot().start();
+        g.T.state.lives = 3;
+        g.T.state.score = 500;
+        g.T.state.balls.length = 0;
+        g.frame();
+        a.eq(g.T.state.phase, "lifelost");
+        a.eq(g.T.state.lives, 2);
+
+        g.fireWin("pagehide");
+
+        const g2 = boot({ storage: g.store });
+        a.eq(g2.T.state.phase, "paused");
+        a.eq(g2.T.state.lives, 2);
+        a.eq(g2.T.state.balls.length, 1,
+          "a fresh ball must be waiting, not the emptied field from the moment of loss");
+      },
+    },
   ],
 };

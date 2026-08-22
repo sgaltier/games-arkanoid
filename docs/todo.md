@@ -9,15 +9,15 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 6 open items — the findings of the **second holistic review pass on 2026-08-22**, a read
+**Status:** 5 open items — the findings of the **second holistic review pass on 2026-08-22**, a read
 of the whole repository (`index.html`, `functions/api/scores.js`, the schema, the test harness, the
 docs), the same shape as the passes that produced #84–#93 and #95–#101. They are grouped into §L
 (correctness, all in `index.html`) and §M (security and backend). Every one was reproduced against
 the current file — through the test harness for the game-side findings — before being written up;
 the reproduction is quoted in each entry. Everything from earlier passes has shipped: #95–#101 (the
-first 2026-08-22 pass) live in [done.md](done.md) §J/§K, #84–#93 in §I, and every directly-requested
-feature so far in §H. #47, #50, #56, and #63 sit unshipped in
-[feature-ideas.md](feature-ideas.md); #62 was discarded outright rather than fixed.
+first 2026-08-22 pass) live in [done.md](done.md) §J/§K, #102 (the first of this second pass) in §L,
+#84–#93 in §I, and every directly-requested feature so far in §H. #47, #50, #56, and #63 sit
+unshipped in [feature-ideas.md](feature-ideas.md); #62 was discarded outright rather than fixed.
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
 test → fix → move the finding's whole entry from this file to [done.md](done.md), prepending a
@@ -32,64 +32,19 @@ shared numbering: the next free number is **#108**.
 
 ## L. Correctness
 
-Raised by the 2026-08-22 second holistic pass. All are in [index.html](../html/index.html); none is
+Raised by the 2026-08-22 second holistic pass using Fable. All are in [index.html](../html/index.html); none is
 caught by the current suite.
-
-### 102. Closing the tab on the level-clear screen rewinds the run to its last pause (M)
-
-#64's snapshot is written on every transition into "paused" ([3669](../html/index.html#L3669)) and
-on `pagehide` from any `SNAPSHOT_PHASES` phase ([3385-3387](../html/index.html#L3385-L3387)), but it
-is only ever **cleared** by `newGame()` ([3156](../html/index.html#L3156)) and `endGame()`
-([5528](../html/index.html#L5528)). Resuming out of a pause ([3482-3485](../html/index.html#L3482-L3485))
-leaves the old snapshot standing — deliberately useful as crash recovery, but it means the snapshot
-can be **older than the run**. #95 then removed "levelclear" from `SNAPSHOT_PHASES`
-([3502-3512](../html/index.html#L3502-L3512)) on the reasoning that "losing that screen to a closed
-tab costs the player nothing" — which only holds when there is no snapshot at all. Close the tab on
-the level-clear overlay (a natural stopping point) after having paused or alt-tabbed at any point
-earlier in that level — and alt-tab *always* pauses, via `autoPause()`
-([3375-3380](../html/index.html#L3375-L3380)) — and the next boot restores that stale snapshot:
-back into the middle of the level just cleared, with the score and lives of the earlier pause.
-Reproduced through the harness:
-
-```
-score 500 -> pause (snapshot saved) -> resume -> score 1200 -> level cleared
-pagehide on "levelclear"            -> snapshot in storage: score 500, levelIndex 0
-next boot                           -> phase paused, score 500, levelIndex 0   (rewound)
-```
-
-The same staleness applies to the "lifelost" beat ([6379-6381](../html/index.html#L6379-L6381)):
-a tab killed during it — including on the *last* life, before `endGame()` runs `clearResume()` —
-rewinds to the earlier pause instead of ending the run, which doubles as a (narrow, 0.7 s) undo for
-losing.
-
-**The fix has to reconcile #64 with #95, not just clear the key.** `clearResume()` on entering
-"levelclear" would make closing there lose a two-hour run at level 50 — worse than the bug. The two
-candidate shapes: (a) take a fresh snapshot on entering "levelclear"/"lifelost" that resumes into
-the **next** serve — for levelclear that means snapshotting after `startLevel(idx + 1)`'s state
-would exist, which it doesn't yet, so practically it means (b) persisting the outgoing phase in the
-snapshot (the option #95 weighed) so a levelclear-time snapshot restores onto the levelclear overlay
-itself rather than into the emptied field — #95's double-award stays fixed because the restored
-phase re-enters through `btn-next`, not through `checkLevelClear()`.
-
-#### Tests
-
-- `#102a` — pause mid-level, resume, clear the level, fire `pagehide`: the stored snapshot must not
-  describe the pre-pause state (either it is gone, or it describes the cleared level).
-- `#102b` — boot from whatever #102a decides is stored: the run continues at or after the clear,
-  never inside the cleared level with the older score.
-- `#102c` — the crash-recovery property stays: killing the tab from "playing" with no `pagehide`
-  still restores the most recent pause.
 
 ### 103. At top speed the ball passes through a boss part without hitting it (M)
 
 #98 gave `updateBalls()` an anti-tunnel sweep — but its probe loop samples **`state.bricks` only**
-([5343-5355](../html/index.html#L5343-L5355)), and #38's swept check covers only the paddle
-([5288-5295](../html/index.html#L5288-L5295)). Boss parts get neither: `hitTestBossPart()`
-([4771-4784](../html/index.html#L4771-L4784)) is consulted once, at the ball's post-move position
-([5389-5393](../html/index.html#L5389-L5393)). The numbers are #98's own — `speedCap` 2.8
+([5365-5377](../html/index.html#L5365-L5377)), and #38's swept check covers only the paddle
+([5310-5317](../html/index.html#L5310-L5317)). Boss parts get neither: `hitTestBossPart()`
+([4793-4806](../html/index.html#L4793-L4806)) is consulted once, at the ball's post-move position
+([5411-5415](../html/index.html#L5411-L5415)). The numbers are #98's own — `speedCap` 2.8
 ([1537](../html/index.html#L1537)) × `fast` 1.4 ([1558](../html/index.html#L1558)) ×
 `difficulty.max` 1.6 ([1595](../html/index.html#L1595)) at the 33 ms `dt` clamp
-([6341](../html/index.html#L6341)) is ~51 px in one step — and a boss body is 28-34 px tall
+([6363](../html/index.html#L6363)) is ~51 px in one step — and a boss body is 28-34 px tall
 (Sentinel [1818](../html/index.html#L1818), Omega's third phase
 [2168-2169](../html/index.html#L2168-L2169)), a ~44 px window including the ball's diameter.
 Both stacking conditions are reachable on a boss level: arena cover bricks roll drops like any
@@ -121,7 +76,7 @@ taller than a brick, so a step too short to skip a brick cannot skip a part eith
 
 `isScoreEntry` ([2640](../html/index.html#L2640)) is #96's single predicate for "a row a board can
 render", shared by `loadHallOfFame()` ([2641-2653](../html/index.html#L2641-L2653)) and
-`sanitizeBoard()` ([2873-2880](../html/index.html#L2873-L2880)) — but it checks `isFinite(e.score)`,
+`sanitizeBoard()` ([2876-2883](../html/index.html#L2876-L2883)) — but it checks `isFinite(e.score)`,
 and the **global** `isFinite` coerces: `isFinite(null)`, `isFinite(true)`, and `isFinite("250")` are
 all `true`. Reproduced through the harness at both boundaries:
 
@@ -133,8 +88,8 @@ HOF_KEY = [{name:"Ghost",score:null},{name:"Bool",score:true},{name:"Str",score:
 ```
 
 The board then renders "null"/"true" in the score column
-([5755](../html/index.html#L5755)), and `rankIn()`'s `score > list[i].score` comparisons
-([5561-5566](../html/index.html#L5561-L5566)) run on coerced values. This is precisely the class of
+([5777](../html/index.html#L5777)), and `rankIn()`'s `score > list[i].score` comparisons
+([5583-5588](../html/index.html#L5583-L5588)) run on coerced values. This is precisely the class of
 wrong-shape data #96 exists to keep out — a truncated or version-skewed API response, or foreign
 JSON under `HOF_KEY` — surviving the check that was written to reject it. The fix is one word:
 `Number.isFinite`, which coerces nothing. (Arguably `Number.isInteger`, matching the server's own
@@ -148,16 +103,16 @@ JSON under `HOF_KEY` — surviving the check that was written to reject it. The 
 
 ### 105. A corrupt resume snapshot with an out-of-range `levelIndex` kills the game at boot (S)
 
-`loadResume()` ([2796-2811](../html/index.html#L2796-L2811)) checks shapes —
+`loadResume()` ([2799-2814](../html/index.html#L2799-L2814)) checks shapes —
 `Number.isInteger(snap.levelIndex)`, the arrays, the paddle — but no ranges. A snapshot with a
 negative `levelIndex` (a manual edit, a bit of foreign JSON, a future format change) passes, and
 `restoreFromResume()` then calls `themeFor(state.levelIndex)`
-([2823](../html/index.html#L2823)): JS's `%` keeps the sign, so `themeFor(-5)` indexes
+([2826](../html/index.html#L2826)): JS's `%` keeps the sign, so `themeFor(-5)` indexes
 `THEMES[-3]` ([2207-2209](../html/index.html#L2207-L2209)) and returns `undefined`. The first
-frame's `drawBackground()` → `skyFor()` ([5979-5986](../html/index.html#L5979-L5986)) then throws
+frame's `drawBackground()` → `skyFor()` ([6001-6008](../html/index.html#L6001-L6008)) then throws
 reading `theme.top`, and since `requestAnimationFrame(frame)` is queued at the *end* of `frame()`
-([6415](../html/index.html#L6415)), the loop never re-arms — a dead canvas, exactly what the
-"corrupt snapshot degrades to an ordinary boot" rule ([2792-2795](../html/index.html#L2792-L2795))
+([6437](../html/index.html#L6437)), the loop never re-arms — a dead canvas, exactly what the
+"corrupt snapshot degrades to an ordinary boot" rule ([2795-2798](../html/index.html#L2795-L2798))
 exists to prevent. Reproduced through the harness:
 
 ```
@@ -178,12 +133,12 @@ failing returns `null` — the ordinary-boot fallback that already exists.
 
 ### 106. `state.hofHighlight` is never cleared, so old submissions stay highlighted forever (S)
 
-`submitHallOfFameName()` sets `state.hofHighlight` ([5717](../html/index.html#L5717)) so
+`submitHallOfFameName()` sets `state.hofHighlight` ([5739](../html/index.html#L5739)) so
 `renderHallOfFame()` can pick out "the entry just submitted"
-([5746-5751](../html/index.html#L5746-L5751)) — but nothing ever resets it
-([3012](../html/index.html#L3012) is its only other mention, and `newGame()` doesn't touch it). For
+([5768-5773](../html/index.html#L5768-L5773)) — but nothing ever resets it
+([3015](../html/index.html#L3015) is its only other mention, and `newGame()` doesn't touch it). For
 the rest of the session, every later view of the board — opened from the start screen
-([3801-3805](../html/index.html#L3801-L3805)), or after a later run that didn't qualify — still
+([3823-3827](../html/index.html#L3823-L3827)), or after a later run that didn't qualify — still
 highlights that old row as if it had just been entered. The highlight also matches by value, so
 after the world board refreshes, *someone else's* row with the same name and score would light up.
 Cosmetic, but it makes the one visual affordance meaning "this is the result you just got" say
@@ -207,7 +162,7 @@ Raised by the same pass. In [functions/api/scores.js](../functions/api/scores.js
 #100 strips control characters, bidi *overrides* and zero-width characters from hall-of-fame names —
 the class `U+0000–U+001F, U+007F, U+200B–U+200F, U+202A–U+202E` in `cleanName()`
 ([functions/api/scores.js:131-140](../functions/api/scores.js#L131-L140)) and its mirror
-`cleanHofName()` ([5684-5689](../html/index.html#L5684-L5689)) — on the stated goal that a name
+`cleanHofName()` ([5706-5711](../html/index.html#L5706-L5711)) — on the stated goal that a name
 "cannot be used to visually reorder or hide characters on a permanent, world-visible board". The
 range misses the characters that still can:
 
