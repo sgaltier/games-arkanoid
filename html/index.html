@@ -5889,7 +5889,9 @@ canvas {
   function updateHud() {
     var score = state.score;
     if (hudLast.score !== score) { hudScore.textContent = score; hudLast.score = score; }
-    var best = Math.max(state.best, state.score);
+    // #101: a jumped run can never promote state.best (see maybeSaveBest), so
+    // don't let the live score make the HUD claim otherwise mid-run.
+    var best = state.jumped ? state.best : Math.max(state.best, state.score);
     if (hudLast.best !== best) { hudBest.textContent = best; hudLast.best = best; }
     var level = (state.levelIndex + 1) + "/" + CONFIG.progression.totalLevels;
     if (hudLast.level !== level) { hudLevel.textContent = level; hudLast.level = level; }

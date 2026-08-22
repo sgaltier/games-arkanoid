@@ -389,8 +389,8 @@ last brick.
 > ([3200-3205](../html/index.html#L3200-L3205), rising and fading over `CONFIG.floatingText.life`
 > seconds via `updateFloatingTexts()`/`drawFloatingTexts()`
 > [4900-4907](../html/index.html#L4900-L4907)/[6067-6082](../html/index.html#L6067-L6082)), wired into
-> the frame loop alongside particles [6170](../html/index.html#L6170)/[6177](../html/index.html#L6177)
-> and `draw()` [6101](../html/index.html#L6101). Consecutive bricks destroyed without the ball touching
+> the frame loop alongside particles [6170](../html/index.html#L6170)/[6179](../html/index.html#L6179)
+> and `draw()` [6103](../html/index.html#L6103). Consecutive bricks destroyed without the ball touching
 > the paddle also build a combo [5018-5023](../html/index.html#L5018-L5023) that scales the points
 > awarded, capped at `CONFIG.combo.max`; any paddle contact — top face or side clip — resets it
 > [5126](../html/index.html#L5126). `CONFIG.combo`/`CONFIG.floatingText`
@@ -2213,7 +2213,7 @@ and finally the composite of all nine.
 > life, and a `glow` flag `drawParticles()` ([6158-6172](../html/index.html#L6158-L6172)) picks up as
 > a shadow-blur halo — used for both the pulses and the finishing blast in place of a plain `burst()`
 > call. `spawnLightning()`/`drawLightning()`
-> ([3222-3233](../html/index.html#L3222-L3233)/[6177-6193](../html/index.html#L6177-L6193)) add a
+> ([3222-3233](../html/index.html#L3222-L3233)/[6179-6195](../html/index.html#L6179-L6195)) add a
 > handful of jagged, multi-segment bolts (more for a bigger boss) radiating from the boss's center on
 > the finishing blast only — the midpoints are displaced off the straight line between the two ends,
 > tapering to none at the ends, so a bolt still lands on its target rather than reading as a laser.
@@ -2434,7 +2434,7 @@ them is the correct forgiving-but-not-free reading of "one-shot."
 > `updateEffects()` ([4536-4539](../html/index.html#L4536-L4539)), cleared per life in
 > `resetPaddleAndBall()` ([3115](../html/index.html#L3115)) — with its own `.effect-bar` slot
 > ([1048-1051](../html/index.html#L1048-L1051), wired into `renderEffectBars()`
-> [5931-5932](../html/index.html#L5931-L5932)) since, unlike #54's shield, it decays by time and has
+> [5933-5934](../html/index.html#L5933-L5934)) since, unlike #54's shield, it decays by time and has
 > something to shrink. The bend itself is a new block at the top of `updateBalls()`'s per-ball loop
 > ([5249-5264](../html/index.html#L5249-L5264)), gated on `ball.dy > 0` so it only ever touches a
 > falling ball: convert the current `dx`/`dy` to an angle with `Math.atan2`, compute the angle toward
@@ -3894,6 +3894,35 @@ Two smaller notes from the same read:
   the endpoint itself is not exercised by the suite).
 - `#100b` — a name containing a bidi override or a zero-width character is stored without it, in both
   `scores.js` and `index.html`, and the two agree (extending `#89c`'s cross-file pairing).
+
+### 101. ✅ FIXED — The HUD advertises a best score a jumped run can never earn (S)
+
+> **Fixed 2026-08-22.** `updateHud()` ([5889-5904](../html/index.html#L5889-L5904)) now gates the
+> `Math.max` on `!state.jumped`: during a jumped run the best cell just reads `state.best` verbatim,
+> instead of racing the live score up and then snapping back down when `maybeSaveBest()` refuses to
+> promote it. An ordinary run is unaffected — `state.jumped` is `false`, so the cell still tracks
+> `Math.max(state.best, state.score)` exactly as #15 left it.
+>
+> Two tests in `regressions.js`. `#101a` jumps via the leveljump chord, drives `state.score` far past
+> `state.best`, and checks the HUD's `hud-best` cell never moves off `state.best` — confirmed failing
+> first. `#101b` reruns an ordinary (non-jumped) run past its stored best and checks the cell still
+> follows the live score, guarding the #15 behaviour against regressing.
+
+`maybeSaveBest()` ([5464-5473](../html/index.html#L5464-L5473)) refuses to promote a jumped run's
+score — that is #69's rule, and #72 added the end-screen disclosure that says so. But `updateHud()`
+showed `Math.max(state.best, state.score)` unconditionally, so throughout a jumped run the "Meilleur"
+cell climbed with the live score and then silently snapped back to the real best when the run ended.
+
+Small, but it was the one place the game stated the rule and then contradicted it, and #72's whole
+argument was that a rule nobody is told about is indistinguishable from a bug — a HUD that shows the
+opposite of the rule is worse than one that stays quiet.
+
+#### Tests
+
+- `#101a` — during a jumped run the HUD's best cell never exceeds `state.best`, however high
+  `state.score` climbs.
+- `#101b` — an ordinary run still shows the live score in that cell as soon as it passes the stored
+  best (the #15 behaviour this must not regress).
 
 ---
 

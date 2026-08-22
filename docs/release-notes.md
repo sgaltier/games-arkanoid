@@ -72,14 +72,37 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #98 | ✅ Fixed — 2026-08-22 |
 | #99 | ✅ Fixed — 2026-08-22 |
 | #100 | ✅ Fixed — 2026-08-22 |
+| #101 | ✅ Fixed — 2026-08-22 |
 
-90 of 91 fixed. The full-codebase review raised on 2026-08-21 is done, ten for ten, #64 (resume an
+91 of 91 fixed. The full-codebase review raised on 2026-08-21 is done, ten for ten, #64 (resume an
 interrupted run) has shipped alongside it, and #57 (laser-vs-bad-drop counterplay) closes out the §C
 power-up batch. #83 (per-level star ratings) is the other half of what was originally #46, and #94
 puts that rating on screen at the moment it's earned, not just later in level select. A second
-holistic review on 2026-08-22 raised seven more (#95–#101); #95, #96, #97, #98, #99, and #100 are
-fixed and the remaining one is open in [todo.md](todo.md), alongside the feature ideas still there
-and the proposals in [feature-ideas.md](feature-ideas.md) not yet promoted to it.
+holistic review on 2026-08-22 raised seven more (#95–#101), all now fixed; `todo.md` is back down to
+the feature ideas still there and the proposals in [feature-ideas.md](feature-ideas.md) not yet
+promoted to it.
+
+---
+
+## 2026-08-22 — The HUD no longer advertises a best score a jumped run can't earn (#101)
+
+### Fixed
+
+`maybeSaveBest()` refuses to promote a jumped run's score — that's #69's rule, and #72 added the
+end-screen disclosure that says so. But `updateHud()` showed `Math.max(state.best, state.score)`
+unconditionally, so throughout a jumped run the "Meilleur" cell climbed with the live score and then
+silently snapped back to the real best the moment the run ended — the one place the game states the
+rule and then contradicts it.
+
+`updateHud()` now gates the `Math.max` on `!state.jumped`: during a jumped run the cell just reads
+`state.best` verbatim. An ordinary run is unaffected.
+
+### Tests
+
+Two new cases in `regressions.js`. `#101a` jumps via the leveljump chord, drives the score far past
+the stored best, and confirms the HUD's best cell never moves off it — failing first against the old
+unconditional `Math.max`. `#101b` reruns an ordinary run past its stored best and checks the cell
+still follows the live score, pinning the #15 behaviour this must not regress.
 
 ---
 

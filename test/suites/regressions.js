@@ -4728,5 +4728,31 @@ module.exports = {
         );
       },
     },
+    {
+      name: "#101a — during a jumped run the HUD's best cell never exceeds state.best, however high state.score climbs",
+      fn(a) {
+        const g = boot();
+        chord(g);
+        g.el("leveljump-input").value = "5";
+        g.el("btn-leveljump-go").click(1);
+        g.key("Space");
+        a.eq(g.T.state.jumped, true, "sanity: this is the jumped run #69 taints");
+        g.T.state.score = 999999;
+        g.frame();
+        a.eq(g.el("hud-best").textContent, String(g.T.state.best),
+          "the best cell must not advertise a score a jumped run can never actually save");
+      },
+    },
+    {
+      name: "#101b — an ordinary run still shows the live score in that cell once it passes the stored best",
+      fn(a) {
+        const g = boot().start();
+        a.eq(g.T.state.jumped, false, "sanity: an ordinary run is not jumped");
+        g.T.state.score = g.T.state.best + 1;
+        g.frame();
+        a.eq(g.el("hud-best").textContent, String(g.T.state.score),
+          "the #15 behaviour this must not regress: the best cell tracks the live score once it's ahead");
+      },
+    },
   ],
 };
