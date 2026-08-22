@@ -9,15 +9,15 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 2 open items — the findings of the **second holistic review pass on 2026-08-22**, a read
-of the whole repository (`index.html`, `functions/api/scores.js`, the schema, the test harness, the
-docs), the same shape as the passes that produced #84–#93 and #95–#101. They are grouped into §L
-(correctness, all in `index.html`) and §M (security and backend). Every one was reproduced against
-the current file — through the test harness for the game-side findings — before being written up;
-the reproduction is quoted in each entry. Everything from earlier passes has shipped: #95–#101 (the
-first 2026-08-22 pass) live in [done.md](done.md) §J/§K, #102–#105 (the first four of this second
-pass) in §L, #84–#93 in §I, and every directly-requested feature so far in §H. #47, #50, #56, and #63
-sit unshipped in [feature-ideas.md](feature-ideas.md); #62 was discarded outright rather than fixed.
+**Status:** 1 open item — the last unshipped finding of the **second holistic review pass on
+2026-08-22**, a read of the whole repository (`index.html`, `functions/api/scores.js`, the schema,
+the test harness, the docs), the same shape as the passes that produced #84–#93 and #95–#101. It is
+grouped into §M (security and backend); §L (correctness) is now fully shipped. It was reproduced
+against the current file before being written up; the reproduction is quoted in the entry. Everything
+else from earlier passes has shipped: #95–#101 (the first 2026-08-22 pass) live in [done.md](done.md)
+§J/§K, #102–#106 (the first five of this second pass) in §L, #84–#93 in §I, and every directly-requested
+feature so far in §H. #47, #50, #56, and #63 sit unshipped in [feature-ideas.md](feature-ideas.md);
+#62 was discarded outright rather than fixed.
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
 test → fix → move the finding's whole entry from this file to [done.md](done.md), prepending a
@@ -27,32 +27,6 @@ the historical record → add an entry to [release-notes.md](release-notes.md).
 **Line references, once written, are only valid against the current `index.html`** — the same
 re-anchoring discipline applies here as in `done.md`. New review findings go here, keeping the
 shared numbering: the next free number is **#108**.
-
----
-
-## L. Correctness
-
-Raised by the 2026-08-22 second holistic pass using Fable. All are in [index.html](../html/index.html); none is
-caught by the current suite.
-
-### 106. `state.hofHighlight` is never cleared, so old submissions stay highlighted forever (S)
-
-`submitHallOfFameName()` sets `state.hofHighlight` ([5764](../html/index.html#L5764)) so
-`renderHallOfFame()` can pick out "the entry just submitted"
-([5793-5798](../html/index.html#L5793-L5798)) — but nothing ever resets it
-([3027](../html/index.html#L3027) is its only other mention, and `newGame()` doesn't touch it). For
-the rest of the session, every later view of the board — opened from the start screen
-([3835-3839](../html/index.html#L3835-L3839)), or after a later run that didn't qualify — still
-highlights that old row as if it had just been entered. The highlight also matches by value, so
-after the world board refreshes, *someone else's* row with the same name and score would light up.
-Cosmetic, but it makes the one visual affordance meaning "this is the result you just got" say
-something false. **Fix:** clear `state.hofHighlight` in `newGame()` (a fresh run has submitted
-nothing), which keeps the highlight alive exactly from submission until the next run starts.
-
-#### Tests
-
-- `#106a` — submit a qualifying name, start a new game, open the board from the start screen: no row
-  carries `hof-new`.
 
 ---
 
@@ -66,7 +40,7 @@ Raised by the same pass. In [functions/api/scores.js](../functions/api/scores.js
 #100 strips control characters, bidi *overrides* and zero-width characters from hall-of-fame names —
 the class `U+0000–U+001F, U+007F, U+200B–U+200F, U+202A–U+202E` in `cleanName()`
 ([functions/api/scores.js:131-140](../functions/api/scores.js#L131-L140)) and its mirror
-`cleanHofName()` ([5731-5736](../html/index.html#L5731-L5736)) — on the stated goal that a name
+`cleanHofName()` ([5732-5737](../html/index.html#L5732-L5737)) — on the stated goal that a name
 "cannot be used to visually reorder or hide characters on a permanent, world-visible board". The
 range misses the characters that still can:
 

@@ -4959,5 +4959,24 @@ module.exports = {
         a.eq(g2.T.state.score, 500);
       },
     },
+    {
+      name: "#106a — submit a qualifying name, start a new game, open the board from the start screen: no row carries hof-new",
+      fn(a) {
+        const g = boot().start(); // fresh boot: empty hall-of-fame board
+        g.T.state.score = 50;
+        g.T.state.lives = 1;
+        g.loseBall();
+        a.eq(g.T.state.phase, "nameentry");
+        g.el("nameentry-input").value = "Ada";
+        g.el("btn-nameentry-submit").click(1);
+        a.includes(g.el("hof-list").innerHTML, "hof-new", "sanity: the just-submitted row starts highlighted");
+
+        g.T.newGame();
+        g.el("btn-view-hof").click(1);
+        a.eq(g.T.state.phase, "halloffame");
+        a.not(g.el("hof-list").innerHTML.includes("hof-new"),
+          "a fresh run has submitted nothing, so no row should still be highlighted");
+      },
+    },
   ],
 };

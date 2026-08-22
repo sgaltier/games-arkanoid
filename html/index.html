@@ -3174,6 +3174,7 @@ canvas {
     state.lives = 3;
     state.jumped = false; // #69: a fresh run is eligible again
     state.slowMeter = CONFIG.bulletTime.max; // #55: a paddle skill, not carried over from the last run
+    state.hofHighlight = null; // #106: a fresh run hasn't submitted anything yet
     // #65: every counter the roster reads is per run. The unlocked set is not
     // touched — that is the one thing that outlives a run.
     state.achStats = freshAchStats();

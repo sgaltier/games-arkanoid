@@ -77,18 +77,40 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #103 | ✅ Fixed — 2026-08-22 |
 | #104 | ✅ Fixed — 2026-08-22 |
 | #105 | ✅ Fixed — 2026-08-22 |
+| #106 | ✅ Fixed — 2026-08-22 |
 
-95 of 98 fixed. The full-codebase review raised on 2026-08-21 is done, ten for ten, #64 (resume an
+96 of 98 fixed. The full-codebase review raised on 2026-08-21 is done, ten for ten, #64 (resume an
 interrupted run) has shipped alongside it, and #57 (laser-vs-bad-drop counterplay) closes out the §C
 power-up batch. #83 (per-level star ratings) is the other half of what was originally #46, and #94
 puts that rating on screen at the moment it's earned, not just later in level select. A second
 holistic review on 2026-08-22 raised seven more (#95–#101), all now fixed. Another pass later the
 same day raised six more (#102–#107); #102 (a stale resume snapshot no longer rewinds a run past a
 level clear or a life lost), #103 (the anti-tunnel sweep now also catches boss parts), #104 (both
-hall-of-fame board validators now reject a null/boolean/string score instead of coercing it), and
-#105 (a corrupt resume snapshot's `levelIndex` is now range-checked, not just shape-checked) are the
-first four of those to ship. `todo.md` is back down to the remaining two, plus the feature ideas
-still there and the proposals in [feature-ideas.md](feature-ideas.md) not yet promoted to it.
+hall-of-fame board validators now reject a null/boolean/string score instead of coercing it), #105
+(a corrupt resume snapshot's `levelIndex` is now range-checked, not just shape-checked), and #106
+(the hall-of-fame highlight is cleared at the start of every new run) are the first five of those to
+ship. `todo.md` is back down to the remaining one, plus the feature ideas still there and the
+proposals in [feature-ideas.md](feature-ideas.md) not yet promoted to it.
+
+---
+
+## 2026-08-22 — A stale hall-of-fame highlight no longer survives into the next run (#106)
+
+### Fixed
+
+`submitHallOfFameName()` sets `state.hofHighlight` so `renderHallOfFame()` can pick out the row just
+submitted, but nothing ever cleared it — for the rest of the session, every later view of the board
+kept highlighting that old row as if it had just been entered, matching by value so a later run (or
+even a different player with the same name and score) could light up a stale or wrong row.
+
+`newGame()` now clears `state.hofHighlight` alongside the rest of the per-run state it resets — a
+fresh run has submitted nothing.
+
+### Tests
+
+One new case in `regressions.js`. `#106a` submits a qualifying name, starts a new game, and opens the
+board from the start screen, confirming no row still carries `hof-new` — confirmed failing first (the
+old row stayed highlighted).
 
 ---
 
