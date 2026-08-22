@@ -4388,5 +4388,81 @@ module.exports = {
           "closing the tab on the level-clear screen must not be worth a free life");
       },
     },
+    {
+      name: "#96a — an unusable /api/scores payload leaves the local board in charge instead of throwing",
+      async fn(a) {
+        const g = boot({
+          storage: { "blokrush-hall-of-fame": JSON.stringify([{ name: "Loc", score: 90 }]) },
+          api: () => ({ scores: [null, 42, "nope"], token: "tok-bad" }),
+        });
+        await g.settle();
+        a.eq(g.T.state.globalScores, null,
+          "a board with nothing renderable in it must read as 'no world board', not as an empty one");
+        g.el("btn-view-hof").click(1);
+        a.includes(g.el("hof-list").innerHTML, "Loc", "the local board should still render");
+        a.eq(g.el("hof-scope").textContent, "Scores de cet appareil — classement mondial indisponible");
+      },
+    },
+    {
+      name: "#96b — a poisoned response does not break the language toggle or the hall of fame",
+      async fn(a) {
+        const g = boot({
+          storage: { "blokrush-hall-of-fame": JSON.stringify([{ name: "Loc", score: 90 }]) },
+          api: () => ({ scores: [null], token: "tok-bad" }),
+        });
+        await g.settle();
+        g.T.applyLanguage("en");
+        a.eq(g.el("hof-scope").textContent, "This device's scores — world ranking unavailable");
+        g.el("btn-view-hof").click(1);
+        a.includes(g.el("hof-list").innerHTML, "Loc");
+      },
+    },
+    {
+      name: "#96c — a well-formed board is still accepted, and an empty one still means an empty world board",
+      async fn(a) {
+        const g = boot({
+          storage: { "blokrush-hall-of-fame": JSON.stringify([{ name: "Loc", score: 90 }]) },
+          api: () => ({ scores: [{ name: "Wld", score: 5000 }], token: "tok-ok" }),
+        });
+        await g.settle();
+        a.eq(JSON.stringify(g.T.state.globalScores), JSON.stringify([{ name: "Wld", score: 5000 }]));
+        a.eq(g.T.state.sessionToken, "tok-ok", "a clean board must still carry its session token");
+
+        const empty = boot({
+          storage: { "blokrush-hall-of-fame": JSON.stringify([{ name: "Loc", score: 90 }]) },
+          api: () => ({ scores: [], token: "tok-empty" }),
+        });
+        await empty.settle();
+        a.eq(JSON.stringify(empty.T.state.globalScores), "[]",
+          "an empty world board is a board, not a missing one");
+        empty.el("btn-view-hof").click(1);
+        a.eq(empty.el("hof-scope").textContent, "Classement mondial");
+        a.ok(!empty.el("hof-list").innerHTML.includes("Loc"),
+          "an empty world board must not fall back to the device's own scores");
+      },
+    },
+    {
+      name: "#96d — the same validation guards the submit response, whose board decides World Class",
+      async fn(a) {
+        const g = boot({
+          api: (url, init) => {
+            if (init && init.method === "POST") return { scores: [null, { name: "Zoe", score: 300 }] };
+            return { scores: [], token: "tok-sub" };
+          },
+        }).start();
+        await g.settle();
+        g.T.state.score = 300;
+        g.T.state.lives = 1;
+        g.loseBall();
+        g.el("nameentry-input").value = "Zoe";
+        g.el("btn-nameentry-submit").click(1);
+        await g.settle();
+        // The junk row is dropped; the run's own row survives, so the board is
+        // still renderable and "World Class" still reads correctly off it.
+        a.eq(JSON.stringify(g.T.state.globalScores), JSON.stringify([{ name: "Zoe", score: 300 }]));
+        a.includes(g.el("hof-list").innerHTML, "Zoe");
+        a.ok(g.T.state.achStats.onWorldBoard, "landing on the world board should still be detected");
+      },
+    },
   ],
 };

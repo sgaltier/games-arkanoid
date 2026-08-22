@@ -9,13 +9,14 @@ won't collide with one already in `done.md`.
 This document is a **menu, not a commitment** — items are implemented only when selected. Items are
 ordered by severity within each group. Each carries an effort estimate (S / M / L).
 
-**Status:** 6 open items — **#96–#101, what is left of the correctness and security/backend findings
-of the 2026-08-22 holistic review pass** (§J and §K); #95 from that pass has shipped. #47, #50, #56,
-and #63 — previously promoted here from
+**Status:** 5 open items — **#97–#101, what is left of the correctness and security/backend findings
+of the 2026-08-22 holistic review pass** (§J and §K); #95 and #96 from that pass have shipped. #47,
+#50, #56, and #63 — previously promoted here from
 [feature-ideas.md](feature-ideas.md) — have been moved back there as unshipped proposals; see that
 file for their write-ups. #46 from the old §A batch, #53, #54, #55, and #57 from the old §C batch,
 #82 (raised directly), #83 (raised directly), #84–#93 (the full 2026-08-21 review pass), #64
-(promoted from the old §D), #94 (raised directly), and #95 have shipped (see [done.md](done.md)).
+(promoted from the old §D), #94 (raised directly), #95, and #96 have shipped (see
+[done.md](done.md)).
 #62 (promoted from the old §D) was discarded outright rather than fixed.
 
 **When an item here gets fixed:** the established loop (see [testing.md](testing.md)) is regression
@@ -54,67 +55,18 @@ review findings go here too, keeping the shared numbering: the next free number 
 
 ## J. Correctness
 
-Raised by the 2026-08-22 holistic pass. All four are in [index.html](../html/index.html); none of
-them is caught by the current suite. #95, the fifth, has shipped — see [done.md](done.md) §J.
-
-### 96. A malformed `/api/scores` response poisons the board and breaks every later render (M)
-
-Every other boundary in the file where outside data arrives is shape-checked entry by entry:
-`loadHallOfFame()` ([2638-2650](../html/index.html#L2638-L2650)) filters on
-`typeof e.name === "string" && isFinite(e.score)`, `loadAchievements()`
-([2657-2669](../html/index.html#L2657-L2669)), `loadLevelProgress()`
-([2686-2704](../html/index.html#L2686-L2704)) and `loadResume()`
-([2793-2807](../html/index.html#L2793-L2807)) all do the same for their own shapes. The **network**
-boundary does not: `fetchGlobalBoard()` ([2861-2870](../html/index.html#L2861-L2870)) and
-`submitGlobalScore()` ([2872-2897](../html/index.html#L2872-L2897)) check only
-`Array.isArray(data.scores)` and assign the array straight into `state.globalScores`.
-
-Reproduced with the harness's `api` stub returning `{ scores: [null, { name: "ok", score: 1 }] }`:
-
-```
-TypeError: Cannot read properties of null (reading 'name')
-    at renderHallOfFame (index.html:5650)
-```
-
-The throw lands inside `fetchGlobalBoard()`'s `.then`, past `apiFetch()`'s `.catch`
-([2847-2855](../html/index.html#L2847-L2855)) — so it surfaces as an unhandled rejection rather than
-as the "no global board" signal every other network failure collapses to, and, worse,
-`state.globalScores` is left holding the bad array. From then on `activeBoard()`
-([2902-2904](../html/index.html#L2902-L2904)) hands it to everything downstream:
-`renderHallOfFame()` ([5641-5666](../html/index.html#L5641-L5666)) throws on every call, which takes
-`applyLanguage()` ([3764](../html/index.html#L3764)) with it — **the language toggle stops working** —
-and `rankIn()` ([5510-5515](../html/index.html#L5510-L5515)) throws at the end of the run.
-
-The server does validate what it stores, so this is defence in depth rather than a live exploit. It
-is worth having anyway for the same reason `loadHallOfFame()` guards `localStorage`: a response can
-be truncated by a proxy, served stale by a cache, or come from a future version of the endpoint, and
-the whole design of the fallback is that a bad world board degrades to the local one rather than
-breaking the game. Note the fallback is specifically *not* `[]` — `state.globalScores` must stay
-`null` when the response is unusable, or the game shows an empty world board instead of the device's
-own (see the note on `globalScores` at [2972-2975](../html/index.html#L2972-L2975)).
-
-**The fix is one shared validator, not two.** A `sanitizeBoard(list)` that filters to
-`{ name, score }` entries with the same predicate `loadHallOfFame()` already uses, returning `null`
-when nothing survives a non-empty input, called from both `fetchGlobalBoard()` and
-`submitGlobalScore()` — the latter matters too, since `landed` ([2886-2888](../html/index.html#L2886-L2888))
-reads the same array.
-
-#### Tests
-
-- `#96a` — a `scores` array containing a non-object entry leaves `state.globalScores` null and the
-  local board showing, rather than throwing.
-- `#96b` — after such a response, `applyLanguage()` and opening the hall of fame still work.
-- `#96c` — a well-formed response is still accepted unchanged, and an empty `scores: []` still means
-  "an empty world board" rather than "no world board".
+Raised by the 2026-08-22 holistic pass. All three are in [index.html](../html/index.html); none of
+them is caught by the current suite. #95 and #96, the other two, have shipped — see
+[done.md](done.md) §J.
 
 ### 97. Once the world board is full of higher scores, nothing is ever written to the local board again (M)
 
-`endGame()` ([5476-5497](../html/index.html#L5476-L5497)) decides whether to prompt for a name with
-`qualifiesForHallOfFame()` ([5522-5524](../html/index.html#L5522-L5524)), which ranks against
-`activeBoard()` ([5519-5521](../html/index.html#L5519-L5521)) — the **world** board whenever the API
+`endGame()` ([5499-5520](../html/index.html#L5499-L5520)) decides whether to prompt for a name with
+`qualifiesForHallOfFame()` ([5545-5547](../html/index.html#L5545-L5547)), which ranks against
+`activeBoard()` ([5542-5544](../html/index.html#L5542-L5544)) — the **world** board whenever the API
 answered. The name prompt is the only route to `insertHallOfFameEntry()`
-([5531-5539](../html/index.html#L5531-L5539)), via `submitHallOfFameName()`
-([5605-5634](../html/index.html#L5605-L5634)). So a score that does not crack the world top ten never
+([5554-5562](../html/index.html#L5554-L5562)), via `submitHallOfFameName()`
+([5628-5657](../html/index.html#L5628-L5657)). So a score that does not crack the world top ten never
 reaches the local board either — even when the local board is empty.
 
 Reproduced with a world board of ten scores near 1,000,000 and a 5,000-point run:
@@ -139,7 +91,7 @@ The smallest correct shape is for `endGame()` to prompt when the score qualifies
 (`rankIn(activeBoard(), s) !== -1 || rankIn(state.hallOfFame, s) !== -1`), leaving
 `submitHallOfFameName()` and `submitGlobalScore()` unchanged — both already handle "made one board
 but not the other" correctly, including `state.hofHighlight`'s fallback
-([5625](../html/index.html#L5625)) for exactly this case. Worth deciding deliberately how the
+([5648](../html/index.html#L5648)) for exactly this case. Worth deciding deliberately how the
 `nameentry` eyebrow reads when a run makes only the local board: "Nouveau record !" over a run that
 did not make the world top ten is defensible (it *is* a device record) but should be a choice, not an
 accident.
@@ -154,17 +106,17 @@ accident.
 
 ### 98. At the game's own top speed the ball passes through a brick without hitting it (M)
 
-The paddle got a swept check in #38 ([5265-5272](../html/index.html#L5265-L5272)) precisely because a
+The paddle got a swept check in #38 ([5288-5295](../html/index.html#L5288-L5295)) precisely because a
 fast ball can step further in one frame than the paddle is thick. Bricks never got one: the brick loop
-([5315-5329](../html/index.html#L5315-L5329)) tests `circleRectCollide()`
-([5183-5188](../html/index.html#L5183-L5188)) at the ball's **post-move** position only, so a brick
+([5338-5352](../html/index.html#L5338-L5352)) tests `circleRectCollide()`
+([5206-5211](../html/index.html#L5206-L5211)) at the ball's **post-move** position only, so a brick
 the ball stepped clean over is never considered.
 
 The numbers are the game's own, and the comment at [1140-1149](../html/index.html#L1140-L1149) already
 quotes the key one. `baseBallSpeed` 250 × `progression.speedCap` 2.8
 ([1537](../html/index.html#L1537)) × `effects.fast.mult` 1.4 ([1558](../html/index.html#L1558)) ×
 `difficulty.max` 1.6 ([1595](../html/index.html#L1595)) = 1568 px/s; `frame()` clamps `dt` at 0.033
-([6247](../html/index.html#L6247)), giving **51.7 px in one step** against a brick 20 px tall — 34 px
+([6270](../html/index.html#L6270)), giving **51.7 px in one step** against a brick 20 px tall — 34 px
 including the ball's own diameter. Reproduced directly: an isolated brick spanning y 66-86, a ball at
 y 100 heading up at that speed, one 33 ms frame:
 
@@ -187,8 +139,8 @@ brick's smaller dimension nothing can be missed, so a guard (`v > BRICK_H / 2`) 
 frame on today's single-position test and pays for the sweep only on the rare long step. Sampling the
 segment `prev → new` at sub-brick intervals and running the existing least-penetration pick at the
 first sample that overlaps reuses `circleRectCollide()`/`brickPenetration()`/`resolveBrickCollision()`
-unchanged, which matters — the fireball branch ([5320-5323](../html/index.html#L5320-L5323)) and the
-boss fallback ([5333-5343](../html/index.html#L5333-L5343)) both hang off this loop and must keep
+unchanged, which matters — the fireball branch ([5343-5346](../html/index.html#L5343-L5346)) and the
+boss fallback ([5356-5366](../html/index.html#L5356-L5366)) both hang off this loop and must keep
 behaving as they do.
 
 #### Tests
@@ -202,10 +154,10 @@ behaving as they do.
 
 ### 99. Aegis's beam renders its narrow effect on the wrong scale (S)
 
-`applyBossHazard("narrow5")` ([4924-4926](../html/index.html#L4924-L4926)) is the one place a width
+`applyBossHazard("narrow5")` ([4947-4949](../html/index.html#L4947-L4949)) is the one place a width
 effect is created with a duration other than its `CONFIG.effects` one — `remaining: 5` rather than
 `CONFIG.effects.narrow.duration` (8). `renderEffectBars()`
-([5855-5859](../html/index.html#L5855-L5859)) recovers which power-up is behind `state.widthEffect`
+([5878-5882](../html/index.html#L5878-L5882)) recovers which power-up is behind `state.widthEffect`
 from the sign of its `mult` and divides by the table's duration, so the bar opens at
 `5 / 8 = 62.5 %` and drains from there. The one hazard in the game with its own duration is the one
 the bar cannot describe.
@@ -213,7 +165,7 @@ the bar cannot describe.
 Cosmetic — nothing reads the bar — but it is the kind of drift the `mult`-sign trick was always going
 to produce, and the fix removes the trick rather than patching around it: give the effect object its
 own `duration` field at creation (`{ mult, remaining, duration }`) and have `updateEffectBar()`
-([5842-5852](../html/index.html#L5842-L5852)) read `effect.duration` instead of being handed one by
+([5865-5875](../html/index.html#L5865-L5875)) read `effect.duration` instead of being handed one by
 its caller. That also drops the `we &&`/`se &&` argument gymnastics at the two call sites, and means a
 future hazard with its own timing cannot reintroduce this.
 
@@ -238,7 +190,7 @@ the rest of the function is written to survive — escapes as an unhandled rejec
 gets a Worker error page instead of the `{ error: "unavailable" }, 503` every other failure returns.
 
 The score **is** already stored at that point, and `apiFetch()`
-([index.html 2847-2855](../html/index.html#L2847-L2855)) collapses a non-ok response to `null`, so the
+([index.html 2850-2858](../html/index.html#L2850-L2858)) collapses a non-ok response to `null`, so the
 player silently keeps the local board and never sees the world board they just landed on. Wrapping the
 read (or moving it inside the existing `try`, with the `UNIQUE` branch narrowed so a read failure
 cannot be misreported as `already_submitted`) makes the failure mode match the documented one:
@@ -259,7 +211,7 @@ than carry separately:
   is an XSS vector — `escapeHtml()` covers rendering — but the board is permanent and world-visible,
   which is the argument the profanity filter (#77/#89) was accepted on. A `U+200B-U+200F`/`U+202A-U+202E`
   strip and a code-point-aware truncation are a couple of lines, and must be mirrored in
-  `index.html`'s `submitHallOfFameName()` ([5607](../html/index.html#L5607)) the way the profanity
+  `index.html`'s `submitHallOfFameName()` ([5630](../html/index.html#L5630)) the way the profanity
   list already is (`#89c` guards that pairing).
 
 #### Tests
@@ -272,9 +224,9 @@ than carry separately:
 
 ### 101. The HUD advertises a best score a jumped run can never earn (S)
 
-`maybeSaveBest()` ([5413-5422](../html/index.html#L5413-L5422)) refuses to promote a jumped run's
+`maybeSaveBest()` ([5436-5445](../html/index.html#L5436-L5445)) refuses to promote a jumped run's
 score — that is #69's rule, and #72 added the end-screen disclosure that says so. But `updateHud()`
-([5800-5801](../html/index.html#L5800-L5801)) shows `Math.max(state.best, state.score)`
+([5823-5824](../html/index.html#L5823-L5824)) shows `Math.max(state.best, state.score)`
 unconditionally, so throughout a jumped run the "Meilleur" cell climbs with the live score and then
 silently snaps back to the real best when the run ends.
 

@@ -2635,6 +2635,9 @@ canvas {
   // against more than a throwing localStorage: corrupted or foreign JSON
   // under this key (a manual edit, another app sharing the origin) degrades
   // to an empty board rather than throwing.
+  // #96: the one predicate for "a row a board can render". Shared with
+  // sanitizeBoard() below, the other boundary a board arrives from.
+  function isScoreEntry(e) { return !!e && typeof e.name === "string" && isFinite(e.score); }
   function loadHallOfFame() {
     var raw = storageGet(HOF_KEY);
     if (!raw) return [];
@@ -2642,7 +2645,7 @@ canvas {
       var list = JSON.parse(raw);
       if (!Array.isArray(list)) return [];
       return list
-        .filter(function (e) { return e && typeof e.name === "string" && isFinite(e.score); })
+        .filter(isScoreEntry)
         .slice(0, CONFIG.hallOfFame.max);
     } catch (e) {
       return [];
@@ -2858,10 +2861,29 @@ canvas {
   // so this is called again at newGame() rather than only at boot, otherwise a
   // tab left open for an hour would submit against a stale, over-generous
   // elapsed time.
+  // #96: the network boundary's shape check, mirroring loadHallOfFame()'s on
+  // localStorage — a response can be truncated by a proxy, served stale by a
+  // cache, or come from a later version of the endpoint, and every one of
+  // those must degrade to the local board rather than poisoning
+  // state.globalScores for the rest of the session. Returns the surviving
+  // rows, projected down to the two fields the game renders, or null when the
+  // list is unusable. Null and [] are deliberately different answers: [] is a
+  // legitimately empty world board, null is "there is no world board", and
+  // only the latter hands the game back to activeBoard()'s local fallback.
+  function sanitizeBoard(list) {
+    if (!Array.isArray(list)) return null;
+    var clean = list
+      .filter(isScoreEntry)
+      .slice(0, CONFIG.hallOfFame.max)
+      .map(function (e) { return { name: e.name, score: e.score }; });
+    return clean.length || !list.length ? clean : null;
+  }
+
   function fetchGlobalBoard() {
     return apiFetch().then(function (data) {
-      if (data && Array.isArray(data.scores)) {
-        state.globalScores = data.scores;
+      var board = data ? sanitizeBoard(data.scores) : null;
+      if (board) {
+        state.globalScores = board;
         state.sessionToken = typeof data.token === "string" ? data.token : null;
       }
       renderHallOfFame();
@@ -2878,13 +2900,14 @@ canvas {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ token: token, name: name, score: score })
     }).then(function (data) {
-      if (data && Array.isArray(data.scores)) {
-        state.globalScores = data.scores;
+      var board = data ? sanitizeBoard(data.scores) : null;
+      if (board) {
+        state.globalScores = board;
         // #65: "World Class" is landing on the world board, not merely being
         // accepted by it — the server returns the top N, so a score the server
         // stored but that did not make the list is genuinely not on it.
-        var landed = data.scores.some(function (e) {
-          return e && e.name === name && e.score === score;
+        var landed = board.some(function (e) {
+          return e.name === name && e.score === score;
         });
         if (landed) {
           state.achStats.onWorldBoard = true;

@@ -67,14 +67,49 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #83 | ✅ Fixed — 2026-08-21 |
 | #94 | ✅ Fixed — 2026-08-21 |
 | #95 | ✅ Fixed — 2026-08-22 |
+| #96 | ✅ Fixed — 2026-08-22 |
 
-85 of 91 fixed. The full-codebase review raised on 2026-08-21 is done, ten for ten, #64 (resume an
+86 of 91 fixed. The full-codebase review raised on 2026-08-21 is done, ten for ten, #64 (resume an
 interrupted run) has shipped alongside it, and #57 (laser-vs-bad-drop counterplay) closes out the §C
 power-up batch. #83 (per-level star ratings) is the other half of what was originally #46, and #94
 puts that rating on screen at the moment it's earned, not just later in level select. A second
-holistic review on 2026-08-22 raised seven more (#95–#101); #95 is fixed and the remaining six are
-open in [todo.md](todo.md), alongside the feature ideas still there and the proposals in
+holistic review on 2026-08-22 raised seven more (#95–#101); #95 and #96 are fixed and the remaining
+five are open in [todo.md](todo.md), alongside the feature ideas still there and the proposals in
 [feature-ideas.md](feature-ideas.md) not yet promoted to it.
+
+---
+
+## 2026-08-22 — A malformed world board no longer breaks the hall of fame or the language toggle (#96)
+
+### Fixed
+
+Every place the game reads outside data checked its shape row by row — except the one place the data
+comes off the network. `/api/scores` was trusted as far as `Array.isArray(data.scores)`, and the
+array went straight into `state.globalScores`. A single unusable row in it — a response truncated by
+a proxy, served stale by a cache, or sent by a later version of the endpoint — threw inside the
+fetch's `.then`, past the catch that turns every other network problem into a quiet "no world board".
+The bad array stayed in `state.globalScores` for the rest of the session, so the hall of fame threw
+on every render afterwards, and since the language switch re-renders it, **the language toggle
+stopped working too**.
+
+The response now goes through one shared validator on its way in, used by both the board fetch and
+the score submission. It keeps the rows that can actually be rendered, projected down to the name and
+score the game uses, and caps them at the board's own maximum. A response with nothing usable in it
+reads as "there is no world board" and the device's own scores take over — which is the fallback the
+whole feature was designed around. An empty board is still an empty *world* board, not a missing one:
+those two have always had to stay distinct, or an empty world ranking would hide the player's local
+scores.
+
+The server validates what it stores, so this was defence in depth rather than a live bug — worth
+having for the same reason the `localStorage` board has been guarded since it shipped.
+
+### Tests
+
+Four new cases in `regressions.js` (`#96a`–`#96d`), covering the poisoned board, the language toggle
+and hall of fame surviving it, a clean board and an empty one still being accepted as before, and the
+submit response getting the same treatment (including "World Class" still being awarded correctly off
+it). Confirmed failing first, and not subtly: against the unfixed code the unhandled `TypeError` took
+the whole test runner down before it could report any of them.
 
 ---
 
