@@ -433,7 +433,7 @@ additions.
 > ([1024-1052](../html/index.html#L1024-L1052) markup, [224-285](../html/index.html#L224-L285) CSS). Slots
 > are toggled with the `hidden` attribute and resized via the fill's inline width rather than
 > created/destroyed — see `updateEffectBar()`/`renderEffectBars()`
-> [5690-5719](../html/index.html#L5690-L5719), called after every `applyPowerup()`
+> [5936-5967](../html/index.html#L5936-L5967), called after every `applyPowerup()`
 > [4491](../html/index.html#L4491) and once per frame [6180](../html/index.html#L6180). `state.widthEffect`/
 > `state.speedEffect` don't record which specific powerup produced them, only the resulting `mult`, so
 > the bar recovers it from the sign of `mult` — the same trick `drawPaddle()`
@@ -476,7 +476,7 @@ Endless mode past level 5 (a procedural generator) was the other option on the t
 > *(markup: [771](../html/index.html#L771) wraps both; the bars themselves were at
 > [1027-1052](../html/index.html#L1027-L1052))*. `.effect-bars` took a fixed `flex: 0 0 84px` column
 > instead of wrapping horizontally, so a slot's `hidden` toggle (still the same mechanism from
-> #31 — see `updateEffectBar()` [5690-5700](../html/index.html#L5690-L5700)) resized only that
+> #31 — see `updateEffectBar()` [5936-5946](../html/index.html#L5936-L5946)) resized only that
 > column's own height, never `.screen-wrap`'s; the canvas inside it didn't move. Below a
 > 560px-viewport breakpoint there wasn't width to spare for a side column without squeezing the
 > canvas uncomfortably small, so `.play-row` fell back to the pre-#37 stacked layout there — the
@@ -527,7 +527,7 @@ from play: the sidebar read as misplaced on a normal window, not as an intention
 
 **Not simply an oversight — #37 above put it there on purpose**, and the reason still held:
 `.effect-bar` slots toggle via the `hidden` attribute (`updateEffectBar()`,
-[5690](../html/index.html#L5690)), so with the bars stacked as an ordinary block above the canvas
+[5936](../html/index.html#L5936)), so with the bars stacked as an ordinary block above the canvas
 (the pre-#37 layout, which is what a phone still got), a slot appearing or disappearing mid-rally
 changed that block's height and shoved the canvas — and the player's aim with it — up or down. The
 side column fixed that by making `.effect-bars` a flex sibling of `.screen-wrap` rather than a block
@@ -554,9 +554,9 @@ small phones too, not just at desktop widths, for the same reason it fixes the s
 ### 78. ✅ FIXED — Effect bars label active power-ups with a single cryptic letter (S)
 > **Fixed 2026-08-17.** Went with the full-word option, not a hover-only tooltip: every bar now
 > shows the power-up's whole name directly. `updateEffectBar()`
-> ([5690-5700](../html/index.html#L5690-L5700)) takes a `name` argument instead of a single-letter
+> ([5936-5946](../html/index.html#L5936-L5946)) takes a `name` argument instead of a single-letter
 > `label`, writes it into the `*-label` element, and — since a name can be wider than the bar — also
-> sets it as the bar's `title` ([5699](../html/index.html#L5699)) as a fallback for whatever the CSS
+> sets it as the bar's `title` ([5945](../html/index.html#L5945)) as a fallback for whatever the CSS
 > ellipsis clips. `.effect-bar-label` ([270-286](../html/index.html#L270-L286)) picked up
 > `overflow: hidden`/`white-space: nowrap`/`text-overflow: ellipsis` to clip gracefully rather than
 > spill past the bar's rounded corners. `bar-sticky`/`bar-laser` ([1038](../html/index.html#L1038),
@@ -1314,7 +1314,7 @@ toggle and its persisted state cover the opt-out.
 > deriving every offset from the same accumulator is what stops the layers from sliding out of
 > register after a stall. Stars are drawn a layer at a time, so the field costs three fill-style
 > changes a frame rather than fifty, and the sky gradient is rebuilt only when the act changes
-> ([5727-5739](../html/index.html#L5727-L5739)) — `createLinearGradient` allocates.
+> ([5975-5984](../html/index.html#L5975-L5984)) — `createLinearGradient` allocates.
 >
 > **The field is generated, not rolled** ([1234-1246](../html/index.html#L1234-L1246)): a Lehmer
 > generator seeded from the level index. Two reasons, and both are load-bearing — a level that laid
@@ -3826,6 +3826,74 @@ hazard with its own timing cannot reintroduce this.
 - `#99a` — a width effect created with a non-table duration renders a full bar at the instant it is
   applied, and drains proportionally to its own duration.
 - `#99b` — widen/narrow/slow/fast still render with their `CONFIG.effects` durations and colours.
+
+## K. Findings from a holistic review on 2026-08-22 (security and backend)
+
+The security/backend half of §J's seven findings, over `functions/api/scores.js` and the HUD's
+reading of the #69 jump rule; see §J's intro for the full split.
+
+### 100. ✅ FIXED — `onRequestPost` returns the board outside the try that guards every other D1 call (S)
+
+> **Fixed 2026-08-22.** The final board read now has its own `try`/`catch`
+> ([328-332](../functions/api/scores.js#L328-L332)), separate from the one guarding the inserts above
+> ([279-322](../functions/api/scores.js#L279-L322)): a throw there returns the same
+> `{ error: "unavailable" }, 503` every other D1 failure does, and — because it is its own `catch`
+> rather than a shared one — can never be misreported as the UNIQUE-replay `already_submitted` case.
+>
+> `cleanName()` ([131-140](../functions/api/scores.js#L131-L140)) also now strips bidi overrides
+> (`U+202A`-`U+202E`) and zero-width characters (`U+200B`-`U+200F`) alongside the control characters
+> it already removed, and truncates by code point (via `Array.from`) rather than by UTF-16 unit, so a
+> trailing surrogate pair can no longer be cut in half. `index.html` gets the same treatment: a new
+> `cleanHofName()` ([5684-5689](../html/index.html#L5684-L5689)), backed by a small
+> `truncateByCodePoint()` helper ([5660-5677](../html/index.html#L5660-L5677)) since the game's ES5
+> style has no `Array.from`, replaces the bare `.trim().slice()` `submitHallOfFameName()`
+> ([5697](../html/index.html#L5697)) used to do inline — the same "restated in both places" pairing
+> `PROFANITY_LIST` already has (#89c).
+>
+> The third note — a rate-limited IP still costing a `DELETE` and a guarded `INSERT` per request —
+> was left as the write-up's other offered resolution: accepted, with a comment
+> ([283-289](../functions/api/scores.js#L283-L289)) explaining why a pre-check `SELECT` was not added
+> (it would cost the common allowed path a third statement to save the abuse path two, and could only
+> ever short-circuit rather than authorise, since the atomic guarded `INSERT` has to stay the real
+> gate either way).
+>
+> Two tests in `regressions.js`. `#100a` is a source-level regex assertion, in the same style as the
+> existing `scores.js` tests (the endpoint itself is not exercised by the suite) — confirmed failing
+> first against the unfixed bare `return`. `#100b` extracts and evaluates `cleanName()` directly out
+> of the `scores.js` source text, and drives the real `index.html` name-entry flow (the same way the
+> `#77`/`#76d` tests do) for the `index.html` half, checking a name with an embedded zero-width space
+> and bidi override, and a name padded to spill a trailing emoji across the truncation boundary; both
+> were confirmed failing first, and the two files' outputs are asserted equal to each other.
+
+The final `return json({ scores: await readBoard(env.DB) })` sat **after** the `try`/`catch` that
+wrapped every other database statement in the handler. A throw there — D1 unavailable between the
+insert and the read, which is exactly the window the rest of the function was written to survive —
+escaped as an unhandled rejection, so the client got a Worker error page instead of the
+`{ error: "unavailable" }, 503` every other failure returned.
+
+The score **was** already stored at that point, and `apiFetch()`
+([index.html 2850-2858](../html/index.html#L2850-L2858)) collapses a non-ok response to `null`, so the
+player silently kept the local board and never saw the world board they just landed on.
+
+Two smaller notes from the same read:
+
+- **A rate-limited IP still cost two D1 statements per request.** The opportunistic prune ran
+  unconditionally, and the guarded insert executed before returning 429. Tokens are free and unmetered
+  from `onRequestGet`, so a caller who is already over the limit could keep paying for writes
+  indefinitely. Accepted rather than fixed — see the comment cited above.
+- **`cleanName()` stripped C0/C1 controls but not bidi overrides or zero-width joiners**, and
+  `slice(0, NAME_MAX)` could split a surrogate pair. Neither was an XSS vector — `escapeHtml()` covers
+  rendering — but the board is permanent and world-visible, which is the argument the profanity filter
+  (#77/#89) was accepted on. Both are fixed above, mirrored in `index.html`'s `submitHallOfFameName()`
+  the way the profanity list already is (#89c).
+
+#### Tests
+
+- `#100a` — a `readBoard()` failure after a successful insert returns a 503 JSON body, not an
+  unhandled throw (a source-level assertion, in the same style as the existing `scores.js` tests —
+  the endpoint itself is not exercised by the suite).
+- `#100b` — a name containing a bidi override or a zero-width character is stored without it, in both
+  `scores.js` and `index.html`, and the two agree (extending `#89c`'s cross-file pairing).
 
 ---
 

@@ -121,12 +121,21 @@ async function readToken(secret, token) {
 }
 
 // Names are world-visible from this change onward, so the server enforces the
-// limits rather than trusting the input element's maxlength. Control characters
-// are stripped outright; the client escapes on render, but a name that can
-// never contain them is one less thing depending on that.
+// limits rather than trusting the input element's maxlength. Control
+// characters, bidi overrides, and zero-width characters (#100) are stripped
+// outright; the client escapes on render, but a name that can never contain
+// them is one less thing depending on that — and one that cannot be used to
+// visually reorder or hide characters on a permanent, world-visible board.
+// Must stay mirrored in index.html's submitHallOfFameName() (#100), the way
+// PROFANITY_LIST already is (#89c).
 function cleanName(raw) {
   if (typeof raw !== "string") return null;
-  const name = raw.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, NAME_MAX);
+  const stripped = raw
+    .replace(/[\u0000-\u001f\u007f\u200b-\u200f\u202a-\u202e]/g, "")
+    .trim();
+  // Array.from splits on code points rather than UTF-16 units, so slicing to
+  // NAME_MAX cannot cut a surrogate pair in half the way a plain .slice() could.
+  const name = Array.from(stripped).slice(0, NAME_MAX).join("");
   return name.length ? name : null;
 }
 
@@ -271,6 +280,13 @@ export async function onRequestPost({ request, env }) {
     // #91: opportunistic prune. submissions rows are disposable past the rate
     // window (schema.sql), so there is no cron or second entry point — every
     // request that already touches the table trims it back to real traffic.
+    // #100: an IP already over RATE_MAX_SUBMISSIONS still pays for this DELETE
+    // and the guarded INSERT below on every request, since GET hands out
+    // tokens for free and unmetered. Accepted rather than added a pre-check
+    // SELECT: that would reintroduce a second statement on the common
+    // (allowed) path to save one only on the abuse path, and any pre-check
+    // still has to defer to the same atomic INSERT...WHERE below for actual
+    // authorisation (#92), so it could only ever short-circuit, never decide.
     await env.DB
       .prepare("DELETE FROM submissions WHERE created_at < ?")
       .bind(now - RATE_WINDOW_MS)
@@ -305,5 +321,13 @@ export async function onRequestPost({ request, env }) {
     return json({ error: "unavailable" }, 503);
   }
 
-  return json({ scores: await readBoard(env.DB) });
+  // #100: the score is already stored at this point, so a read failure here
+  // must not surface as an unhandled throw (a Worker error page) or, worse,
+  // as "already_submitted" — it's a separate try, not folded into the one
+  // above, so a broken read can never be misreported as the UNIQUE-replay case.
+  try {
+    return json({ scores: await readBoard(env.DB) });
+  } catch (e) {
+    return json({ error: "unavailable" }, 503);
+  }
 }

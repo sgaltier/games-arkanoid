@@ -4650,5 +4650,83 @@ module.exports = {
           "array order (brick0 first) must not override which brick was really hit");
       },
     },
+    {
+      name: "#100a — a readBoard() failure after a successful insert returns a 503 JSON body, not an unhandled throw",
+      fn(a) {
+        const src = fs.readFileSync(
+          path.join(__dirname, "..", "..", "functions", "api", "scores.js"), "utf8"
+        );
+        // Before the fix, this was a bare `return json({ scores: await
+        // readBoard(env.DB) });` sitting after the try/catch that guards every
+        // other statement — a throw here escaped as an unhandled rejection.
+        // The fix's catch must also be its own block, not the insert catch
+        // above (which narrows a D1 UNIQUE violation to "already_submitted"),
+        // or a broken read could be misreported as a replay.
+        const m = src.match(
+          /try\s*\{\s*return json\(\{ scores: await readBoard\(env\.DB\) \}\);\s*\}\s*catch \(e\) \{([\s\S]*?)\}\s*\}\s*$/
+        );
+        a.ok(m, "the final board read must be wrapped in its own try/catch, or #100 regresses");
+        a.ok(
+          /error:\s*"unavailable"/.test(m[1]) && /503/.test(m[1]),
+          "a failed final read must return { error: \"unavailable\" } with a 503 status"
+        );
+        a.not(
+          /UNIQUE/.test(m[1]),
+          "the final read's catch must be its own block, not the insert catch that checks for a UNIQUE violation"
+        );
+      },
+    },
+    {
+      name: "#100b — a name containing a bidi override or a zero-width character is stored without it, in both scores.js and index.html",
+      fn(a) {
+        const src = fs.readFileSync(
+          path.join(__dirname, "..", "..", "functions", "api", "scores.js"), "utf8"
+        );
+        const nameMaxMatch = src.match(/const NAME_MAX = (\d+);/);
+        a.ok(nameMaxMatch, "sanity: NAME_MAX must exist in scores.js");
+        const nameMax = Number(nameMaxMatch[1]);
+
+        const fnMatch = src.match(/function cleanName\(raw\) \{[\s\S]*?\n\}/);
+        a.ok(fnMatch, "sanity: cleanName() must exist in scores.js");
+        const cleanName = new Function("NAME_MAX", fnMatch[0] + "\nreturn cleanName;")(nameMax);
+
+        // A zero-width space and a right-to-left override sitting between
+        // ordinary letters — both invisible on render, either could be used to
+        // hide or reorder characters on a permanent, world-visible board.
+        const withInvisibles = "A\u200BB\u202EC";
+        a.eq(cleanName(withInvisibles), "ABC", "scores.js must strip zero-width and bidi-override characters");
+
+        // 15 ASCII characters plus one astral emoji (a surrogate pair) is 16
+        // code points but 17 UTF-16 units — a plain .slice(0, 16) would cut
+        // the pair in half and leave a lone surrogate.
+        const withSurrogatePair = "A".repeat(nameMax - 1) + "\u{1F600}";
+        a.eq(
+          cleanName(withSurrogatePair), withSurrogatePair,
+          "scores.js must truncate by code point, not UTF-16 unit, or a trailing surrogate pair gets split"
+        );
+
+        const g1 = boot().start();
+        g1.T.state.score = 10;
+        g1.T.state.lives = 1;
+        g1.loseBall();
+        g1.el("nameentry-input").value = withInvisibles;
+        g1.el("btn-nameentry-submit").click(1);
+        a.eq(
+          g1.T.state.hallOfFame[0].name, cleanName(withInvisibles),
+          "index.html must strip the same characters scores.js does, and agree with it"
+        );
+
+        const g2 = boot().start();
+        g2.T.state.score = 10;
+        g2.T.state.lives = 1;
+        g2.loseBall();
+        g2.el("nameentry-input").value = withSurrogatePair;
+        g2.el("btn-nameentry-submit").click(1);
+        a.eq(
+          g2.T.state.hallOfFame[0].name, cleanName(withSurrogatePair),
+          "index.html must also truncate by code point, and agree with scores.js"
+        );
+      },
+    },
   ],
 };

@@ -5654,6 +5654,40 @@ canvas {
     return PROFANITY_RE.test(normalizeForProfanity(name));
   }
 
+  // #100: truncates to `max` code points rather than UTF-16 units, so a
+  // surrogate pair (an emoji, say) straddling the cut can't be split in half
+  // the way a plain .slice() could.
+  function truncateByCodePoint(s, max) {
+    var out = "";
+    var count = 0;
+    for (var i = 0; i < s.length && count < max; i++) {
+      var code = s.charCodeAt(i);
+      var ch = s[i];
+      if (code >= 0xd800 && code <= 0xdbff && i + 1 < s.length) {
+        var next = s.charCodeAt(i + 1);
+        if (next >= 0xdc00 && next <= 0xdfff) {
+          ch = s[i] + s[i + 1];
+          i++;
+        }
+      }
+      out += ch;
+      count++;
+    }
+    return out;
+  }
+
+  // #100: strips control characters, bidi overrides, and zero-width
+  // characters the same way functions/api/scores.js's cleanName() does (must
+  // stay mirrored, the way PROFANITY_LIST already is) — a name typed or
+  // pasted here must not be able to visually reorder or hide characters on a
+  // permanent, world-visible board.
+  function cleanHofName(raw) {
+    var stripped = (raw || "")
+      .replace(/[\u0000-\u001f\u007f\u200b-\u200f\u202a-\u202e]/g, "")
+      .trim();
+    return truncateByCodePoint(stripped, CONFIG.hallOfFame.nameMax);
+  }
+
   // Reads the name field and hands off to "halloffame" — but only once it
   // clears CONFIG.hallOfFame.nameMin (#76): a too-short (or empty) trim is
   // rejected rather than silently swapped for a placeholder, so the player
@@ -5662,7 +5696,7 @@ canvas {
   // accept what the other rejects.
   function submitHallOfFameName() {
     var input = document.getElementById("nameentry-input");
-    var name = (input.value || "").trim().slice(0, CONFIG.hallOfFame.nameMax);
+    var name = cleanHofName(input.value);
     if (name.length < CONFIG.hallOfFame.nameMin) {
       state.nameEntryError = true;
       renderDynamicText();

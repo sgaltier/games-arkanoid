@@ -71,14 +71,46 @@ The project is not versioned or tagged, so entries are grouped by the commit tha
 | #97 | ✅ Fixed — 2026-08-22 |
 | #98 | ✅ Fixed — 2026-08-22 |
 | #99 | ✅ Fixed — 2026-08-22 |
+| #100 | ✅ Fixed — 2026-08-22 |
 
-89 of 91 fixed. The full-codebase review raised on 2026-08-21 is done, ten for ten, #64 (resume an
+90 of 91 fixed. The full-codebase review raised on 2026-08-21 is done, ten for ten, #64 (resume an
 interrupted run) has shipped alongside it, and #57 (laser-vs-bad-drop counterplay) closes out the §C
 power-up batch. #83 (per-level star ratings) is the other half of what was originally #46, and #94
 puts that rating on screen at the moment it's earned, not just later in level select. A second
-holistic review on 2026-08-22 raised seven more (#95–#101); #95, #96, #97, #98, and #99 are fixed and
-the remaining two are open in [todo.md](todo.md), alongside the feature ideas still there and the
-proposals in [feature-ideas.md](feature-ideas.md) not yet promoted to it.
+holistic review on 2026-08-22 raised seven more (#95–#101); #95, #96, #97, #98, #99, and #100 are
+fixed and the remaining one is open in [todo.md](todo.md), alongside the feature ideas still there
+and the proposals in [feature-ideas.md](feature-ideas.md) not yet promoted to it.
+
+---
+
+## 2026-08-22 — `/api/scores`'s final board read can no longer escape as an unhandled throw (#100)
+
+### Fixed
+
+`onRequestPost`'s last line read the board back and returned it **after** the `try`/`catch` that
+guarded every other database statement in the handler, so a D1 hiccup between the insert and that
+read — the exact window the rest of the function exists to survive — escaped as an unhandled
+rejection instead of the `{ error: "unavailable" }, 503` every other failure returns. The score was
+already stored by then, so the player silently kept the local board and never saw the world board
+they'd just landed on.
+
+The read now has its own `try`/`catch`, separate from the inserts' — deliberately its own block
+rather than folded into the existing one, so a broken read can never come out as the UNIQUE-replay
+`already_submitted` case instead of `unavailable`.
+
+Two smaller notes raised by the same read were folded in: `cleanName()` now strips bidi overrides and
+zero-width characters alongside the control characters it already removed, and truncates by code
+point instead of by UTF-16 unit so a trailing surrogate pair can't be split in half — mirrored in
+`index.html`'s new `cleanHofName()` the way the profanity list already is. The third — a rate-limited
+IP still costing a `DELETE` and a guarded `INSERT` per request — is accepted rather than fixed, with a
+comment explaining why.
+
+### Tests
+
+`#100a` confirms the final read is wrapped in its own try/catch, not the insert's. `#100b` checks a
+name with an embedded zero-width space or bidi override comes out clean in both `scores.js` and
+`index.html`, and that a name spilling a trailing emoji across the truncation boundary keeps the
+emoji whole in both.
 
 ---
 
